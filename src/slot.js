@@ -65,3 +65,4 @@ Slot.prototype = {
 
 
 export default (node) => new Slot(node);
+export { Slot };

@@ -1,16 +1,17 @@
-import { effect } from '~/app';
+import { effect } from '@esportsplus/reactivity';
 
 
 let cache = new WeakMap();
 
 
-function ClassName(node) {
-    this.node = node;
-    this.value = null;
-}
+class ClassName {
+    constructor(node) {
+        this.node = node;
+        this.value = null;
+    }
 
-ClassName.prototype = {
-    update: function(value) {
+
+    update(value) {
         if (this.value == value) {
             return;
         }
@@ -45,7 +46,7 @@ ClassName.prototype = {
         this.node.className = [...list.values()].join(' ');
         this.value = value;
     }
-};
+}
 
 
 export default (node, value) => {

@@ -1,15 +1,16 @@
-import { effect } from '~/app';
+import { effect } from '@esportsplus/reactivity';
 import events from '@esportsplus/delegated-events';
 
 
-function Attribute(node, type) {
-    this.node = node;
-    this.type = type;
-    this.value = null;
-}
+class Attribute {
+    constructor(node, type) {
+        this.node = node;
+        this.type = type;
+        this.value = null;
+    }
 
-Attribute.prototype = {
-    update: function(value) {
+
+    update(value) {
         if (this.value == value) {
             return;
         }
@@ -26,7 +27,7 @@ Attribute.prototype = {
 
         this.value = value;
     }
-};
+}
 
 
 export default (node, type, value) => {

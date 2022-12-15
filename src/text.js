@@ -1,13 +1,14 @@
-import { effect } from '~/app';
+import { effect } from '@esportsplus/reactivity';
 
 
-function Text(node) {
-    this.node = node || document.createTextNode('');
-    this.value = null;
-}
+class Text {
+    constructor(node) {
+        this.node = node || document.createTextNode('');
+        this.value = null;
+    }
 
-Text.prototype = {
-    update: function(value) {
+
+    update(value) {
         if (['null', 'undefined'].includes(`${value}`)) {
             value = '';
         }
@@ -18,7 +19,7 @@ Text.prototype = {
 
         this.node.textContent = (this.value = value);
     }
-};
+}
 
 
 export default (node, value) => {
@@ -33,3 +34,4 @@ export default (node, value) => {
 
     return text;
 };
+export { Text };

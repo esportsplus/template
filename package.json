@@ -1,5 +1,9 @@
 {
     "author": "ICJR",
+    "dependencies": {
+        "@esportsplus/delegated-events": "^0.0.16",
+        "@esportsplus/reactivity": "^0.0.11"
+    },
     "description": "Template",
     "devDependencies": {
         "tsc-alias": "^1.8.1",

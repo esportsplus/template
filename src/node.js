@@ -1,4 +1,4 @@
-import { effect } from '~/app';
+import { effect } from '@esportsplus/reactivity';
 import renderable from './renderable';
 import slot from './slot';
 import text from './text';
