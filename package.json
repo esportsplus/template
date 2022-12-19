@@ -2,7 +2,7 @@
     "author": "ICJR",
     "dependencies": {
         "@esportsplus/delegated-events": "^0.0.16",
-        "@esportsplus/reactivity": "^0.0.12"
+        "@esportsplus/reactivity": "^0.0.13"
     },
     "description": "Template",
     "devDependencies": {
