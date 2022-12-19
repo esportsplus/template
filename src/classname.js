@@ -43,7 +43,7 @@ class ClassName {
             list.add(add[i]);
         }
 
-        this.node.className = [...list.values()].join(' ');
+        this.node.setAttribute('class', [...list.values()].join(' '));
         this.value = value;
     }
 }
@@ -56,7 +56,7 @@ export default (node, value) => {
         effect(async () => classname.update( await value(node) ));
     }
     else if (value = `${value}`.trim()) {
-        node.className = `${node.getAttribute('class')} ${value}`;
+        node.setAttribute('class', `${node.getAttribute('class')} ${value}`);
     }
 
     return classname;
