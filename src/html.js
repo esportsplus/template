@@ -38,9 +38,9 @@ export default (literals, ...values) => {
         };
 
     if (!Array.isArray(literals) && typeof literals === 'object' && literals !== null) {
-        for (let key in values) {
+        for (let key in literals) {
             data.content += ` ${key}='${marker.text}'`;
-            data.values.push(values[key]);
+            data.values.push(literals[key]);
         }
 
         return data;
