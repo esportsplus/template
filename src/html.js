@@ -1,4 +1,5 @@
 import marker from './marker';
+import template from './template';
 
 
 let cache = new WeakMap();
@@ -29,12 +30,21 @@ function flatten(data, value) {
 }
 
 
-const html = (literals, ...values) => {
+export default (literals, ...values) => {
     let data = {
             content: '',
             type: 'html',
             values: []
         };
+
+    if (!Array.isArray(literals) && typeof literals === 'object' && literals !== null) {
+        for (let key in values) {
+            data.content += ` ${key}='${marker.text}'`;
+            data.values.push(values[key]);
+        }
+
+        return data;
+    }
 
     if (template.i) {
         data.content = cache.get(literals) || '';
@@ -57,26 +67,3 @@ const html = (literals, ...values) => {
 
     return data;
 };
-
-html.prototype.attributes = (values) => {
-    let data = {
-            content: '',
-            type: 'html',
-            values: []
-        };
-
-    for (let key in values) {
-        data.content += ` ${key}='${marker.text}'`;
-        data.values.push(values[key]);
-    }
-
-    return data;
-};
-
-const template = {
-    i: 0
-};
-
-
-export default html;
-export { html, template };

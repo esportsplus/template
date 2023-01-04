@@ -1,7 +1,7 @@
-import { template } from './html';
 import { parse } from './parser';
 import dom from './dom';
 import slots from './slots';
+import template from './template';
 
 
 let cache = {},
