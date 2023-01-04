@@ -58,6 +58,21 @@ const html = (literals, ...values) => {
     return data;
 };
 
+html.prototype.attributes = (values) => {
+    let data = {
+            content: '',
+            type: 'html',
+            values: []
+        };
+
+    for (let key in values) {
+        data.content += ` ${key}='${marker.text}'`;
+        data.values.push(values[key]);
+    }
+
+    return data;
+};
+
 const template = {
     i: 0
 };
