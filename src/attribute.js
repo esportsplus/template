@@ -34,7 +34,10 @@ export default (node, type, value) => {
     let attribute = new Attribute(node, type);
 
     if (typeof value === 'function') {
-        if (type.startsWith('on')) {
+        if (!type) {
+            effect(async () => await value(node));
+        }
+        else if (type.startsWith('on')) {
             events.register(node, type.slice(2), value);
             node.removeAttribute(type);
         }
