@@ -34,12 +34,14 @@ export default (node, type, value) => {
     let attribute = new Attribute(node, type);
 
     if (typeof value === 'function') {
-        if (!type) {
-            value(node);
-            // effect(async () => await value(node));
-        }
-        else if (type.startsWith('on')) {
-            events.register(node, type.slice(2), value);
+        if (type.startsWith('on')) {
+            if (type === 'onrender') {
+                value(node);
+            }
+            else {
+                events.register(node, type.slice(2), value);
+            }
+
             node.removeAttribute(type);
         }
         else {
