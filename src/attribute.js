@@ -35,7 +35,8 @@ export default (node, type, value) => {
 
     if (typeof value === 'function') {
         if (!type) {
-            effect(async () => await value(node));
+            value(node);
+            // effect(async () => await value(node));
         }
         else if (type.startsWith('on')) {
             events.register(node, type.slice(2), value);
