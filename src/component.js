@@ -15,7 +15,9 @@ function Component(element, raf, task = raf) {
 }
 
 Component.prototype = {
-    render: function(obj) {
+    render: async function(obj) {
+        obj = await obj;
+
         this.task.add(() => {
             let offscreen = renderable(obj).render(slot(), obj.values);
 

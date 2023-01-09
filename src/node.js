@@ -35,7 +35,8 @@ const node = (s, value) => {
                 s.render( renderable(result).render(slot(), result.values) );
             }
             else if (typeof result === 'function') {
-                throw new Error('Node renderer handler received a nested function within an effect!');
+                node(s, result);
+                // throw new Error('Node renderer handler received a nested function within an effect!');
             }
             else if (!n) {
                 n = text(null, result);
