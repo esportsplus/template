@@ -1,0 +1,74 @@
+import { SLOT, TEMPLATE } from '~/constants';
+import { Template } from '~/types';
+import analyze from './analyze';
+
+
+function flatten(data: Template, value: unknown) {
+    if (value === false || value == null) {
+        return;
+    }
+
+    if (typeof value === 'number') {
+        data.content += value;
+    }
+    else if (typeof value === 'object') {
+        if (TEMPLATE in value) {
+            let { content, expressions } = value as Template;
+
+            if (content) {
+                data.content += content;
+            }
+
+            if (expressions) {
+                if (!data.expressions) {
+                    data.expressions = expressions;
+                }
+                else {
+                    for (let i = 0, n = expressions.length; i < n; i++) {
+                        data.expressions.push(expressions[i]);
+                    }
+                }
+            }
+        }
+        else if (Array.isArray(value)) {
+            for (let i = 0, n = value.length; i < n; i++) {
+                flatten(data, value[i]);
+            }
+        }
+        else {
+            throw new Error(`Template: objects must be templates or arrays ${JSON.stringify(value)}`);
+        }
+    }
+    // Attempting to shorten render process without sanitizing all values
+    // - If value is missing all characters required to perform XSS attacks, add to content ( indexOf faster than regex )
+    // - else value follows expression render steps [ analyze -> slot -> attribute | textContent ]
+    else if (typeof value === 'string' && value.indexOf('(') === -1 && value.indexOf('<') === -1 && value.indexOf('&') === -1) {
+        data.content += value;
+    }
+    else {
+        data.content += SLOT;
+
+        if (!data.expressions) {
+            data.expressions = [value];
+        }
+        else {
+            data.expressions.push(value);
+        }
+    }
+}
+
+
+export default (literals: TemplateStringsArray, ...values: unknown[]) => {
+    let data: Template = {
+            content: '',
+            [TEMPLATE]: true
+        };
+
+    for (let i = 0, n = literals.length; i < n; i++) {
+        data.content += literals[i] || '';
+        flatten(data, values[i]);
+    }
+
+    return data;
+};
+export { analyze };
