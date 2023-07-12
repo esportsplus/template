@@ -3,7 +3,7 @@ import slot, { Slot } from './slot';
 import render from './render';
 
 
-class Root {
+class Component {
     slot: Slot;
 
 
@@ -24,5 +24,5 @@ export default (element: HTMLElement) => {
 
     element.prepend( instance.slot );
 
-    return new Root(instance);
+    return new Component(instance);
 };

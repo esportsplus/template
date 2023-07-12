@@ -3,6 +3,9 @@ import { Template } from '~/types';
 import analyze from './analyze';
 
 
+let { isArray } = Array;
+
+
 function flatten(data: Template, value: unknown) {
     if (value === false || value == null) {
         return;
@@ -30,7 +33,7 @@ function flatten(data: Template, value: unknown) {
                 }
             }
         }
-        else if (Array.isArray(value)) {
+        else if (isArray(value)) {
             for (let i = 0, n = value.length; i < n; i++) {
                 flatten(data, value[i]);
             }
@@ -40,7 +43,7 @@ function flatten(data: Template, value: unknown) {
         }
     }
     // Attempting to shorten render process without sanitizing all values
-    // - If value is missing all characters required to perform XSS attacks, add to content ( indexOf faster than regex )
+    // - If value is missing the characters required to perform XSS attacks, add to content ( multiple indexOf faster than regex )
     // - else value follows expression render steps [ analyze -> slot -> attribute | textContent ]
     else if (typeof value === 'string' && value.indexOf('(') === -1 && value.indexOf('<') === -1 && value.indexOf('&') === -1) {
         data.content += value;
