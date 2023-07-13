@@ -5,3 +5,4 @@ import render from './render';
 
 export default { component, html, render };
 export { component, html, render };
+export { Template } from './types';
