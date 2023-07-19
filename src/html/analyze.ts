@@ -10,7 +10,7 @@ let skip = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 
 
 
 export default (data: Template) => {
-    if (!data.expressions?.length) {
+    if (data.expressions === undefined) {
         return data;
     }
 
@@ -49,8 +49,8 @@ export default (data: Template) => {
 
     // Node slots
     for (let match of html.matchAll(REGEX_SLOT_TAGS)) {
-        let parent = cache[level] || { children: 0, elements: 0, path: null },
-            start = (match?.index || 0) + match[0].length,
+        let parent = (cache[level] || { children: 0, elements: 0, path: null }),
+            start = (match.index === undefined ? 0 : match.index) + match[0].length,
             type = NODE_ELEMENT;
 
         if (match[0] === SLOT) {
@@ -68,7 +68,7 @@ export default (data: Template) => {
 
         if (type === NODE_SLOT) {
             data.slots.push({
-                path: parent.path?.concat(parent.children) || [parent.children],
+                path: (parent.path === null ? [parent.children] : parent.path.concat(parent.children)),
                 type: SLOT_TYPE_NODE
             });
         }
@@ -86,8 +86,8 @@ export default (data: Template) => {
                     }
 
                     data.slots.push({
-                        path: parent.path?.concat(parent.elements) || [parent.elements],
-                        type: slots.shift() || ''
+                        path: (parent.path === null ? [parent.children] : parent.path.concat(parent.children)),
+                        type: (slots.shift() || '')
                     });
                 }
             }
@@ -96,7 +96,7 @@ export default (data: Template) => {
                 children: 0,
                 elements: 0,
                 // Skip div wrapper on `html`
-                path: level > 0 ? (parent.path?.concat(parent.elements) || [parent.elements]) : null
+                path: level > 0 ? (parent.path === null ? [parent.children] : parent.path.concat(parent.children)) : null
             };
             parent.elements++;
         }

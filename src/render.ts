@@ -13,12 +13,12 @@ let level = 0;
 export default (data: Template, instance?: Slot) => {
     let nodes = template( analyze(data).content )();
 
-    if (data.slots) {
+    if (data.slots !== undefined) {
         let { expressions, slots } = data;
 
         level++;
 
-        for (let i = 0, n = (slots?.length || 0); i < n; i++) {
+        for (let i = 0, n = slots.length; i < n; i++) {
             let { path, type } = slots[i],
                 element = find(nodes, path, type === SLOT_TYPE_NODE);
 

@@ -12,15 +12,18 @@ class Slot {
 
 
     constructor(node?: Node | null) {
-        this.slot = node || factory()[0];
+        this.slot = node == null ? factory()[0] : node;
     }
 
 
-    after(index: number, nodes: Nodes) {
-        this.nodes.splice(index, 0, after(this.anchor(index), nodes));
-
-        return this;
+    get length() {
+        return this.nodes.length;
     }
+
+    set length(n: number) {
+        this.splice(n);
+    }
+
 
     anchor(index?: number) {
         let node: Node | undefined;
@@ -29,81 +32,46 @@ class Slot {
             index = this.nodes.length - 1;
         }
 
-        if (index in this.nodes) {
-            node = this.nodes[index][ (this.nodes[index].length || 0) - 1 ];
+        let nodes = this.nodes[index];
+
+        if (nodes !== undefined) {
+            node = nodes[ nodes.length - 1 ];
         }
 
-        return node || this.slot;
-    }
-
-    clear() {
-        for (let i = 0, n = this.nodes.length; i < n; i++) {
-            remove(this.nodes[i]);
-        }
-
-        this.nodes.length = 0;
-
-        return this;
+        return node === undefined ? this.slot : node;
     }
 
     pop() {
-        remove(this.nodes.pop() || []);
-
-        return this;
+        return remove( this.nodes.pop() );
     }
 
-    push(nodes: Nodes) {
-        this.nodes.push( after(this.anchor(), nodes) );
+    push(...groups: Nodes[]) {
+        groups = after.groups(this.anchor(), groups);
 
-        return this;
-    }
-
-    render(nodes: Nodes[]) {
-        this.clear();
-
-        for (let i = 0, n = nodes.length; i < n; i++) {
-            after(this.anchor(), nodes[i])
+        for (let i = 0, n = groups.length; i < n; i++) {
+            this.nodes.push(groups[i]);
         }
 
-        this.nodes = nodes;
-
-        return this;
+        return this.nodes.length;
     }
 
-    set(index: number, nodes: Nodes) {
-        let removing = this.nodes.splice(index, 1, after(this.anchor(index), nodes));
-
-        for (let i = 0, n = removing.length; i < n; i++) {
-            remove( removing[i] );
-        }
-
-        return this;
+    render(groups: Nodes[]) {
+        this.splice(0);
+        this.nodes = after.groups(this.slot, groups);
     }
 
     shift() {
-        remove(this.nodes.shift() || []);
-
-        return this;
+        return remove( this.nodes.shift() );
     }
 
-    splice(index: number, total = 1) {
-        if (!this.nodes.length) {
-            return;
-        }
-
-        let removing = this.nodes.splice(index, total);
-
-        for (let i = 0, n = removing.length; i < n; i++) {
-            remove(removing[i]);
-        }
-
-        return this;
+    splice(start: number, deleteCount: number = this.nodes.length, ...groups: Nodes[]) {
+        return remove.groups(
+            this.nodes.splice(start, deleteCount, ...after.groups(this.anchor(start), groups))
+        );
     }
 
-    unshift(nodes: Nodes) {
-        this.nodes.unshift( after(this.slot, nodes) );
-
-        return this;
+    unshift(...groups: Nodes[]) {
+        return this.nodes.unshift( ...after.groups(this.slot, groups) );
     }
 }
 

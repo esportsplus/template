@@ -1,7 +1,8 @@
 import { Node, Nodes } from './types';
 
 
-// TODO: Cache eviction?
+// TODO:
+// - Better cache eviction?
 let templates: Record<string, () => Nodes> = {};
 
 
@@ -11,6 +12,18 @@ const after = (anchor: Node, nodes: Nodes) => {
     }
 
     return nodes;
+};
+
+after.groups = (anchor: Node, groups: Nodes[]) => {
+    for (let i = 0, n = groups.length; i < n; i++) {
+        let nodes = groups[i];
+
+        for (let j = 0, o = nodes.length; j < o; j++) {
+            anchor.after(anchor = nodes[j]);
+        }
+    }
+
+    return groups;
 };
 
 const find = (nodes: Nodes, path: number[], slot: boolean) => {
@@ -25,7 +38,7 @@ const find = (nodes: Nodes, path: number[], slot: boolean) => {
         node = (node as Element).firstElementChild;
 
         for (let start = 0, end = path[i]; start < end; start++) {
-            if (!node) {
+            if (node === null) {
                 return undefined;
             }
 
@@ -33,11 +46,11 @@ const find = (nodes: Nodes, path: number[], slot: boolean) => {
         }
     }
 
-    if (node && slot) {
+    if (node !== null && slot) {
         node = node.firstChild;
 
         for (let i = 0, n = path[path.length - 1]; i < n; i++) {
-            if (!node) {
+            if (node === null) {
                 return undefined;
             }
 
@@ -45,15 +58,31 @@ const find = (nodes: Nodes, path: number[], slot: boolean) => {
         }
     }
 
-    return node || undefined;
+    return node === null ? undefined : node;
 };
 
-const remove = (nodes: Nodes) => {
+const remove = (nodes?: Nodes) => {
+    if (nodes === undefined) {
+        return undefined;
+    }
+
     for (let i = 0, n = nodes.length; i < n; i++) {
         nodes[i]?.remove();
     }
 
     return nodes;
+};
+
+remove.groups = (groups: Nodes[]) => {
+    for (let i = 0, n = groups.length; i < n; i++) {
+        let nodes = groups[i];
+
+        for (let j = 0, o = nodes.length; j < o; j++) {
+            nodes[j]?.remove();
+        }
+    }
+
+    return groups;
 };
 
 const template = (html: string) => {
