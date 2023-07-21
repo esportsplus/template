@@ -46,7 +46,7 @@ class Node {
 
             if (this.node === null) {
                 this.node = document.createTextNode(this.value);
-                this.slot.push([this.node]);
+                this.slot.splice(0, this.slot.length, [this.node]);
             }
             else if (this.value !== value) {
                 this.node.textContent = this.value;
