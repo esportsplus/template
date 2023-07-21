@@ -56,8 +56,7 @@ class Slot {
     }
 
     render(groups: Nodes[]) {
-        this.splice(0);
-        this.nodes = after.groups(this.slot, groups);
+        this.splice(0, this.nodes.length, ...after.groups(this.slot, groups));
     }
 
     shift() {
