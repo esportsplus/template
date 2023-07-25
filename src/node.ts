@@ -48,7 +48,7 @@ class Node {
                 this.node = document.createTextNode(this.value);
                 this.slot.render([ [this.node] ]);
             }
-            else if (this.value !== value) {
+            else {
                 this.node.textContent = this.value;
             }
         }
