@@ -19,7 +19,7 @@ function normalize(cache: List, type: string, value: string) {
     for (let i = 0, n = values.length; i < n; i ++) {
         let key = values[i];
 
-        if (!key || key === SLOT || key === 'false' || key === 'null' || key === 'undefined') {
+        if (!key || key === SLOT || key === 'false' || key === 'null' || key === 'undefined' || key === 'NaN') {
             continue;
         }
 

@@ -43,7 +43,7 @@ class Node {
         else {
             value = value?.toString() || '';
 
-            if (value === 'false' || value === 'null' || value === 'undefined') {
+            if (value === 'false' || value === 'null' || value === 'undefined' || value === 'NaN') {
                 value = '';
             }
 
