@@ -137,8 +137,8 @@ export default (node: HTMLElement, type: string, value: unknown) => {
             node.removeAttribute(type);
         }
         else {
-            effect(async () => {
-                instance.update( await value() );
+            effect(() => {
+                instance.update( value() );
             });
         }
     }

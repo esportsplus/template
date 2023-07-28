@@ -1,4 +1,4 @@
-import { effect } from '@esportsplus/reactivity';
+import { effect, root } from '@esportsplus/reactivity';
 import { TEMPLATE } from './constants';
 import { Slot } from './slot';
 import { Node as N, Template } from './types';
@@ -19,8 +19,17 @@ class Node {
 
     update(value: unknown) {
         if (typeof value === 'function') {
-            effect(async () => {
-                this.update( await (value as Function)() );
+            effect(() => {
+                let v = (value as Function)();
+
+                if (typeof v === 'function') {
+                    root(() => {
+                        this.update(v());
+                    });
+                }
+                else {
+                    this.update(v);
+                }
             });
         }
         else if (typeof value === 'object' && value !== null && TEMPLATE in value) {
