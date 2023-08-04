@@ -2,10 +2,10 @@
     "author": "ICJR",
     "dependencies": {
         "@esportsplus/delegated-events": "^0.0.19",
-        "@esportsplus/reactivity": "^0.1.9"
+        "@esportsplus/reactivity": "^0.1.13"
     },
     "devDependencies": {
-        "@esportsplus/typescript": "^0.0.11"
+        "@esportsplus/typescript": "^0.0.13"
     },
     "main": "./build/index.js",
     "name": "@esportsplus/template",
