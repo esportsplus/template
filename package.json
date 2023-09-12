@@ -6,7 +6,7 @@
         "@esportsplus/tasks": "^0.1.2"
     },
     "devDependencies": {
-        "@esportsplus/typescript": "^0.0.15"
+        "@esportsplus/typescript": "^0.0.16"
     },
     "main": "./build/index.js",
     "name": "@esportsplus/template",
