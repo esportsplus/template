@@ -42,10 +42,10 @@ function flatten(data: Template, value: unknown) {
             throw new Error(`Template: objects must be templates or arrays ${JSON.stringify(value)}`);
         }
     }
-    // Attempting to shorten render process without sanitizing all values
-    // - If value is missing the characters required to perform XSS attacks, add to content ( multiple indexOf faster than regex )
-    // - else value follows expression render steps [ analyze -> slot -> attribute | textContent ]
-    else if (typeof value === 'string' && value.indexOf('(') === -1 && value.indexOf('<') === -1 && value.indexOf('&') === -1) {
+    // Attempting to shorten render process without sanitizing values
+    // - If value is missing characters required to perform XSS attacks, add to content ( multiple indexOf faster than regex )
+    // - else follow expression render steps [ analyze -> slot -> attribute | textContent ]
+    else if (typeof value === 'string' && value.indexOf('<') === -1 && value.indexOf('(') === -1 && value.indexOf('&') === -1) {
         data.content += value;
     }
     else {
@@ -63,8 +63,8 @@ function flatten(data: Template, value: unknown) {
 
 export default (literals: TemplateStringsArray, ...values: unknown[]) => {
     let data: Template = {
-            content: '',
-            [TEMPLATE]: true
+            [TEMPLATE]: true,
+            content: ''
         };
 
     for (let i = 0, n = literals.length; i < n; i++) {

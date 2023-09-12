@@ -9,9 +9,9 @@ const NODE_SLOT = 3;
 const NODE_VOID = 4;
 
 
-const REGEX_SLOT_ATTRIBUTES = /([\w-]+)=["']([^'"]*<!--slot-->[^'"]*)["']/g;
+const REGEX_SLOT_ATTRIBUTES = /([\w-:]+)=["']([^"']*<!--slot-->[^"']*)["']/g;
 
-const REGEX_SLOT_TAGS = /<([\/!])?([\w-]+)((?:\s*[\w-]+=["'][^\/]*?["'])*[^\/>]*)(\/)?>/g;
+const REGEX_SLOT_TAGS = /<([\/!])?([\w-]+)((?:\s*[\w-:]+=["'][^>]*?["'])*[^\/>]*)(\/)?>/g;
 
 const REGEX_TAG_WHITESPACE = />\s*</g;
 

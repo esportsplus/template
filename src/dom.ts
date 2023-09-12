@@ -3,24 +3,18 @@ import { Node, Nodes } from './types';
 
 // TODO:
 // - Better cache eviction?
-let templates: Record<string, () => Nodes> = {};
+let cache: HTMLTemplateElement[] = [],
+    templates: Record<string, () => Nodes> = {};
 
 
 const after = (anchor: Node, nodes: Nodes) => {
-    for (let i = 0, n = nodes.length; i < n; i++) {
-        anchor.after(anchor = nodes[i]);
-    }
-
+    anchor.after(...nodes);
     return nodes;
 };
 
 after.groups = (anchor: Node, groups: Nodes[]) => {
     for (let i = 0, n = groups.length; i < n; i++) {
-        let nodes = groups[i];
-
-        for (let j = 0, o = nodes.length; j < o; j++) {
-            anchor.after(anchor = nodes[j]);
-        }
+        anchor.after(...groups[i]);
     }
 
     return groups;
@@ -29,7 +23,7 @@ after.groups = (anchor: Node, groups: Nodes[]) => {
 const find = (nodes: Nodes, path: number[], slot: boolean) => {
     let node: Node | null = nodes[path[0]];
 
-    if (!node) {
+    if (node == null) {
         return undefined;
     }
 
@@ -38,7 +32,7 @@ const find = (nodes: Nodes, path: number[], slot: boolean) => {
         node = (node as Element).firstElementChild;
 
         for (let start = 0, end = path[i]; start < end; start++) {
-            if (node === null) {
+            if (node == null) {
                 return undefined;
             }
 
@@ -46,11 +40,11 @@ const find = (nodes: Nodes, path: number[], slot: boolean) => {
         }
     }
 
-    if (node !== null && slot) {
+    if (node != null && path.length > 1 && slot) {
         node = node.firstChild;
 
         for (let i = 0, n = path[path.length - 1]; i < n; i++) {
-            if (node === null) {
+            if (node == null) {
                 return undefined;
             }
 
@@ -58,7 +52,7 @@ const find = (nodes: Nodes, path: number[], slot: boolean) => {
         }
     }
 
-    return node === null ? undefined : node;
+    return node == null ? undefined : node;
 };
 
 const remove = (nodes?: Nodes) => {
@@ -90,17 +84,23 @@ const template = (html: string) => {
         return templates[html];
     }
 
-    let template = document.createElement('template');
+    let template = (cache.pop() || document.createElement('template')) as HTMLTemplateElement;
 
     template.innerHTML = html;
 
-    return templates[html] = () => {
+    function host() {
         let clone = template.content.cloneNode(true);
 
         clone.normalize();
 
         return Array.from( clone.childNodes );
     };
+
+    host.recycle = () => {
+        cache.push(template);
+    };
+
+    return templates[html] = host;
 };
 
 template.clear = () => {

@@ -1,6 +1,7 @@
 import events, { Listener } from '@esportsplus/delegated-events';
-import { effect } from '@esportsplus/reactivity';
+import { effect, DIRTY } from '@esportsplus/reactivity';
 import { SLOT } from './constants';
+import queue from './queue';
 
 
 type List = Record<PropertyKey, null>;
@@ -137,8 +138,17 @@ export default (node: HTMLElement, type: string, value: unknown) => {
             node.removeAttribute(type);
         }
         else {
-            effect(() => {
-                instance.update( value() );
+            effect((node) => {
+                let v = value();
+
+                if (node.state === DIRTY) {
+                    instance.update(v);
+                }
+                else {
+                    queue.add(() => {
+                        instance.update(v);
+                    });
+                }
             });
         }
     }

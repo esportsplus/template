@@ -11,7 +11,8 @@ let level = 0;
 
 
 export default (data: Template, instance?: Slot) => {
-    let nodes = template( analyze(data).content )();
+    let nodes = template( analyze(data).content )(),
+        s = (instance || slot()).render([ nodes ]);
 
     if (data.slots !== undefined) {
         let { expressions, slots } = data;
@@ -41,5 +42,5 @@ export default (data: Template, instance?: Slot) => {
         }
     }
 
-    return (instance || slot()).render([ nodes ]);
+    return s;
 };

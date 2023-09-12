@@ -14,13 +14,10 @@ export default (data: Template) => {
         return data;
     }
 
-    if (data.content.indexOf('  ') !== -1) {
-        data.content = data.content
-            .replace(REGEX_WHITESPACE, ' ')
-            .replace(REGEX_TAG_WHITESPACE, '><')
-            .trim();
-    }
-
+    data.content = data.content
+        .replace(REGEX_WHITESPACE, ' ')
+        .replace(REGEX_TAG_WHITESPACE, '><')
+        .trim();
     data.slots = [];
 
     let cache: {
@@ -86,7 +83,7 @@ export default (data: Template) => {
                     }
 
                     data.slots.push({
-                        path: (parent.path === null ? [parent.children] : parent.path.concat(parent.children)),
+                        path: (parent.path === null ? [parent.elements] : parent.path.concat(parent.elements)),
                         type: (slots.shift() || '')
                     });
                 }
@@ -96,7 +93,7 @@ export default (data: Template) => {
                 children: 0,
                 elements: 0,
                 // Skip div wrapper on `html`
-                path: level > 0 ? (parent.path === null ? [parent.children] : parent.path.concat(parent.children)) : null
+                path: level > 0 ? (parent.path === null ? [parent.elements] : parent.path.concat(parent.elements)) : null
             };
             parent.elements++;
         }
@@ -113,7 +110,7 @@ export default (data: Template) => {
             let end = html.indexOf('<', start);
 
             if (end !== -1 && html.slice(start, end) !== ' ') {
-                cache[level || 0].children++;
+                cache[Math.max(level, 0)].children++;
             }
         }
 

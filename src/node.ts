@@ -1,9 +1,10 @@
-import { effect, root } from '@esportsplus/reactivity';
+import { effect, root, DIRTY } from '@esportsplus/reactivity';
 import { TEMPLATE } from './constants';
 import { Slot } from './slot';
 import { Node as N, Template } from './types';
 import render from './render';
 import slot from './slot';
+import queue from './queue';
 
 
 class Node {
@@ -19,7 +20,7 @@ class Node {
 
     update(value: unknown) {
         if (typeof value === 'function') {
-            effect(() => {
+            effect((node) => {
                 let v = (value as Function)();
 
                 if (typeof v === 'function') {
@@ -28,7 +29,14 @@ class Node {
                     });
                 }
                 else {
-                    this.update(v);
+                    if (node.state === DIRTY) {
+                        this.update(v);
+                    }
+                    else {
+                        queue.add(() => {
+                            this.update(v);
+                        });
+                    }
                 }
             });
         }
