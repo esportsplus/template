@@ -1,8 +1,3 @@
-import component from './component';
-import html from './html';
-import render from './render';
-
-
-export default { component, html, render };
-export { component, html, render };
+export { default as html } from './html';
+export { default as render } from './render';
 export { Template } from './types';

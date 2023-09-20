@@ -1,46 +1,43 @@
-import { SLOT_TYPE_NODE } from './constants';
-import { find, template } from './dom';
-import { analyze } from './html';
+import { SLOT, SLOT_TYPE } from './constants';
+import { attribute, node } from './reactive';
 import { Template } from './types';
+import { find } from './dom';
+import renderable from './renderable';
 import slot, { Slot } from './slot';
-import attribute from './attribute';
-import node from './node';
 
 
-let level = 0;
+export default (input: Template, parent: HTMLElement | Slot) => {
+    let s;
 
-
-export default (data: Template, instance?: Slot) => {
-    let nodes = template( analyze(data).content )(),
-        s = (instance || slot()).render([ nodes ]);
-
-    if (data.slots !== undefined) {
-        let { expressions, slots } = data;
-
-        level++;
-
-        for (let i = 0, n = slots.length; i < n; i++) {
-            let { path, type } = slots[i],
-                element = find(nodes, path, type === SLOT_TYPE_NODE);
-
-            if (element === undefined) {
-                throw new Error(`Template: invalid node path`);
-            }
-
-            if (type === SLOT_TYPE_NODE) {
-                node(element, expressions?.[i]);
-            }
-            else {
-                attribute(element as HTMLElement, type, expressions?.[i]);
-            }
-        }
-
-        level--;
-
-        if (level < 1) {
-            template.clear();
-        }
+    if (SLOT in parent) {
+        s = parent;
+    }
+    else {
+        s = slot();
+        parent.prepend( s.anchor() );
     }
 
-    return s;
+    let { expressions, nodes, slots } = renderable(input);
+
+    s.render(nodes);
+
+    if (!expressions) {
+        return;
+    }
+
+    for (let i = 0, n = slots.length; i < n; i++) {
+        let { path, type } = slots[i],
+            host = find(nodes, path, type === SLOT_TYPE);
+
+        if (host == null) {
+            throw new Error('Template: invalid node path');
+        }
+
+        if (type === SLOT_TYPE) {
+            node(host, expressions[i]);
+        }
+        else {
+            attribute(host as HTMLElement, type, expressions[i]);
+        }
+    }
 };

@@ -1,23 +1,28 @@
-import { SLOT } from './constants';
-import { after, remove, template } from './dom';
-import { Node, Nodes } from './types';
+import { SLOT, SLOT_HTML } from './constants';
+import { after, remove } from './dom';
+import html from './html';
+import renderable from './renderable';
 
 
-let factory = template(SLOT);
+let template = renderable( html.const(SLOT_HTML) );
 
 
 class Slot {
-    nodes: Nodes[] = [];
-    slot: Node;
+    #anchor: ChildNode;
+    #nodes: (ChildNode[])[] = [];
 
 
-    constructor(node?: Node | null) {
-        this.slot = node == null ? factory()[0] : node;
+    constructor(anchor?: ChildNode) {
+        this.#anchor = anchor || template.nodes[0];
     }
 
 
+    get [SLOT]() {
+        return true;
+    }
+
     get length() {
-        return this.nodes.length;
+        return this.#nodes.length;
     }
 
     set length(n: number) {
@@ -25,55 +30,56 @@ class Slot {
     }
 
 
-    anchor(index?: number) {
-        let node: Node | undefined;
+    anchor(index: number = this.#nodes.length - 1) {
+        let node,
+            nodes = this.#nodes[index];
 
-        if (index === undefined) {
-            index = this.nodes.length - 1;
-        }
-
-        let nodes = this.nodes[index];
-
-        if (nodes !== undefined) {
+        if (nodes) {
             node = nodes[ nodes.length - 1 ];
         }
 
-        return node === undefined ? this.slot : node;
+        return node || this.#anchor;
     }
 
     pop() {
-        return remove( this.nodes.pop() );
+        return remove( this.#nodes.pop() );
     }
 
-    push(...groups: Nodes[]) {
-        groups = after.groups(this.anchor(), groups);
+    push(...groups: (ChildNode[])[]) {
+        after.groups(this.anchor(), groups);
 
         for (let i = 0, n = groups.length; i < n; i++) {
-            this.nodes.push(groups[i]);
+            this.#nodes.push(groups[i]);
         }
 
-        return this.nodes.length;
+        return this.#nodes.length;
     }
 
-    render(groups: Nodes[]) {
-        this.splice(0, this.nodes.length, ...after.groups(this.slot, groups));
+    render(groups: ChildNode[]) {
+        remove.groups(this.#nodes);
+
+        this.#nodes = [
+            after(this.#anchor, groups)
+        ];
     }
 
     shift() {
-        return remove( this.nodes.shift() );
+        return remove( this.#nodes.shift() );
     }
 
-    splice(start: number, deleteCount: number = this.nodes.length, ...groups: Nodes[]) {
+    splice(start: number, deleteCount: number = this.#nodes.length, ...groups: (ChildNode[])[]) {
         return remove.groups(
-            this.nodes.splice(start, deleteCount, ...after.groups(this.anchor(start), groups))
+            this.#nodes.splice(start, deleteCount, ...after.groups(this.anchor(start), groups))
         );
     }
 
-    unshift(...groups: Nodes[]) {
-        return this.nodes.unshift( ...after.groups(this.slot, groups) );
+    unshift(...groups: (ChildNode[])[]) {
+        return this.#nodes.unshift( ...after.groups(this.#anchor, groups) );
     }
 }
 
 
-export default (...args: ConstructorParameters<typeof Slot>) => new Slot(...args);
+export default (anchor?: ChildNode) => {
+    return new Slot(anchor);
+};
 export { Slot };
