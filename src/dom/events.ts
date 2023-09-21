@@ -1,66 +1,42 @@
-import { EVENT_BAIL, EVENT_DELEGATED, EVENT_LISTENER } from '~/constants';
-import { EventAction, EventListener } from '~/types';
+import { EventListener } from '~/types';
 
 
-let bail: EventAction = {
-        type: EVENT_BAIL,
-        value: null
-    },
-    cache: Record<string, WeakMap<HTMLElement, EventAction>> = {},
-    capture = 'blur focus scroll',
-    host = document.body,
-    passive = 'mousedown mouseenter mouseleave mousemove mouseout mouseover mouseup mousewheel scroll touchcancel touchend touchleave touchmove touchstart wheel';
+let capture = 'blur focus scroll',
+    keys: Record<string, symbol> = {},
+    passive = 'mousedown mouseenter mouseleave mousemove mouseout mouseover mouseup mousewheel scroll touchcancel touchend touchleave touchmove touchstart wheel',
+    root = window.document;
 
 
-const register = (element: HTMLElement, event: string, listener: EventListener): void => {
-    let attribute = `data-${event}`,
-        config = cache[event];
+const register = (element: HTMLElement & Record<PropertyKey, any>, event: string, listener: EventListener): void => {
+    let key = keys[event];
 
-    if (!config) {
-        config = cache[event] = new WeakMap();
+    if (key === undefined) {
+        key = keys[event] = Symbol();
 
-        host.addEventListener(event, (e) => {
-            let element: HTMLElement | null = e.target as HTMLElement,
-                target = element;
+        root.addEventListener(event, (e) => {
+            let element = e.target as (HTMLElement & Record<PropertyKey, any>) | null;
 
-            e.stopPropagation();
+            Object.defineProperty(e, 'currentTarget', {
+                configurable: true,
+                get() {
+                    return element || root;
+                }
+            });
 
             while (element) {
-                if (element.hasAttribute(attribute)) {
-                    let data = config.get(element) || bail;
-
-                    if (data.type === EVENT_DELEGATED) {
-                        data = config.get(data.value as HTMLElement) || bail;
-                    }
-
-                    if (data.type === EVENT_LISTENER) {
-                        if (element.isSameNode(target) === false) {
-                            config.set(target, {
-                                type: EVENT_DELEGATED,
-                                value: element
-                            });
-                        }
-
-                        (data.value as EventListener).call(element, e);
-                    }
-
-                    return;
+                if (key in element) {
+                    return element[key].call(element, e);
                 }
 
                 element = element.parentElement;
             }
-
-            config.set(target, bail);
         }, {
             capture: capture.indexOf(event) !== -1,
             passive: passive.indexOf(event) !== -1
         });
     }
 
-    config.set(element, {
-        type: EVENT_LISTENER,
-        value: listener
-    });
+    element[key] = listener;
 };
 
 

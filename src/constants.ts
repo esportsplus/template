@@ -1,10 +1,3 @@
-const EVENT_BAIL = 0;
-
-const EVENT_DELEGATED = 1;
-
-const EVENT_LISTENER = 2;
-
-
 const NODE_CLOSING = 0;
 
 const NODE_COMMENT = 1;
@@ -31,9 +24,6 @@ const TEMPLATE = Symbol();
 
 
 export {
-    EVENT_BAIL,
-    EVENT_DELEGATED,
-    EVENT_LISTENER,
     NODE_CLOSING,
     NODE_COMMENT,
     NODE_ELEMENT,

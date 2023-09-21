@@ -1,10 +1,5 @@
-import { EVENT_BAIL, EVENT_DELEGATED, EVENT_LISTENER, TEMPLATE } from './constants';
+import { TEMPLATE } from './constants';
 
-
-type EventAction = {
-    type: typeof EVENT_BAIL | typeof EVENT_DELEGATED | typeof EVENT_LISTENER;
-    value: HTMLElement | EventListener | null;
-};
 
 type EventListener = (e: Event) => void;
 
@@ -19,4 +14,4 @@ type Template = {
 };
 
 
-export { EventAction, EventListener, Template };
+export { EventListener, Template };

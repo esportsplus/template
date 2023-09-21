@@ -11,10 +11,7 @@ export default (data: Template) => {
     }
 
     let attribute = 0,
-        attributes: {
-            pattern: string,
-            type: string
-        }[] = [],
+        attributes: string[] = [],
         html = data.html,
         level = 0,
         levels = [
@@ -26,7 +23,7 @@ export default (data: Template) => {
             }
         ],
         remaining = data.expressions.length,
-        slots = [];
+        slots: NonNullable<Template['slots']> = data.slots = [];
 
     for (let match of html.matchAll(SLOT_ATTRIBUTE_REGEX)) {
         let name = match[1],
@@ -37,14 +34,15 @@ export default (data: Template) => {
                 break;
             }
 
-            attributes.push({
-                pattern: match[0],
-                type: name
-            });
+            attributes.push(name);
+        }
+
+        if (name.slice(0, 2) === 'on') {
+            data.html = data.html.replace(match[0], '');
         }
     }
 
-    for (let match of data.html.matchAll(SLOT_NODE_REGEX)) {
+    for (let match of html.matchAll(SLOT_NODE_REGEX)) {
         let parent = levels[level],
             start = (match.index || 0) + match[0].length,
             type = NODE_ELEMENT;
@@ -79,13 +77,10 @@ export default (data: Template) => {
                         break;
                     }
 
-                    let { pattern, type } = attributes[attribute++];
-
-                    slots.push({ path, type });
-
-                    if (type.slice(0, 2) === 'on') {
-                        html = html.replace(pattern, type === 'onrender' ? '' : `data-${type.slice(2)}=''`);
-                    }
+                    slots.push({
+                        path,
+                        type: attributes[attribute++]
+                    });
                 }
             }
 
@@ -109,7 +104,7 @@ export default (data: Template) => {
         }
 
         // Trailing text node
-        if (data.html[start] && data.html[start] !== '<') {
+        if (html[start] && html[start] !== '<') {
             levels[level].children++;
         }
 
@@ -117,9 +112,6 @@ export default (data: Template) => {
             break;
         }
     }
-
-    data.html = html;
-    data.slots = slots;
 
     return data;
 };
