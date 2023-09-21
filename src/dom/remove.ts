@@ -1,6 +1,6 @@
 const remove = (nodes?: ChildNode[]) => {
     if (nodes === undefined || nodes.length === 0) {
-        return undefined;
+        return nodes;
     }
 
     for (let i = 0, n = nodes.length; i < n; i++) {

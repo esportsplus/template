@@ -1,7 +1,6 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/delegated-events": "^0.0.19",
         "@esportsplus/reactivity": "^0.1.18",
         "@esportsplus/tasks": "^0.1.2"
     },

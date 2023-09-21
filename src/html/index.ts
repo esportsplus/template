@@ -1,6 +1,6 @@
-import { SLOT_HTML, TEMPLATE } from './constants';
-import { Template } from './types';
-import { isArray } from './utilities';
+import { SLOT_HTML, TEMPLATE } from '~/constants';
+import { Template } from '~/types';
+import { isArray } from '~/utilities';
 
 
 function flatten(template: Template, value: any) {
@@ -97,3 +97,4 @@ html.slot = (values: unknown[]) => {
 
 
 export default html;
+export { default as analyze } from './analyze';

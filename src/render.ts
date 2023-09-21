@@ -2,8 +2,8 @@ import { SLOT, SLOT_TYPE } from './constants';
 import { attribute, node } from './reactive';
 import { Template } from './types';
 import { find } from './dom';
-import renderable from './renderable';
 import slot, { Slot } from './slot';
+import renderable from './renderable';
 
 
 export default (input: Template, parent: HTMLElement | Slot) => {
@@ -21,7 +21,7 @@ export default (input: Template, parent: HTMLElement | Slot) => {
 
     s.render(nodes);
 
-    if (!expressions) {
+    if (expressions === undefined || slots === undefined) {
         return;
     }
 

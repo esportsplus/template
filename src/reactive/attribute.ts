@@ -1,5 +1,6 @@
-import events, { Listener } from '@esportsplus/delegated-events';
 import { effect, DIRTY } from '@esportsplus/reactivity';
+import { events } from '~/dom';
+import { EventListener } from '~/types';
 import { toString } from '~/utilities';
 import raf from '~/raf';
 
@@ -136,13 +137,11 @@ export default (element: HTMLElement, type: string, value: unknown) => {
 
     if (typeof value === 'function') {
         if (type.slice(0, 2) === 'on') {
-            element.removeAttribute(type);
-
             if (type === 'onrender') {
                 value(element);
             }
             else {
-                events.register(element, type.slice(2), value as Listener);
+                events.register(element, type.slice(2), value as EventListener);
             }
         }
         else {
