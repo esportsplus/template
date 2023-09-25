@@ -9,7 +9,7 @@ import render from '~/render';
 import slot from '~/slot';
 
 
-class ReactiveNode {
+class Child {
     node: Text | null = null;
     slot: Slot;
     value: string | null = null;
@@ -94,6 +94,6 @@ class ReactiveNode {
 
 
 export default (node: ChildNode, value: unknown) => {
-    return new ReactiveNode( slot(node) ).update(value);
+    new Child( slot(node) ).update(value);
 };
-export { ReactiveNode };
+export { Child };

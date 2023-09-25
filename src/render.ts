@@ -1,8 +1,9 @@
 import { SLOT, SLOT_TYPE } from './constants';
-import { attribute, node } from './reactive';
 import { Template } from './types';
 import { find } from './dom';
 import slot, { Slot } from './slot';
+import attribute from './attribute';
+import child from './child';
 import renderable from './renderable';
 
 
@@ -34,7 +35,7 @@ export default (input: Template, parent: HTMLElement | Slot) => {
         }
 
         if (type === SLOT_TYPE) {
-            node(host, expressions[i]);
+            child(host, expressions[i]);
         }
         else {
             attribute(host as HTMLElement, type, expressions[i]);
