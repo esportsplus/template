@@ -69,7 +69,11 @@ const html = (html: TemplateStringsArray | string[], ...values: unknown[]): Temp
     return template;
 };
 
-html.const = (html: string): Template => {
+html.const = (html: string | (number | string)[]): Template => {
+    if (typeof html !== 'string') {
+        html = html.join('');
+    }
+
     return {
         [TEMPLATE]: true,
         html

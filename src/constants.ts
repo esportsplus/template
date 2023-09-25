@@ -1,3 +1,6 @@
+const CLASS = Symbol();
+
+
 const NODE_CLOSING = 0;
 
 const NODE_COMMENT = 1;
@@ -20,10 +23,14 @@ const SLOT_NODE_REGEX = /<([\/!])?([\w-]+)((?:\s*[\w-:]+=["'](?:[^"']*)["'])*[^\
 const SLOT_TYPE = 'node';
 
 
+const STYLE = Symbol();
+
+
 const TEMPLATE = Symbol();
 
 
 export {
+    CLASS,
     NODE_CLOSING,
     NODE_COMMENT,
     NODE_ELEMENT,
@@ -34,5 +41,6 @@ export {
     SLOT_HTML,
     SLOT_NODE_REGEX,
     SLOT_TYPE,
+    STYLE,
     TEMPLATE
 };

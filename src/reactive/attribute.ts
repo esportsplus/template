@@ -1,4 +1,5 @@
 import { effect, DIRTY } from '@esportsplus/reactivity';
+import { CLASS, SLOT_HTML, STYLE } from '~/constants';
 import { events } from '~/dom';
 import { EventListener } from '~/types';
 import { toString } from '~/utilities';
@@ -8,10 +9,6 @@ import raf from '~/raf';
 let delimiters = {
         class: ' ',
         style: ';'
-    },
-    wm = {
-        class: new WeakMap<HTMLElement, ReactiveAttributeList['cache']>(),
-        style: new WeakMap<HTMLElement, ReactiveAttributeList['cache']>()
     };
 
 
@@ -79,15 +76,27 @@ class ReactiveAttribute {
 class ReactiveAttributeList {
     cache: Record<PropertyKey, null>;
     element: HTMLElement;
-    type: keyof typeof wm;
+    type: 'class' | 'style';
     value: ReactiveAttributeList['cache'] = {};
 
 
-    constructor(element: HTMLElement, type: ReactiveAttributeList['type']) {
-        let cache = wm[type].get(element);
+    constructor(element: HTMLElement & Record<PropertyKey, any>, type: ReactiveAttributeList['type']) {
+        let cache = element[type === 'class' ? CLASS : STYLE];
 
         if (!cache) {
-            wm[type].set(element, cache = normalize(type, element.getAttribute(type)));
+            let value = element.getAttribute(type);
+
+            if (value && value.indexOf(SLOT_HTML) !== -1) {
+                for (let i = 0, n = value.length; i < n; i += SLOT_HTML.length) {
+                    if ((i = value.indexOf(SLOT_HTML, i)) === -1) {
+                        break;
+                    }
+
+                    value = value.replace(SLOT_HTML, '');
+                }
+            }
+
+            cache = normalize(type, value);
         }
 
         this.cache = cache;
@@ -128,8 +137,8 @@ class ReactiveAttributeList {
 export default (element: HTMLElement, type: string, value: unknown) => {
     let instance: ReactiveAttribute | ReactiveAttributeList;
 
-    if (type in wm) {
-        instance = new ReactiveAttributeList(element, type as keyof typeof wm);
+    if (type === 'class' || type === 'style') {
+        instance = new ReactiveAttributeList(element, type);
     }
     else {
         instance = new ReactiveAttribute(element, type);
