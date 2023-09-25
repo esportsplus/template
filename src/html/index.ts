@@ -69,14 +69,10 @@ const html = (html: TemplateStringsArray | string[], ...values: unknown[]): Temp
     return template;
 };
 
-html.const = (html: string | (number | string)[]): Template => {
-    if (typeof html !== 'string') {
-        html = html.join('');
-    }
-
+html.const = (...html: (number | string)[]): Template => {
     return {
         [TEMPLATE]: true,
-        html
+        html: html.join('')
     };
 }
 
