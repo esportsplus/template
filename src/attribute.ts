@@ -82,69 +82,77 @@ class Attributes {
         }
     }
 
-    list(key: string, type: keyof typeof delimiters, value: unknown) {
-        let a = this.previous[key] || undefined,
-            b = normalize(type, value?.toString()),
-            cache = this.cache[type] || (this.cache[type] = read(this.element, type));
+    list(id: string, type: keyof typeof delimiters, value: unknown) {
+        let cache = this.cache[type] || (this.cache[type] = read(this.element, type)),
+            fresh = normalize(type, value?.toString()),
+            stale = this.previous[id];
 
-        for (let add in b) {
-            if (add in cache) {
+        for (let key in fresh) {
+            if (key in cache) {
                 continue;
             }
 
-            cache[add] = null;
+            cache[key] = null;
         }
 
-        if (typeof a === 'object') {
-            for (let remove in a) {
-                if (remove in b) {
+        if (typeof stale === 'object') {
+            for (let key in stale) {
+                if (key in fresh) {
                     continue;
                 }
 
-                delete cache[remove];
+                delete cache[key];
             }
         }
 
-        this.element.setAttribute(type, Object.keys(cache).join(delimiters[type]));
+        let delimiter = delimiters[type],
+            list = '';
 
-        if (key !== 'e0') {
-            this.previous[key] = b;
+        for (let value in cache) {
+            list += value + delimiter;
+        }
+
+        this.element.setAttribute(type, list);
+
+        if (id !== 'e') {
+            this.previous[id] = fresh;
         }
     }
 }
 
 
 export default (element: HTMLElement & Record<PropertyKey, any>, type: string, value: unknown) => {
-    let instance = element[ATTRIBUTES] || (element[ATTRIBUTES] = new Attributes(element)),
-        method = type in delimiters ? 'list' : 'attribute';
-
-    if (typeof value === 'function') {
-        if (type.slice(0, 2) === 'on') {
-            if (type === 'onrender') {
-                value(element);
-            }
-            else {
-                events.register(element, type.slice(2), value as EventListener);
-            }
+    if (typeof value === 'function' && type.slice(0, 2) === 'on') {
+        if (type === 'onrender') {
+            value(element);
         }
         else {
-            let key = 'e' + (++i);
+            events.register(element, type.slice(2), value as EventListener);
+        }
+    }
+    else {
+        let id = 'e',
+            instance = element[ATTRIBUTES] || (element[ATTRIBUTES] = new Attributes(element)),
+            method = type in delimiters ? 'list' : 'attribute';
+
+        if (typeof value === 'function') {
+            id += i++;
 
             effect((self) => {
                 let v = value();
 
                 if (self.state === DIRTY) {
-                    instance[method](key, type, v);
+                    instance[method](id, type, v);
                 }
                 else {
                     raf.add(() => {
-                        instance[method](key, type, v);
+                        instance[method](id, type, v);
                     });
                 }
             });
         }
-    }
-    else {
-        instance[method]('e0', type, value);
+        else {
+            instance[method](id, type, value);
+        }
     }
 };
