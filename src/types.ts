@@ -1,7 +1,9 @@
 import { TEMPLATE } from './constants';
 
 
-type EventListener = (e: Event) => void;
+type Element = HTMLElement & Record<PropertyKey, unknown>;
+
+type Elements = Element[];
 
 type Template = {
     [TEMPLATE]: boolean;
@@ -14,4 +16,4 @@ type Template = {
 };
 
 
-export { EventListener, Template };
+export { Element, Elements, Template };

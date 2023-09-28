@@ -8,25 +8,19 @@ function flatten(template: Template, value: any) {
         return;
     }
 
-    let bucket = template.expressions;
-
     if (typeof value === 'object') {
         if (TEMPLATE in value) {
-            let { expressions, html } = value;
+            if (value.expressions) {
+                let bucket = (template.expressions || (template.expressions = [])),
+                    expressions = value.expressions;
 
-            if (expressions) {
-                if (bucket === undefined) {
-                    template.expressions = expressions;
-                }
-                else {
-                    for (let i = 0, n = expressions.length; i < n; i++) {
-                        bucket.push(expressions[i]);
-                    }
+                for (let i = 0, n = expressions.length; i < n; i++) {
+                    bucket.push(expressions[i]);
                 }
             }
 
-            if (html) {
-                template.html += html;
+            if (value.html) {
+                template.html += value.html;
             }
 
             return;
@@ -39,30 +33,16 @@ function flatten(template: Template, value: any) {
         }
     }
 
-    if (bucket === undefined) {
-        template.expressions = [value];
-    }
-    else {
-        bucket.push(value);
-    }
-
+    (template.expressions || (template.expressions = [])).push(value);
     template.html += SLOT_HTML;
 }
 
 
-const html = (html: TemplateStringsArray | string[], ...values: unknown[]): Template => {
-    let template = {
-            [TEMPLATE]: true,
-            html: ''
-        };
+const html = (literals: TemplateStringsArray | string[], ...values: unknown[]): Template => {
+    let template = html.const('');
 
-    for (let i = 0, n = Math.max(html.length, values.length); i < n; i++) {
-        let literal = html[i];
-
-        if (literal) {
-            template.html += literal;
-        }
-
+    for (let i = 0, n = literals.length; i < n; i++) {
+        template.html += literals[i];
         flatten(template, values[i]);
     }
 
@@ -74,17 +54,10 @@ html.const = (html: string): Template => {
         [TEMPLATE]: true,
         html
     };
-}
+};
 
 html.slot = (values: unknown[]) => {
-    let template = {
-            [TEMPLATE]: true,
-            html: ''
-        };
-
-    if (values.length === 0) {
-        return template;
-    }
+    let template = html.const('');
 
     for (let i = 0, n = values.length; i < n; i++) {
         flatten(template, values[i]);
@@ -97,4 +70,4 @@ html.slot = (values: unknown[]) => {
 
 
 export default html;
-export { default as analyze } from './analyze';
+export { default as parse } from './parse';

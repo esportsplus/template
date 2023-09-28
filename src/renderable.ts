@@ -1,19 +1,25 @@
-import { Template } from '~/types';
-import { template } from '~/dom';
-import { analyze } from './html';
+import { Elements, Template } from '~/types';
+import { parse } from './html';
 
 
 export default (data: Template) => {
-    let { html, slots } = analyze(data),
-        nodes = template(html);
+    let { expressions, html, slots } = parse(data),
+        template = document.createElement('template');
+
+    if (html) {
+        template.innerHTML = html;
+        template.normalize();
+    }
 
     return {
         get nodes() {
-            return nodes();
+            return Array.from(
+                template.content.cloneNode(true).childNodes
+            ) as Elements;
         },
 
+        expressions,
         html,
-        expressions: data.expressions,
         slots
     };
 };

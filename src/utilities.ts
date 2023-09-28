@@ -1,6 +1,9 @@
 import { SLOT_HTML } from './constants';
 
 
+let skip = new Set<unknown>([SLOT_HTML, 'false', 'NaN', 'null', 'undefined']);
+
+
 const isArray = Array.isArray;
 
 const toString = (value: unknown) => {
@@ -10,7 +13,7 @@ const toString = (value: unknown) => {
 
     value = value?.toString() || '';
 
-    if (value === '' || value === SLOT_HTML || value === 'false' || value === 'NaN' || value === 'null' || value === 'undefined') {
+    if (skip.has(value)) {
         return '';
     }
 

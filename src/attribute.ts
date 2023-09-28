@@ -1,7 +1,6 @@
 import { effect, DIRTY } from '@esportsplus/reactivity';
-import { ATTRIBUTES, SLOT_HTML } from '~/constants';
-import { events } from '~/dom';
-import { EventListener } from '~/types';
+import { ATTRIBUTES } from '~/constants';
+import { Element } from './types';
 import { toString } from '~/utilities';
 import raf from '~/raf';
 
@@ -9,28 +8,11 @@ import raf from '~/raf';
 let delimiters = {
         class: ' ',
         style: ';'
-    },
-    i = 0;
+    };
 
-
-function read(element: HTMLElement, key: keyof typeof delimiters) {
-    let value = element.getAttribute(key);
-
-    if (value && value.indexOf(SLOT_HTML) !== -1) {
-        for (let i = 0, n = value.length; i < n; i += SLOT_HTML.length) {
-            if ((i = value.indexOf(SLOT_HTML, i)) === -1) {
-                break;
-            }
-
-            value = value.replace(SLOT_HTML, '');
-        }
-    }
-
-    return normalize(key, value);
-}
 
 function normalize(key: keyof typeof delimiters, value: unknown) {
-    let cache: Attributes['cache'][keyof Attributes['cache']] = {};
+    let cache: Record<PropertyKey, null> = {};
 
     if (typeof value === 'string') {
         let values = value.split(delimiters[key]);
@@ -51,8 +33,8 @@ function normalize(key: keyof typeof delimiters, value: unknown) {
 
 
 class Attributes {
-    cache: Record<PropertyKey, Record<PropertyKey, null>> = {};
-    element: HTMLElement;
+    element: Element;
+    i = 0;
     previous: Record<PropertyKey, unknown> = {};
 
 
@@ -61,7 +43,7 @@ class Attributes {
     }
 
 
-    attribute(_: unknown, type: string, value: unknown) {
+    attribute(_: string, type: string, value: unknown) {
         value = toString(value);
 
         if (this.previous[type] === value) {
@@ -83,9 +65,17 @@ class Attributes {
     }
 
     list(id: string, type: keyof typeof delimiters, value: unknown) {
-        let cache = this.cache[type] || (this.cache[type] = read(this.element, type)),
+        if (type in this.previous === false) {
+            this.previous[type] = normalize(type, this.element.getAttribute(type));
+        }
+
+        let cache = this.previous[type] as Record<PropertyKey, null>,
             fresh = normalize(type, value?.toString()),
             stale = this.previous[id];
+
+        if (id !== '') {
+            this.previous[id] = fresh;
+        }
 
         for (let key in fresh) {
             if (key in cache) {
@@ -112,47 +102,44 @@ class Attributes {
             list += value + delimiter;
         }
 
-        this.element.setAttribute(type, list);
-
-        if (id !== 'e') {
-            this.previous[id] = fresh;
+        if (type === 'class') {
+            this.element.className = list;
+        }
+        else {
+            // @ts-ignore
+            this.element.style = list;
         }
     }
 }
 
 
-export default (element: HTMLElement & Record<PropertyKey, any>, type: string, value: unknown) => {
-    if (typeof value === 'function' && type.slice(0, 2) === 'on') {
-        if (type === 'onrender') {
-            value(element);
-        }
-        else {
-            events.register(element, type.slice(2), value as EventListener);
-        }
+export default (element: Element, type: string, value: unknown) => {
+    let instance = element[ATTRIBUTES] || (element[ATTRIBUTES] = new Attributes(element)),
+        method = type in delimiters ? 'list' : 'attribute';
+
+    if (typeof value === 'function') {
+        // @ts-ignore
+        let id = 'e' + instance.i++;
+
+        effect((self) => {
+            let v = value();
+
+            if (self.state === DIRTY) {
+                // @ts-ignore
+                instance[method](id, type, v);
+            }
+            else {
+                raf.add(() => {
+                    // @ts-ignore
+                    instance[method](id, type, v);
+                });
+            }
+        });
     }
     else {
-        let id = 'e',
-            instance = element[ATTRIBUTES] || (element[ATTRIBUTES] = new Attributes(element)),
-            method = type in delimiters ? 'list' : 'attribute';
-
-        if (typeof value === 'function') {
-            id += i++;
-
-            effect((self) => {
-                let v = value();
-
-                if (self.state === DIRTY) {
-                    instance[method](id, type, v);
-                }
-                else {
-                    raf.add(() => {
-                        instance[method](id, type, v);
-                    });
-                }
-            });
-        }
-        else {
-            instance[method](id, type, value);
-        }
+        // @ts-ignore
+        instance[method]('', type, value);
     }
+
+    return instance;
 };
