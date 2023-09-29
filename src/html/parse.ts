@@ -18,6 +18,7 @@ export default (data: Template) => {
                 path: [] as number[]
             }
         ],
+        remaining = data.expressions.length,
         slots: Template['slots'] = data.slots = [];
 
     for (let match of html.matchAll(SLOT_ATTRIBUTE_REGEX)) {
@@ -51,6 +52,7 @@ export default (data: Template) => {
                         break;
                     }
 
+                    remaining--;
                     slots.push({
                         path,
                         type: attributes[attribute++]
@@ -70,10 +72,15 @@ export default (data: Template) => {
             parent.elements++;
         }
         else if (type === NODE_SLOT) {
+            remaining--;
             slots.push({
                 path: parent.path.concat(parent.children),
                 type: SLOT_TYPE
             });
+        }
+
+        if (!remaining) {
+            break;
         }
 
         if (type === NODE_CLOSING) {
