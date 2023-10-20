@@ -1,4 +1,5 @@
 import { Element } from './types';
+import { addEventListener } from './utilities';
 
 
 let capture = new Set(['blur', 'focus', 'scroll']),
@@ -16,7 +17,7 @@ function register(event: string) {
     let key = keys[event] = Symbol(),
         type = event.slice(2);
 
-    root.addEventListener(type, (e) => {
+    addEventListener.call(root, type, (e) => {
         let node = e.target as Element | null;
 
         Object.defineProperty(e, 'currentTarget', {
@@ -42,10 +43,14 @@ function register(event: string) {
 }
 
 
-export default (element: Element, event: string, listener: Function): void => {
-    if (event === 'onrender') {
+export default ({ name }: { name: string }, element: Element, listener: unknown): void => {
+    if (typeof listener !== 'function') {
+        throw new Error(`Template: delegated event handler received an invalid listener ${JSON.stringify(listener)}`);
+    }
+
+    if (name === 'onrender') {
         return listener(element);
     }
 
-    element[keys[event] || register(event)] = listener;
+    element[keys[name] || register(name)] = listener;
 };

@@ -1,6 +1,12 @@
 const ATTRIBUTES = Symbol();
 
 
+const EMPTY_ARRAY = Object.freeze([]) as any as any[];
+
+
+const HTML_NORMALIZE_REGEX = /(?:\s|;)+(<)|(>)(?:\s|;)+/g;
+
+
 const NODE_CLOSING = 1;
 
 const NODE_COMMENT = 2;
@@ -15,7 +21,7 @@ const NODE_VOID = 5;
 const NODE_TYPES: Record<string, number> = {
     '/': NODE_CLOSING,
     '!': NODE_COMMENT,
-    '!--slot--': NODE_SLOT,
+    '!--$--': NODE_SLOT,
 
     'area': NODE_VOID,
     'base': NODE_VOID,
@@ -36,32 +42,36 @@ const NODE_TYPES: Record<string, number> = {
 };
 
 
+const RENDERABLE = Symbol();
+
+
 const SLOT = Symbol();
 
-const SLOT_HTML = '<!--slot-->';
+const SLOT_HTML = '<!--$-->';
 
-const SLOT_ATTRIBUTE_REGEX = /([\w-:]+)=["']([^"']*<!--slot-->[^"']*)["']/g;
+const SLOT_ATTRIBUTE_REGEX = /([\w-:]+)=["']([^"']*<!--\$-->[^"']*)["']/g;
 
-const SLOT_NODE_REGEX = /<(!--slot--|[\/!]|[\w-]+)((?:\s*[\w-:]+=["'](?:[^"']*)["'])*[^\/>]*)(\/)?>/g;
+const SLOT_ATTRIBUTE_EVENT_REGEX = /\s*on[\w-:]+\s*=\s*["'][^"']*<!--\$-->[^"']*["']\s*/g;
 
-const SLOT_TYPE = 'node';
+const SLOT_NODE_REGEX = /<(!--\$--|[\/!]|[\w-]+)((?:\s*[\w-:]+\s*=\s*["'](?:[^"']*)["'])*[^\/>]*)(\/)?>/g;
 
-
-const TEMPLATE = Symbol();
+const SLOT_REPLACE_REGEX = /<!--\$-->/g;
 
 
 export {
     ATTRIBUTES,
+    EMPTY_ARRAY,
+    HTML_NORMALIZE_REGEX,
     NODE_CLOSING,
-    NODE_COMMENT,
     NODE_ELEMENT,
     NODE_SLOT,
     NODE_TYPES,
     NODE_VOID,
+    RENDERABLE,
     SLOT,
-    SLOT_ATTRIBUTE_REGEX,
     SLOT_HTML,
+    SLOT_ATTRIBUTE_REGEX,
+    SLOT_ATTRIBUTE_EVENT_REGEX,
     SLOT_NODE_REGEX,
-    SLOT_TYPE,
-    TEMPLATE
+    SLOT_REPLACE_REGEX
 };

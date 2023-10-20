@@ -1,84 +1,126 @@
 import { effect, root, DIRTY } from '@esportsplus/reactivity';
-import { SLOT, SLOT_HTML, TEMPLATE } from './constants';
-import { Element, Elements, Template } from './types';
-import { isArray, toString } from '~/utilities';
-import html from './html';
+import { RENDERABLE, SLOT } from './constants';
+import { Element, Elements, Renderable } from './types';
+import { firstChild, isArray, nextSibling, nodeValue, text } from './utilities'
 import raf from './raf';
-import render from './render';
-import renderable from './renderable';
 
-
-let slot = renderable( html.const(SLOT_HTML) ),
-    text = document.createTextNode('');
-
-
-function after(anchor: Element, elements: Elements) {
-    anchor.after(...elements);
-    return elements;
-}
 
 function afterGroups(anchor: Element, groups: Elements[]) {
     for (let i = 0, n = groups.length; i < n; i++) {
         let group = groups[i];
 
-        anchor.after(...group);
-        anchor = group[group.length - 1];
+        anchor.after(anchor, ...group);
+        group.push(anchor = group.pop()!);
     }
 
     return groups;
 }
 
-function remove(elements?: Elements) {
-    if (elements === undefined) {
-        return elements;
+function removeGroup(group?: Elements) {
+    if (group === undefined) {
+        return group;
     }
 
-    for (let i = 0, n = elements.length; i < n; i++) {
-        elements[i].remove();
+    for (let i = 0, n = group.length; i < n; i++) {
+        group[i].remove();
     }
 
-    return elements;
+    return group;
 }
 
 function removeGroups(groups: Elements[]) {
     for (let i = 0, n = groups.length; i < n; i++) {
-        let elements = groups[i];
+        let group = groups[i];
 
-        for (let j = 0, o = elements.length; j < o; j++) {
-            elements[j].remove();
+        for (let j = 0, o = group.length; j < o; j++) {
+            group[j].remove();
         }
     }
 
     return groups;
 }
 
+function render(anchor: Element | null, input: unknown, slot?: Slot): Elements | Elements[] {
+    if (input === false || input == null) {
+        input = '';
+    }
+    else if (typeof input === 'object') {
+        if (RENDERABLE in input) {
+            let nodes = (input as Renderable).template.render(
+                    (input as Renderable).values
+                );
+
+            if (anchor) {
+                anchor.after(...nodes);
+            }
+
+            return nodes;
+        }
+        else if (isArray(input)) {
+            let result: Elements[] = [];
+
+            for (let i = 0, n = input.length; i < n; i++) {
+                result.push( render(null, input[i]) as Elements );
+            }
+
+            if (anchor) {
+                afterGroups(anchor, result);
+            }
+
+            return result;
+        }
+        else if (input instanceof NodeList) {
+            let nodes: Elements = [];
+
+            for (let n = firstChild.call(input as any as Element); n; n = nextSibling.call(n)) {
+                nodes.push(n);
+            }
+
+            if (anchor) {
+                anchor.after(...nodes);
+            }
+
+            return nodes;
+        }
+        else if (input instanceof Node) {
+            if (anchor) {
+                anchor.after(input);
+            }
+
+            return [input] as Elements;
+        }
+    }
+
+    let node = text(input as string);
+
+    if (anchor) {
+        anchor.after(node);
+
+        if (slot) {
+            slot.text = node;
+        }
+    }
+
+    return [ node ];
+}
+
 
 class Slot {
+    [SLOT] = null;
+
     marker: Element;
-    nodes: Elements[] = [];
+    nodes: Elements[];
     text: Element | null = null;
-    value: string | null = null;
 
 
-    constructor(anchor?: Element) {
-        this.marker = anchor || slot.nodes[0];
+    constructor(marker: Element) {
+        this.marker = marker;
+        this.nodes = [];
     }
 
-
-    get [SLOT]() {
-        return true;
-    }
 
     get length() {
         return this.nodes.length;
-    }
-
-    set children(groups: Elements) {
-        removeGroups(this.nodes);
-
-        this.nodes = [
-            after(this.marker, groups)
-        ];
     }
 
     set length(n: number) {
@@ -91,32 +133,35 @@ class Slot {
             nodes = this.nodes[index];
 
         if (nodes) {
-            node = nodes[ nodes.length - 1 ];
+            nodes.push(node = nodes.pop()!);
         }
 
         return node || this.marker;
     }
 
+    clear() {
+        removeGroups(this.nodes);
+        this.text = null;
+    }
+
     pop() {
-        return remove( this.nodes.pop() );
+        return removeGroup(this.nodes.pop());
     }
 
     push(...groups: Elements[]) {
         afterGroups(this.anchor(), groups);
 
         for (let i = 0, n = groups.length; i < n; i++) {
-            this.nodes.push( groups[i] );
+            this.nodes.push(groups[i]);
         }
 
         return this.nodes.length;
     }
 
-    render(value: unknown) {
-        if (value == null) {
-        }
-        else if (typeof value === 'function') {
+    render(input: unknown) {
+        if (typeof input === 'function') {
             effect((self) => {
-                let v = (value as Function)();
+                let v = (input as Function)();
 
                 if (typeof v === 'function') {
                     root(() => {
@@ -135,66 +180,54 @@ class Slot {
 
             return this;
         }
-        else if (typeof value === 'object') {
-            this.text = null;
-            this.value = null;
 
-            if (TEMPLATE in value) {
-                render(value as Template, this);
+        if (this.text) {
+            if (typeof input === 'object' && input !== null) {
             }
-            else if (isArray(value)) {
-                render(html.slot(value), this);
+            else if (this.text.isConnected) {
+                nodeValue.call(
+                    this.text,
+                    (typeof input === 'string' || typeof input === 'number') ? input : ''
+                );
+                return this;
             }
-            // instanceof is slow...
-            else if (value instanceof NodeList) {
-                this.children = Array.from(value) as Elements;
-            }
-            else if (value instanceof Node) {
-                this.children = [ value ] as Elements;
-            }
-            else {
-                throw new Error(`Template: renderable objects must be an array, node, nodelist, or template ${JSON.stringify(value)}`);
-            }
-
-            return this;
         }
 
-        value = toString(value);
+        this.clear();
 
-        if (this.value !== value) {
-            this.value = value as string;
-
-            if (this.text === null) {
-                this.text = text.cloneNode(true) as Element;
-                this.text.nodeValue = this.value;
-
-                this.children = [ this.text ];
-            }
-            else {
-                this.text.nodeValue = this.value;
-            }
+        if (isArray(input)) {
+            this.nodes = render(this.marker, input, this) as Elements[];
+        }
+        else {
+            this.nodes = [
+                render(this.marker, input, this) as Elements
+            ];
         }
 
         return this;
     }
 
     shift() {
-        return remove( this.nodes.shift() );
+        return removeGroup(this.nodes.shift());
     }
 
-    splice(start: number, deleteCount: number = this.nodes.length, ...groups: Elements[]) {
+    splice(start: number, stop: number = this.nodes.length, ...groups: Elements[]) {
         return removeGroups(
-            this.nodes.splice(start, deleteCount, ...afterGroups(this.anchor(start), groups))
+            this.nodes.splice(start, stop, ...afterGroups(this.anchor(start), groups))
         );
     }
 
     unshift(...groups: Elements[]) {
-        return this.nodes.unshift( ...afterGroups(this.marker, groups) );
+        return this.nodes.unshift(...afterGroups(this.marker, groups));
     }
 }
 
 
-export default (anchor?: Element) => {
-    return new Slot(anchor);
+export default (_: any, marker: Element, value: unknown) => {
+    if (typeof value === 'function') {
+        return (new Slot(marker)).render(value);
+    }
+
+    render(marker, value);
 };
 export { Slot };

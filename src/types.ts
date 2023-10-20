@@ -1,19 +1,16 @@
-import { TEMPLATE } from './constants';
+import { RENDERABLE } from './constants';
+import { Template } from './template';
 
 
 type Element = HTMLElement & Record<PropertyKey, unknown>;
 
 type Elements = Element[];
 
-type Template = {
-    [TEMPLATE]: boolean;
-    expressions?: unknown[];
-    html: string;
-    slots?: {
-        path: number[];
-        type: string;
-    }[];
+type Renderable = {
+    [RENDERABLE]: null;
+    template: Template;
+    values: unknown[];
 };
 
 
-export { Element, Elements, Template };
+export { Element, Elements, Renderable };
