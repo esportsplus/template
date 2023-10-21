@@ -5,11 +5,18 @@ import { className, isArray, removeAttribute, setAttribute } from './utilities';
 import raf from './raf';
 
 
+type Data = {
+    bucket?: Record<PropertyKey, unknown>;
+    id: number;
+    name: string;
+    value: string;
+};
+
+
 let delimiters: Record<string, string> = {
         class: ' ',
         style: ';'
-    },
-    id = 0;
+    };
 
 
 function normalize(name: keyof typeof delimiters, value: unknown) {
@@ -30,35 +37,35 @@ function normalize(name: keyof typeof delimiters, value: unknown) {
     return cache;
 }
 
-function reactive(data: { name: string, value: string }, element: Element, id: string, input: unknown) {
+function reactive(data: Data, element: Element, id: string, input: unknown, wait = false) {
     if (typeof input === 'function') {
         effect((self) => {
             let v = (input as Function)();
 
             if (typeof v === 'function') {
                 root(() => {
-                    reactive(data, element, id, v());
+                    reactive(data, element, id, v(), wait);
                 });
             }
             else if (self.state === DIRTY) {
-                reactive(data, element, id, v);
+                reactive(data, element, id, v, wait);
             }
             else {
                 raf.add(() => {
-                    reactive(data, element, id, v);
+                    reactive(data, element, id, v, wait);
                 });
             }
         });
-
+        wait = false;
         return;
     }
 
-    let { name } = data,
-        bucket = (element[ATTRIBUTES] || (element[ATTRIBUTES] = {})) as Record<PropertyKey, unknown>;
+    let bucket = data.bucket!,
+        name = data.name;
 
     if (name in delimiters) {
         let cache = (bucket[name] || (bucket[name] = {})) as Record<PropertyKey, null>,
-            delimiter = delimiters[name],
+            delimiter = delimiters[name] || '',
             fresh = normalize(name as keyof typeof delimiters, input),
             stale = bucket[id];
 
@@ -89,24 +96,25 @@ function reactive(data: { name: string, value: string }, element: Element, id: s
         }
     }
     else {
-        if (bucket[name] === input) {
+        if (bucket[name] === input && wait === false) {
             return;
         }
 
         bucket[name] = input as string;
     }
 
-    set(data, element, input);
+    if (wait === false) {
+        set(data, element, input);
+    }
 }
 
-function set(data: { name: string, value: string }, element: Element, input: unknown) {
+function set(data: Data, element: Element, input: unknown) {
     if (input === false || input == null) {
         return;
     }
 
-    let { name } = data,
-        delimiter = delimiters[name] || '',
-        value = data.value + (input ? delimiter : '') + input;
+    let name = data.name,
+        value = data.value + (data.value && input ? (delimiters[name] || '') : '') + input;
 
     if (data.value === value) {
         return;
@@ -118,7 +126,7 @@ function set(data: { name: string, value: string }, element: Element, input: unk
     else if (name === 'class') {
         className.call(element, value);
     }
-    else if ((name[0] === 'd' && name.slice(0, 5) === 'data-') || name === 'style') {
+    else if ((name[0] === 'data' && name.slice(0, 5) === 'data-') || name === 'style') {
         setAttribute.call(element, name, value);
     }
     else {
@@ -127,15 +135,22 @@ function set(data: { name: string, value: string }, element: Element, input: unk
 }
 
 
-export default (data: { name: string, value: string }, element: Element, input: unknown) => {
+export default (attribute: { name: string, value: string }, element: Element, input: unknown) => {
+    let data: Data = {
+            id: 0,
+            name: attribute.name,
+            value: attribute.value
+        },
+        delimiter = delimiters[attribute.name] || '';
+
     if (typeof input === 'function') {
-        reactive(data, element, ('e' + id++), input);
+        data.bucket = (element[ATTRIBUTES] || (element[ATTRIBUTES] = {})) as Record<PropertyKey, unknown>;
+
+        reactive(data, element, ('e' + data.id++), input);
     }
     else if (isArray(input)) {
-        let { name } = data,
-            delimiter = delimiters[name] || '',
-            effects: Function[] = [],
-            value = '';
+        let buffer = '',
+            effects: Function[] = [];
 
         for (let i = 0, n = input.length; i < n; i++) {
             let v = input[i];
@@ -146,25 +161,25 @@ export default (data: { name: string, value: string }, element: Element, input: 
             else if (v === false || v == null) {
             }
             else {
-                value += (value ? delimiter : '') + v;
+                buffer += (buffer ? delimiter : '') + v;
             }
         }
 
         if (effects.length === 0) {
-            if (value === '') {
+            if (buffer === '') {
                 return;
             }
 
-            set(data, element, value);
+            set(data, element, buffer);
         }
         else {
-            data = {
-                name,
-                value: data.value + (data.value ? delimiter : '') + value
-            };
+            let last = effects.length - 1;
 
-            for (let i = 0, n = effects.length; i < n; i++) {
-                reactive(data, element, ('e' + id++), effects[i]);
+            data.bucket = (element[ATTRIBUTES] || (element[ATTRIBUTES] = {})) as Record<PropertyKey, unknown>;
+            data.value += (buffer && data.value ? delimiter : '') + buffer;
+
+            for (let i = 0; i <= last; i++) {
+                reactive(data, element, ('e' + data.id++), effects[i], i !== last);
             }
         }
     }
