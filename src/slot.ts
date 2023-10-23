@@ -91,6 +91,10 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
         }
     }
 
+    if (input === '') {
+        return [];
+    }
+
     let node = text(input as string);
 
     if (anchor) {
