@@ -1,7 +1,7 @@
 import { SLOT, SLOT_HTML } from './constants';
 import slot, { Slot } from './slot';
 import { Element, Renderable } from './types';
-import { clone, firstChild, fragment, prepend } from './utilities';
+import { firstChild, fragment, prepend } from './utilities';
 
 
 let marker = firstChild.call(fragment(SLOT_HTML));
@@ -18,7 +18,7 @@ export default (input: Renderable, parent: HTMLElement | Slot) => {
     if (m && m.nodeType === 8) {
     }
     else {
-        m = clone(marker);
+        m = marker.cloneNode() as Element;
     }
 
     parent.textContent = '';

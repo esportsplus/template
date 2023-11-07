@@ -1,6 +1,6 @@
 import { EMPTY_ARRAY } from './constants';
 import { Element, Elements } from './types';
-import { clone, firstChild, fragment, nextSibling } from './utilities';
+import { firstChild, fragment, nextSibling } from './utilities';
 import a from './attribute';
 import e from './event';
 import s from './slot';
@@ -41,7 +41,7 @@ class Template {
             }
         }
 
-        return clone(this.fragment, true);
+        return (this.fragment as DocumentFragment).cloneNode(true);
     }
 
     render(values: unknown[]) {
@@ -84,7 +84,7 @@ class Template {
 
         let nodes: Elements = [];
 
-        for (let n = firstChild.call(fragment); n; n = nextSibling.call(n)) {
+        for (let n = firstChild.call(fragment as Element); n; n = nextSibling.call(n)) {
             nodes.push(n);
         }
 

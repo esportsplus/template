@@ -30,8 +30,6 @@ const setAttribute = prototype.setAttribute;
 
 prototype = Node.prototype;
 
-const clone = Object.getOwnPropertyDescriptor(prototype, 'cloneNode')!.value;
-
 const firstChild = Object.getOwnPropertyDescriptor(prototype, 'firstChild')!.get as typeof firstElementChild;
 
 const nextSibling = Object.getOwnPropertyDescriptor(prototype, 'nextSibling')!.get as typeof firstElementChild;
@@ -44,13 +42,13 @@ const nodeValue = Object.getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
 const fragment = (html: string) => {
     innerHTML.call(template, html);
 
-    return clone(template.content, true);
+    return template.content.cloneNode(true) as DocumentFragment;
 };
 
 const isArray = Array.isArray;
 
 const text = (value: string) => {
-    let element = clone(t, true);
+    let element = t.cloneNode();
 
     if (value !== '') {
         nodeValue!.call(element, value);
@@ -63,7 +61,6 @@ const text = (value: string) => {
 export {
     addEventListener,
     className,
-    clone,
     firstChild,
     firstElementChild,
     fragment,
