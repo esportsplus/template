@@ -30,6 +30,8 @@ const setAttribute = prototype.setAttribute;
 
 prototype = Node.prototype;
 
+const clone = Object.getOwnPropertyDescriptor(prototype, 'cloneNode')!.value;
+
 const firstChild = Object.getOwnPropertyDescriptor(prototype, 'firstChild')!.get as typeof firstElementChild;
 
 const nextSibling = Object.getOwnPropertyDescriptor(prototype, 'nextSibling')!.get as typeof firstElementChild;
@@ -38,8 +40,6 @@ const nodeType = Object.getOwnPropertyDescriptor(prototype, 'nodeType')!.get!;
 
 const nodeValue = Object.getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
 
-
-const clone = document.importNode.bind(document);
 
 const fragment = (html: string) => {
     innerHTML.call(template, html);
