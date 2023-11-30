@@ -1,5 +1,7 @@
 const ATTRIBUTES = Symbol();
 
+const ATTRIBUTES_COUNTER = Symbol();
+
 
 const EMPTY_ARRAY = Object.freeze([]) as any as any[];
 
@@ -60,6 +62,7 @@ const TEMPLATE_NORMALIZE_REGEX = /(?:\s|;)+(<)|(>)(?:\s|;)+/g;
 
 export {
     ATTRIBUTES,
+    ATTRIBUTES_COUNTER,
     EMPTY_ARRAY,
     NODE_CLOSING,
     NODE_ELEMENT,

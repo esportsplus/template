@@ -1,5 +1,5 @@
 import { effect, root, DIRTY } from '@esportsplus/reactivity';
-import { ATTRIBUTES } from './constants';
+import { ATTRIBUTES, ATTRIBUTES_COUNTER } from './constants';
 import { Element } from './types';
 import { className, isArray, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
@@ -52,15 +52,15 @@ function reactive(element: Element, id: string, input: unknown, name: string, va
         return;
     }
 
-    let bucket = (element[ATTRIBUTES] || (element[ATTRIBUTES] = {})) as Record<PropertyKey, unknown>;
+    let data = store(element);
 
     if (name in delimiters) {
-        let cache = (bucket[name] || (bucket[name] = {})) as Record<PropertyKey, null>,
+        let cache = (data[name] || (data[name] = {})) as Record<PropertyKey, null>,
             delimiter = delimiters[name] || '',
             fresh = normalize(name as keyof typeof delimiters, input),
-            stale = bucket[id];
+            stale = data[id];
 
-        bucket[id] = fresh;
+        data[id] = fresh;
 
         for (let key in fresh) {
             if (key in cache) {
@@ -87,11 +87,11 @@ function reactive(element: Element, id: string, input: unknown, name: string, va
         }
     }
     else {
-        if (bucket[name] === input && wait === false) {
+        if (data[name] === input && wait === false) {
             return;
         }
 
-        bucket[name] = input as string;
+        data[name] = input as string;
     }
 
     if (wait === false) {
@@ -101,40 +101,44 @@ function reactive(element: Element, id: string, input: unknown, name: string, va
 
 function set(element: Element, input: unknown, name: string, value: string) {
     if (input === false || input == null) {
-        return;
+        input = '';
+    }
+    else if (input && value) {
+        value += delimiters[name] || '';
     }
 
-    let v = value + (value && input ? (delimiters[name] || '') : '') + input;
+    value += input;
 
-    if (v === value) {
-        return;
-    }
-
-    if (v === '') {
+    if (value === '') {
         removeAttribute.call(element, name);
     }
     else if (name === 'class') {
-        className.call(element, v);
+        className.call(element, value);
     }
-    else if ((name[0] === 'data' && name.slice(0, 5) === 'data-') || name === 'style') {
-        setAttribute.call(element, name, v);
+    else if ((name[0] === 'd' && name.slice(0, 5) === 'data-') || name === 'style') {
+        setAttribute.call(element, name, value);
     }
     else {
-        element[name] = v;
+        element[name] = value;
     }
+}
+
+function store(element: Element) {
+    return (
+        element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES_COUNTER]: 0 })
+    ) as Record<PropertyKey, unknown> & { [ATTRIBUTES_COUNTER]: number };
 }
 
 
 export default function attribute(element: Element, input: unknown, name: string, value: string) {
-    let delimiter = delimiters[name] || '',
-        id = 0;
+    let delimiter = delimiters[name] || '';
 
     if (typeof input === 'function') {
         if (name[0] === 'o' && name[1] === 'n') {
             event(element, name, input);
         }
         else {
-            reactive(element, ('e' + id++), input, name, value);
+            reactive(element, ('e' + store(element)[ATTRIBUTES_COUNTER]++), input, name, value);
         }
     }
     else if (isArray(input)) {
@@ -162,12 +166,13 @@ export default function attribute(element: Element, input: unknown, name: string
             set(element, buffer, name, value);
         }
         else {
-            let last = effects.length - 1;
+            let data = store(element),
+                n = effects.length - 1;
 
             value += (buffer && value ? delimiter : '') + buffer;
 
-            for (let i = 0; i <= last; i++) {
-                reactive(element, ('e' + id++), effects[i], name, value, i !== last);
+            for (let i = 0; i <= n; i++) {
+                reactive(element, ('e' + data[ATTRIBUTES_COUNTER]++), effects[i], name, value, i !== n);
             }
         }
     }
