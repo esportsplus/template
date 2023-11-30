@@ -1,7 +1,7 @@
 import { effect, root, DIRTY } from '@esportsplus/reactivity';
 import { ATTRIBUTES } from './constants';
 import { Element } from './types';
-import { className, isArray, requestAnimationFrame, removeAttribute, setAttribute } from './utilities';
+import { className, isArray, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
 
 
@@ -43,7 +43,7 @@ function reactive(element: Element, id: string, input: unknown, name: string, va
                 reactive(element, id, v, name, value, wait);
             }
             else {
-                requestAnimationFrame.add(() => {
+                raf.add(() => {
                     reactive(element, id, v, name, value, wait);
                 });
             }

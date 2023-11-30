@@ -3,7 +3,7 @@ import {
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_TYPES, NODE_VOID,
     RENDERABLE,
     SLOT_ATTRIBUTE_REGEX, SLOT_HTML, SLOT_NODE_REGEX, SLOT_REPLACE_REGEX,
-    TEMPLATE_CLEANUP_REGEX, TEMPLATE_NORMALIZER_REGEX
+    TEMPLATE_CLEANUP_REGEX, TEMPLATE_NORMALIZE_REGEX
 } from './constants';
 import { get, set, Template } from './template';
 import { Renderable } from './types';
@@ -24,7 +24,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         attributes: Template['slots'][0]['data'][] = [],
         html = literals
             .join(SLOT_HTML)
-            .replace(TEMPLATE_NORMALIZER_REGEX, '$1$2')
+            .replace(TEMPLATE_NORMALIZE_REGEX, '$1$2')
             .trim(),
         level = 0,
         levels = [
@@ -194,7 +194,7 @@ html.static = (literals: TemplateStringsArray, ...values: unknown[]): Renderable
 
         template = set(
             literals,
-            html.replace(TEMPLATE_NORMALIZER_REGEX, '$1$2').trim()
+            html.replace(TEMPLATE_NORMALIZE_REGEX, '$1$2').trim()
         );
     }
 

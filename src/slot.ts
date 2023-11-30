@@ -1,7 +1,7 @@
 import { effect, root, DIRTY } from '@esportsplus/reactivity';
 import { RENDERABLE, SLOT } from './constants';
 import { Element, Elements, Renderable } from './types';
-import { firstChild, isArray, nextSibling, nodeValue, requestAnimationFrame, text } from './utilities'
+import { firstChild, isArray, nextSibling, nodeValue, raf, text } from './utilities'
 
 
 function afterGroups(anchor: Element, groups: Elements[]) {
@@ -175,7 +175,7 @@ class Slot {
                     this.render(v);
                 }
                 else {
-                    requestAnimationFrame.add(() => {
+                    raf.add(() => {
                         this.render(v);
                     });
                 }

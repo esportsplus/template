@@ -48,14 +48,14 @@ const SLOT_ATTRIBUTE_REGEX = /([\w-:]+|\.\.\.)(?:(?:=["']([^"']*<!--\$-->[^"']*)
 
 const SLOT_HTML = '<!--$-->';
 
-const SLOT_NODE_REGEX = /<(!--\$--|[\/!]|[\w-]+)((?:\s*[\w-:]+\s*=\s*["'](?:[^"']*)["'])*[^\/>]*)(\/)?>/g;
+const SLOT_NODE_REGEX = /<(!--\$--|[\/!]|[\w-]+)((?:\s*[\w-:]+\s*=\s*["'](?:[^"']*)["'])*(?:[^\/]*>|[^\/>]*))(\/)?>/g;
 
 const SLOT_REPLACE_REGEX = /<!--\$-->/g;
 
 
 const TEMPLATE_CLEANUP_REGEX = /(?:\s*on[\w-:]+\s*=\s*["'][^"']*<!--\$-->[^"']*["'])|(?:\s*\.\.\.<!--\$-->)/g;
 
-const TEMPLATE_NORMALIZER_REGEX = /(?:\s|;)+(<)|(>)(?:\s|;)+/g;
+const TEMPLATE_NORMALIZE_REGEX = /(?:\s|;)+(<)|(>)(?:\s|;)+/g;
 
 
 export {
@@ -73,5 +73,5 @@ export {
     SLOT_NODE_REGEX,
     SLOT_REPLACE_REGEX,
     TEMPLATE_CLEANUP_REGEX,
-    TEMPLATE_NORMALIZER_REGEX
+    TEMPLATE_NORMALIZE_REGEX
 };

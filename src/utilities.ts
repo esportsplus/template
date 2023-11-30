@@ -1,4 +1,4 @@
-import { raf } from '@esportsplus/tasks';
+import { raf as tasks } from '@esportsplus/tasks';
 import { Element as E } from './types';
 
 
@@ -52,7 +52,7 @@ const fragment = (html: string) => {
 
 const isArray = Array.isArray;
 
-const requestAnimationFrame = raf();
+const raf = tasks();
 
 const text = (value: string) => {
     let element = t.cloneNode();
@@ -78,7 +78,7 @@ export {
     nodeType,
     nodeValue,
     prepend,
-    requestAnimationFrame,
+    raf,
     removeAttribute,
     removeEventListener,
     setAttribute,
