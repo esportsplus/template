@@ -43,16 +43,10 @@ function register(event: string) {
 }
 
 
-export default (attribute: { name: string }, element: Element, listener: unknown): void => {
-    if (typeof listener !== 'function') {
-        throw new Error(`Template: delegated event handler received an invalid listener ${JSON.stringify(listener)}`);
-    }
-
-    let name = attribute.name;
-
-    if (name === 'onrender') {
+export default (element: Element, event: string, listener: Function): void => {
+    if (event === 'onrender') {
         return listener(element);
     }
 
-    element[keys[name] || register(name)] = listener;
+    element[keys[event] || register(event)] = listener;
 };

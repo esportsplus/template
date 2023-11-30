@@ -2,7 +2,6 @@ import { EMPTY_ARRAY } from './constants';
 import { Element, Elements } from './types';
 import { firstChild, fragment, nextSibling } from './utilities';
 import a from './attribute';
-import e from './event';
 import s from './slot';
 
 
@@ -14,7 +13,7 @@ class Template {
     html: string;
     slots: {
         data: {
-            fn: typeof a | typeof e | typeof s;
+            fn: typeof a | typeof s;
             n: number;
             name: string;
             value: string;
@@ -68,7 +67,7 @@ class Template {
                 }
 
                 if (data.n === 1) {
-                    data.fn(data, node as Element, values[v--]);
+                    data.fn(node as Element, values[v--], data.name, data.value);
                 }
                 else {
                     let copy: unknown[] = [];
@@ -77,7 +76,7 @@ class Template {
                         copy.push(values[v--]);
                     }
 
-                    data.fn(data, node as Element, copy);
+                    data.fn(node as Element, copy, data.name, data.value);
                 }
             }
         }
@@ -96,7 +95,7 @@ class Template {
 const get = (literals: TemplateStringsArray) => {
     let template = cache.get(literals);
 
-    if (template !== undefined && template.fragment === false) {
+    if (template && template.fragment === false) {
         template.fragment = true;
     }
 

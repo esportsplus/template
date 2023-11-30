@@ -24,5 +24,5 @@ export default (input: Renderable, parent: HTMLElement | Slot) => {
     parent.textContent = '';
     prepend.call(parent, m);
 
-    return slot(null, m, input);
+    return slot(m, input);
 };

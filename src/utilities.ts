@@ -1,3 +1,4 @@
+import { raf } from '@esportsplus/tasks';
 import { Element as E } from './types';
 
 
@@ -42,10 +43,16 @@ const nodeValue = Object.getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
 const fragment = (html: string) => {
     innerHTML.call(template, html);
 
-    return template.content.cloneNode(true) as DocumentFragment;
+    let { content } = template;
+
+    template = template.cloneNode(false) as HTMLTemplateElement;
+
+    return content;
 };
 
 const isArray = Array.isArray;
+
+const requestAnimationFrame = raf();
 
 const text = (value: string) => {
     let element = t.cloneNode();
@@ -71,6 +78,7 @@ export {
     nodeType,
     nodeValue,
     prepend,
+    requestAnimationFrame,
     removeAttribute,
     removeEventListener,
     setAttribute,

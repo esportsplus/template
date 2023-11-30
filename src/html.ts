@@ -1,15 +1,14 @@
 import {
     EMPTY_ARRAY,
-    HTML_NORMALIZE_REGEX,
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_TYPES, NODE_VOID,
     RENDERABLE,
-    SLOT_ATTRIBUTE_REGEX, SLOT_ATTRIBUTE_EVENT_REGEX, SLOT_HTML, SLOT_NODE_REGEX, SLOT_REPLACE_REGEX
+    SLOT_ATTRIBUTE_REGEX, SLOT_HTML, SLOT_NODE_REGEX, SLOT_REPLACE_REGEX,
+    TEMPLATE_CLEANUP_REGEX, TEMPLATE_NORMALIZER_REGEX
 } from './constants';
 import { get, set, Template } from './template';
 import { Renderable } from './types';
 import { firstChild, firstElementChild, isArray, nextElementSibling, nextSibling } from './utilities';
 import a from './attribute';
-import e from './event';
 import s from './slot';
 
 
@@ -25,7 +24,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         attributes: Template['slots'][0]['data'][] = [],
         html = literals
             .join(SLOT_HTML)
-            .replace(HTML_NORMALIZE_REGEX, '$1$2')
+            .replace(TEMPLATE_NORMALIZER_REGEX, '$1$2')
             .trim(),
         level = 0,
         levels = [
@@ -37,31 +36,27 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         ],
         remaining = values.length,
         slots: Template['slots'] = [],
-        template = html.replace(SLOT_ATTRIBUTE_EVENT_REGEX, '');
+        template = html.replace(TEMPLATE_CLEANUP_REGEX, '');
 
     for (let match of html.matchAll(SLOT_ATTRIBUTE_REGEX)) {
-        let name = match[1],
-            value = match[2],
-            values: typeof slots[0]['data'] = { fn: a, n: 0, name, value };
+        let data: typeof slots[0]['data'] = {
+                fn: a,
+                n: 0,
+                name: match[1],
+                value: match[2] || match[3]
+            },
+            value = data.value;
 
         for (let i = 0, n = value.length; i < n; i++) {
             if ((i = value.indexOf(SLOT_HTML, i)) === -1) {
                 break;
             }
 
-            attributes.push(values);
-            values.n++;
+            attributes.push(data);
+            data.n++;
         }
 
-        if (name[0] === 'o' && name[1] === 'n') {
-            values.fn = e;
-        }
-        else {
-            template = template.replace(
-                match[0],
-                name + '="' + (values.value = value.replace(SLOT_REPLACE_REGEX, '').trim()) + '"'
-            );
-        }
+        data.value = value === SLOT_HTML ? '' : value.replace(SLOT_REPLACE_REGEX, '');
     }
 
     for (let match of html.matchAll(SLOT_NODE_REGEX)) {
@@ -199,7 +194,7 @@ html.static = (literals: TemplateStringsArray, ...values: unknown[]): Renderable
 
         template = set(
             literals,
-            html.replace(HTML_NORMALIZE_REGEX, '$1$2').trim()
+            html.replace(TEMPLATE_NORMALIZER_REGEX, '$1$2').trim()
         );
     }
 
