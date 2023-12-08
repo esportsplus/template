@@ -14,13 +14,13 @@ const addEventListener = prototype.addEventListener;
 
 const removeEventListener = prototype.removeEventListener;
 
-const className = Object.getOwnPropertyDescriptor(prototype, 'className')!.set! as (this: E, value: string) => void;
+const className = Object.getOwnPropertyDescriptor(prototype, 'className')!.set!;
 
 const innerHTML = Object.getOwnPropertyDescriptor(prototype, 'innerHTML')!.set!;
 
-const firstElementChild = Object.getOwnPropertyDescriptor(prototype, 'firstElementChild')!.get! as (this: DocumentFragment | E) => E;
+const firstElementChild = Object.getOwnPropertyDescriptor(prototype, 'firstElementChild')!.get!;
 
-const nextElementSibling = Object.getOwnPropertyDescriptor(prototype, 'nextElementSibling')!.get! as typeof firstElementChild;
+const nextElementSibling = Object.getOwnPropertyDescriptor(prototype, 'nextElementSibling')!.get!;
 
 const prepend = prototype.prepend;
 
@@ -31,11 +31,11 @@ const setAttribute = prototype.setAttribute;
 
 prototype = Node.prototype;
 
-const firstChild = Object.getOwnPropertyDescriptor(prototype, 'firstChild')!.get as typeof firstElementChild;
+const cloneNode = prototype.cloneNode;
 
-const nextSibling = Object.getOwnPropertyDescriptor(prototype, 'nextSibling')!.get as typeof firstElementChild;
+const firstChild = Object.getOwnPropertyDescriptor(prototype, 'firstChild')!.get!;
 
-const nodeType = Object.getOwnPropertyDescriptor(prototype, 'nodeType')!.get!;
+const nextSibling = Object.getOwnPropertyDescriptor(prototype, 'nextSibling')!.get!;
 
 const nodeValue = Object.getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
 
@@ -45,7 +45,7 @@ const fragment = (html: string) => {
 
     let { content } = template;
 
-    template = template.cloneNode(false) as HTMLTemplateElement;
+    template = cloneNode.call(template) as HTMLTemplateElement;
 
     return content;
 };
@@ -55,19 +55,20 @@ const isArray = Array.isArray;
 const raf = tasks();
 
 const text = (value: string) => {
-    let element = t.cloneNode();
+    let element = cloneNode.call(t);
 
     if (value !== '') {
-        nodeValue!.call(element, value);
+        nodeValue.call(element, value);
     }
 
-    return element as any as E;
+    return element as E;
 };
 
 
 export {
     addEventListener,
     className,
+    cloneNode,
     firstChild,
     firstElementChild,
     fragment,
@@ -75,7 +76,6 @@ export {
     isArray,
     nextElementSibling,
     nextSibling,
-    nodeType,
     nodeValue,
     prepend,
     raf,

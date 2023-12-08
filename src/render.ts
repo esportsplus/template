@@ -1,28 +1,20 @@
 import { SLOT, SLOT_HTML } from './constants';
 import slot, { Slot } from './slot';
-import { Element, Renderable } from './types';
+import { Renderable } from './types';
 import { firstChild, fragment, prepend } from './utilities';
 
 
-let marker = firstChild.call(fragment(SLOT_HTML));
+let marker = firstChild.call(fragment(SLOT_HTML)),
+    node;
 
 
-export default (input: Renderable, parent: HTMLElement | Slot) => {
+export default (renderable: Renderable, parent: HTMLElement | Slot) => {
     if (SLOT in parent) {
-        return (parent as Slot).render(input);
-    }
-
-    let m = firstChild.call(parent as Element);
-
-    // Comment node
-    if (m && m.nodeType === 8) {
-    }
-    else {
-        m = marker.cloneNode() as Element;
+        return parent.render(renderable);
     }
 
     parent.textContent = '';
-    prepend.call(parent, m);
+    prepend.call(parent, node = marker.cloneNode());
 
-    return slot(m, input);
+    return slot(node, renderable);
 };

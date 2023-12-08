@@ -1,16 +1,34 @@
-import { RENDERABLE } from './constants';
-import { Template } from './template';
+import { RENDERABLE, RENDERABLE_ASSET, RENDERABLE_INLINE, RENDERABLE_TEMPLATE } from './constants';
+import { firstChild } from './utilities';
+import attributes from './attributes';
+import event from './event';
+import slot from './slot';
 
 
-type Element = HTMLElement & Record<PropertyKey, unknown>;
+type Element = HTMLElement & Properties;
 
 type Elements = Element[];
 
+type Properties = Record<PropertyKey, unknown>;
+
 type Renderable = {
-    [RENDERABLE]: null;
-    template: Template;
+    [RENDERABLE]: typeof RENDERABLE_ASSET | typeof RENDERABLE_INLINE | typeof RENDERABLE_TEMPLATE;
+    literals: TemplateStringsArray;
+    template: Template | null;
     values: unknown[];
 };
 
+type Template = {
+    fragment: DocumentFragment | boolean;
+    html: string;
+    literals: TemplateStringsArray;
+    slots: {
+        fn: typeof attributes.set | typeof attributes.spread | typeof event | typeof slot;
+        name: PropertyKey | null;
+        path: typeof firstChild[];
+        slot: number;
+    }[] | null;
+};
 
-export { Element, Elements, Renderable };
+
+export { Element, Elements, Properties, Renderable, Template };

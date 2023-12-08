@@ -2,14 +2,20 @@ import { effect, root, DIRTY } from '@esportsplus/reactivity';
 import { RENDERABLE, SLOT } from './constants';
 import { Element, Elements, Renderable } from './types';
 import { firstChild, isArray, nextSibling, nodeValue, raf, text } from './utilities'
+import { hydrate } from './html';
+
+
+let level = 0;
 
 
 function afterGroups(anchor: Element, groups: Elements[]) {
     for (let i = 0, n = groups.length; i < n; i++) {
         let group = groups[i];
 
-        anchor.after(anchor, ...group);
-        group.push(anchor = group.pop()!);
+        if (group.length) {
+            anchor.after(anchor, ...group);
+            anchor = group.at(-1)!;
+        }
     }
 
     return groups;
@@ -44,50 +50,43 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
         input = '';
     }
     else if (typeof input === 'object') {
-        if (RENDERABLE in input) {
-            let nodes = (input as Renderable).template.render(
-                    (input as Renderable).values
-                );
+        if (isArray(input)) {
+            let groups: Elements[] = [];
 
-            if (anchor) {
-                anchor.after(...nodes);
-            }
-
-            return nodes;
-        }
-        else if (isArray(input)) {
-            let result: Elements[] = [];
+            level++;
 
             for (let i = 0, n = input.length; i < n; i++) {
-                result.push( render(null, input[i]) as Elements );
+                groups.push( render(null, input[i]) as Elements );
             }
+
+            level--;
 
             if (anchor) {
-                afterGroups(anchor, result);
+                afterGroups(anchor, groups);
             }
 
-            return result;
+            return groups;
+        }
+
+        let nodes: Elements = [];
+
+        if (RENDERABLE in input) {
+            nodes = hydrate(input as Renderable, level);
         }
         else if (input instanceof NodeList) {
-            let nodes: Elements = [];
-
-            for (let n = firstChild.call(input as any as Element); n; n = nextSibling.call(n)) {
-                nodes.push(n);
+            for (let node = firstChild.call(input as any as Element); node; node = nextSibling.call(node)) {
+                nodes.push(node);
             }
-
-            if (anchor) {
-                anchor.after(...nodes);
-            }
-
-            return nodes;
         }
         else if (input instanceof Node) {
-            if (anchor) {
-                anchor.after(input);
-            }
-
-            return [input] as Elements;
+            nodes = [input] as Elements;
         }
+
+        if (anchor) {
+            anchor.after(...nodes);
+        }
+
+        return nodes;
     }
 
     if (input === '') {
@@ -136,7 +135,7 @@ class Slot {
             nodes = this.nodes[index];
 
         if (nodes) {
-            nodes.push(node = nodes.pop()!);
+            node = nodes.at(-1);
         }
 
         return node || this.marker;
@@ -185,8 +184,7 @@ class Slot {
         }
 
         if (this.text) {
-            if (typeof input === 'object' && input !== null) {
-            }
+            if (typeof input === 'object' && input !== null) {}
             else if (this.text.isConnected) {
                 nodeValue.call(
                     this.text,
@@ -202,9 +200,7 @@ class Slot {
             this.nodes = render(this.marker, input, this) as Elements[];
         }
         else {
-            this.nodes = [
-                render(this.marker, input, this) as Elements
-            ];
+            this.nodes = [ render(this.marker, input, this) as Elements ];
         }
 
         return this;

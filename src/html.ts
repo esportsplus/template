@@ -1,18 +1,17 @@
 import {
-    EMPTY_ARRAY,
-    NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_TYPES, NODE_VOID,
-    RENDERABLE,
-    SLOT_ATTRIBUTE_REGEX, SLOT_HTML, SLOT_NODE_REGEX, SLOT_REPLACE_REGEX,
-    TEMPLATE_CLEANUP_REGEX, TEMPLATE_NORMALIZE_REGEX
+    NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EVENTS, REGEX_EMPTY_TEXT_NODES,
+    REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, REGEX_WHITESPACE, RENDERABLE, RENDERABLE_ASSET,
+    RENDERABLE_INLINE, RENDERABLE_TEMPLATE, SLOT_HTML, SLOT_MARKER
 } from './constants';
-import { get, set, Template } from './template';
-import { Renderable } from './types';
-import { firstChild, firstElementChild, isArray, nextElementSibling, nextSibling } from './utilities';
-import a from './attribute';
+import { Element, Elements, Renderable, Template } from './types';
+import { cloneNode, firstChild, firstElementChild, fragment, isArray, nextElementSibling, nextSibling } from './utilities';
+import a from './attributes';
+import e from './event';
 import s from './slot';
 
 
-let data = { fn: s, n: 1, name: 'node', value: '' };
+let cache = new WeakMap<TemplateStringsArray, Template>(),
+    templates: Template[] = [];
 
 
 function build(literals: TemplateStringsArray, values: unknown[]) {
@@ -21,74 +20,91 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
     }
 
     let attribute = 0,
-        attributes: Template['slots'][0]['data'][] = [],
-        html = literals
-            .join(SLOT_HTML)
-            .replace(TEMPLATE_NORMALIZE_REGEX, '$1$2')
-            .trim(),
+        attributes: (null | string)[] = [],
+        buffer = '',
+        events = false,
+        html = minify(literals.join(SLOT_MARKER)),
+        index = 0,
         level = 0,
-        levels = [
-            {   // Leading text node
-                children: (html[0] === '<' ? 0 : 1),
-                elements: 0,
-                path: [] as (typeof firstChild)[]
-            }
-        ],
-        remaining = values.length,
+        levels = [{
+            children: 0, elements: 0, path: [] as NonNullable<Template['slots']>[0]['path']
+        }],
+        slot = 0,
         slots: Template['slots'] = [],
-        template = html.replace(TEMPLATE_CLEANUP_REGEX, '');
+        total = values.length;
 
-    for (let match of html.matchAll(SLOT_ATTRIBUTE_REGEX)) {
-        let data: typeof slots[0]['data'] = {
-                fn: a,
-                n: 0,
-                name: match[1],
-                value: match[2] || match[3]
-            },
-            value = data.value;
+    for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
+        let name = match[1];
 
-        for (let i = 0, n = value.length; i < n; i++) {
-            if ((i = value.indexOf(SLOT_HTML, i)) === -1) {
-                break;
+        if (name !== undefined) {
+            let value = match[2];
+
+            for (let i = 0, n = value.length; i < n; i++) {
+                if ((i = value.indexOf(SLOT_MARKER, i)) === -1) {
+                    break;
+                }
+
+                attributes.push(name);
             }
-
-            attributes.push(data);
-            data.n++;
         }
-
-        data.value = value === SLOT_HTML ? '' : value.replace(SLOT_REPLACE_REGEX, '');
+        else {
+            attributes.push(null);
+        }
     }
 
-    for (let match of html.matchAll(SLOT_NODE_REGEX)) {
+    for (let match of html.matchAll(REGEX_SLOT_NODES)) {
         let parent = levels[level],
-            type = NODE_TYPES[match[1]] || NODE_ELEMENT;
+            type = match[1] === undefined ? NODE_SLOT : (NODE_WHITELIST[match[1]] || NODE_ELEMENT);
+
+        // Text nodes
+        if ((match.index || 1) - 1 > index) {
+            parent.children++;
+        }
 
         if (type === NODE_ELEMENT || type === NODE_VOID) {
-            let attr = match[2],
-                path = parent.path.concat( sibling(parent.children) );
+            let attr = match[2];
 
-            if (attr && attr.indexOf(SLOT_HTML) !== -1) {
-                let previous;
+            if (attr) {
+                let path = methods(parent.children, parent.path, firstChild, nextSibling);
 
                 for (let i = 0, n = attr.length; i < n; i++) {
-                    if ((i = attr.indexOf(SLOT_HTML, i)) === -1) {
+                    if ((i = attr.indexOf(SLOT_MARKER, i)) === -1) {
                         break;
                     }
 
-                    let data = attributes[attribute++];
+                    let name = attributes[attribute++];
 
-                    if (data === previous) {
+                    if (name === null) {
+                        slots.push({ fn: a.spread, name: null, path, slot });
+                    }
+                    else if (name.startsWith('on')) {
+                        events = true;
+                        slots.push({ fn: e, name, path, slot });
                     }
                     else {
-                        previous = data;
-                        slots.push({ data, path });
+                        let value = values[slot];
+
+                        if (
+                            typeof value === 'object'
+                            && value !== null
+                            && (value as Record<PropertyKey, unknown>)[RENDERABLE] === RENDERABLE_INLINE
+                        ) {
+                            buffer += literals[slot++] + flatten(
+                                (value as Renderable).literals,
+                                (value as Renderable).values
+                            );
+                            continue;
+                        }
+                        else {
+                            slots.push({ fn: a.set, name, path, slot });
+                        }
                     }
 
-                    remaining--;
+                    buffer += literals[slot++];
                 }
             }
 
-            if (match[3] === undefined && type === NODE_ELEMENT) {
+            if (type === NODE_ELEMENT) {
                 level++;
             }
 
@@ -96,20 +112,37 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
                 children: 0,
                 elements: 0,
                 path: parent.path.length
-                    ? parent.path.concat( element(parent.elements) )
-                    : sibling(parent.children)
+                    ? methods(parent.elements, parent.path, firstElementChild, nextElementSibling)
+                    : methods(parent.children, [], firstChild, nextSibling)
             };
             parent.elements++;
         }
         else if (type === NODE_SLOT) {
-            remaining--;
-            slots.push({
-                data,
-                path: parent.path.concat( sibling(parent.children) )
-            });
+            let value = values[slot];
+
+            if (
+                typeof value === 'object'
+                && value !== null
+                && (value as Record<PropertyKey, unknown>)[RENDERABLE] === RENDERABLE_INLINE
+            ) {
+                buffer += literals[slot++] + flatten(
+                    (value as Renderable).literals,
+                    (value as Renderable).values
+                );
+            }
+            else {
+                buffer += literals[slot] + SLOT_HTML;
+                slots.push({
+                    fn: s,
+                    name: null,
+                    path: methods(parent.children, parent.path, firstChild, nextSibling),
+                    slot: slot++
+                });
+            }
         }
 
-        if (!remaining) {
+        if (slot === total) {
+            buffer += literals[slot];
             break;
         }
 
@@ -120,90 +153,159 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
             parent.children++;
         }
 
-        // Trailing text node
-        let char = html[(match.index || 0) + match[0].length];
+        index = (match.index || 0) + match[0].length;
+    }
 
-        if (char && char !== '<') {
-            levels[level].children++;
+    return set(literals, minify(events ? buffer.replace(REGEX_EVENTS, '') : buffer), slots);
+}
+
+function clone(template: Template) {
+    if (typeof template.fragment === 'boolean') {
+        if (template.fragment === true) {
+            template.fragment = fragment(template.html);
+        }
+        else {
+            template.fragment = true;
+
+            return fragment(template.html);
         }
     }
 
-    return set(literals, template, slots);
+    return cloneNode.call(template.fragment, true);
 }
 
-function element(stop: number) {
-    let methods = [firstElementChild];
+function flatten(literals: TemplateStringsArray, values: unknown[]) {
+    let html = '',
+        value;
 
-    for (let start = 0; start < stop; start++) {
-        methods.push(nextElementSibling);
+    for (let i = 0, n = literals.length; i < n; i++) {
+        html += (literals[i] || '') + (
+            isArray(value = values[i] || '') ? value.join('') : value
+        );
     }
 
-    return methods;
+    return html;
 }
 
-function flatten(value: unknown) {
-    if (value === false || value == null) {
-        return '';
-    }
-    else if (typeof value === 'object') {
-        if (RENDERABLE in value) {
-            return (value as Renderable).template.html;
-        }
-        else if (isArray(value)) {
-            let html = '';
+function get(renderable: Renderable, level: number) {
+    let { literals, values } = renderable,
+        template;
 
-            for (let i = 0, n = value.length; i < n; i++) {
-                html += flatten(value[i]);
+    if (level) {
+        if (templates.length) {
+            for (let i = templates.length - 1; i >= 0; i--) {
+                if (templates[i].literals === literals) {
+                    template = templates[i];
+                    break;
+                }
             }
+        }
+    }
+    else {
+        templates = [];
+    }
 
-            return html;
+    if (template === undefined) {
+        template = cache.get(literals) || (
+            renderable[RENDERABLE] === RENDERABLE_ASSET
+                ? set(literals, flatten(literals, values))
+                : build(literals, values)
+        );
+
+        if (level) {
+            templates.push(template);
         }
     }
 
-    return value;
+    if (template.fragment === false) {
+        template.fragment = true;
+    }
+
+    return template;
 }
 
-function sibling(stop: number) {
-    let methods = [firstChild];
+function methods(children: number, copy: (typeof firstChild)[], first: (typeof firstChild), next: (typeof firstChild)) {
+    let methods = [];
 
-    for (let start = 0; start < stop; start++) {
-        methods.push(nextSibling);
+    for (let i = 0, n = copy.length; i < n; i++) {
+        methods.push(copy[i]);
+    }
+
+    methods.push(first);
+
+    for (let start = 0; start < children; start++) {
+        methods.push(next);
     }
 
     return methods;
+}
+
+function minify(html: string) {
+    return html.replace(REGEX_EMPTY_TEXT_NODES, '$1$2').replace(REGEX_WHITESPACE, ' ').trim();
+}
+
+function set(literals: TemplateStringsArray, html: string, slots: Template['slots'] = null) {
+    let template = { fragment: false, html, literals, slots };
+
+    cache.set(literals, template);
+
+    return template;
 }
 
 
 const html = (literals: TemplateStringsArray, ...values: unknown[]): Renderable => {
-    return {
-        [RENDERABLE]: null,
-        template: get(literals) || build(literals, values),
-        values
-    };
+    return { [RENDERABLE]: RENDERABLE_TEMPLATE, literals, template: null, values };
 };
 
-html.static = (literals: TemplateStringsArray, ...values: unknown[]): Renderable => {
-    let template = get(literals);
+html.asset = (literals: TemplateStringsArray, ...values: unknown[]): Renderable => {
+    return { [RENDERABLE]: RENDERABLE_ASSET, literals, template: null, values };
+};
 
-    if (!template) {
-        let html = '';
+html.inline = (literals: TemplateStringsArray, ...values: unknown[]): Renderable => {
+    return { [RENDERABLE]: RENDERABLE_INLINE, literals, template: null, values };
+};
 
-        for (let i = 0, n = literals.length; i < n; i++) {
-            html += literals[i] + flatten(values[i]);
+const hydrate = (renderable: Renderable, level: number) => {
+    let template = renderable.template || (renderable.template = get(renderable, level));
+
+    let elements: Elements = [],
+        fragment = clone(template),
+        slots = template.slots;
+
+    if (slots !== null) {
+        let node,
+            previous,
+            values = renderable.values;
+
+        for (let i = slots.length - 1; i >= 0; i--) {
+            let { fn, name, path, slot } = slots[i];
+
+            if (path === previous) {}
+            else {
+                node = fragment;
+                previous = path;
+
+                for (let o = 0, j = path.length; o < j; o++) {
+                    node = path[o].call(node as Element);
+                }
+
+                a.apply();
+            }
+
+            // @ts-ignore
+            fn(node as Element, values[slot], name);
         }
 
-        template = set(
-            literals,
-            html.replace(TEMPLATE_NORMALIZE_REGEX, '$1$2').trim()
-        );
+        a.apply();
     }
 
-    return {
-        [RENDERABLE]: null,
-        template,
-        values: EMPTY_ARRAY
-    };
+    for (let element = firstChild.call(fragment as Element); element; element = nextSibling.call(element)) {
+        elements.push(element);
+    }
+
+    return elements;
 };
 
 
 export default html;
+export { hydrate };

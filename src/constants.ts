@@ -1,10 +1,5 @@
 const ATTRIBUTES = Symbol();
 
-const ATTRIBUTES_COUNTER = Symbol();
-
-
-const EMPTY_ARRAY = Object.freeze([]) as any as any[];
-
 
 const NODE_CLOSING = 1;
 
@@ -16,11 +11,9 @@ const NODE_SLOT = 4;
 
 const NODE_VOID = 5;
 
-
-const NODE_TYPES: Record<string, number> = {
+const NODE_WHITELIST: Record<string, number> = {
     '/': NODE_CLOSING,
     '!': NODE_COMMENT,
-    '!--$--': NODE_SLOT,
 
     'area': NODE_VOID,
     'base': NODE_VOID,
@@ -41,40 +34,50 @@ const NODE_TYPES: Record<string, number> = {
 };
 
 
+const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=\s*["'][^"']*["'])/g;
+
+const REGEX_EMPTY_TEXT_NODES = /\s+(<|{)|(>|})\s+/g;
+
+const REGEX_SLOT_ATTRIBUTES = /(?:([\w-:]+)(?:=["']([^"']*(?:{{\$}})[^"']*)["']))|{{\$}}[^<]*?>+?/g;
+
+const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?(\/)?>|{{\$}}/g;
+
+const REGEX_WHITESPACE = /\s\s+/g;
+
+
 const RENDERABLE = Symbol();
+
+const RENDERABLE_ASSET = Symbol();
+
+const RENDERABLE_INLINE = Symbol();
+
+const RENDERABLE_TEMPLATE = Symbol();
 
 
 const SLOT = Symbol();
 
-const SLOT_ATTRIBUTE_REGEX = /([\w-:]+|\.\.\.)(?:(?:=["']([^"']*<!--\$-->[^"']*)["'])|(<!--\$-->))/g;
-
 const SLOT_HTML = '<!--$-->';
 
-const SLOT_NODE_REGEX = /<(!--\$--|[\/!]|[\w-]+)((?:\s*[\w-:]+\s*=\s*["'](?:[^"']*)["'])*(?:[^\/]*>|[^\/>]*))(\/)?>/g;
-
-const SLOT_REPLACE_REGEX = /<!--\$-->/g;
-
-
-const TEMPLATE_CLEANUP_REGEX = /(?:\s*on[\w-:]+\s*=\s*["'][^"']*<!--\$-->[^"']*["'])|(?:\s*\.\.\.<!--\$-->)/g;
-
-const TEMPLATE_NORMALIZE_REGEX = /(?:\s|;)+(<)|(>)(?:\s|;)+/g;
+const SLOT_MARKER = '{{$}}';
 
 
 export {
     ATTRIBUTES,
-    ATTRIBUTES_COUNTER,
-    EMPTY_ARRAY,
     NODE_CLOSING,
     NODE_ELEMENT,
     NODE_SLOT,
-    NODE_TYPES,
     NODE_VOID,
+    NODE_WHITELIST,
+    REGEX_EVENTS,
+    REGEX_EMPTY_TEXT_NODES,
+    REGEX_SLOT_ATTRIBUTES,
+    REGEX_SLOT_NODES,
+    REGEX_WHITESPACE,
     RENDERABLE,
+    RENDERABLE_ASSET,
+    RENDERABLE_INLINE,
+    RENDERABLE_TEMPLATE,
     SLOT,
-    SLOT_ATTRIBUTE_REGEX,
     SLOT_HTML,
-    SLOT_NODE_REGEX,
-    SLOT_REPLACE_REGEX,
-    TEMPLATE_CLEANUP_REGEX,
-    TEMPLATE_NORMALIZE_REGEX
+    SLOT_MARKER
 };
