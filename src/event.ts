@@ -1,3 +1,4 @@
+import { root } from '@esportsplus/reactivity';
 import { Element } from './types';
 import { addEventListener } from './utilities';
 
@@ -9,21 +10,20 @@ let capture = new Set(['blur', 'focus', 'scroll']),
         'scroll',
         'touchcancel', 'touchend', 'touchleave', 'touchmove', 'touchstart',
         'wheel'
-    ]),
-    root = window.document;
+    ]);
 
 
 function register(event: string) {
     let key = keys[event] = Symbol(),
         type = event.slice(2);
 
-    addEventListener.call(root, type, (e) => {
+    addEventListener.call(window.document, type, (e) => {
         let node = e.target as Element | null;
 
         Object.defineProperty(e, 'currentTarget', {
             configurable: true,
             get() {
-                return node || root;
+                return node || window.document;
             }
         });
 
@@ -45,7 +45,7 @@ function register(event: string) {
 
 export default (element: Element, listener: Function, name: string): void => {
     if (name === 'onrender') {
-        return listener(element);
+        return root(() => listener(element));
     }
 
     element[keys[name] || register(name)] = listener;
