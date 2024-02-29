@@ -105,16 +105,15 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
             }
 
             if (type === NODE_ELEMENT) {
-                level++;
+                levels[++level] = {
+                    children: 0,
+                    elements: 0,
+                    path: parent.path.length
+                        ? methods(parent.elements, parent.path, firstElementChild, nextElementSibling)
+                        : methods(parent.children, [], firstChild, nextSibling)
+                };
             }
 
-            levels[level] = {
-                children: 0,
-                elements: 0,
-                path: parent.path.length
-                    ? methods(parent.elements, parent.path, firstElementChild, nextElementSibling)
-                    : methods(parent.children, [], firstChild, nextSibling)
-            };
             parent.elements++;
         }
         else if (type === NODE_SLOT) {
