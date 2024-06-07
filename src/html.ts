@@ -74,7 +74,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
                     let name = attributes[attribute++];
 
-                    if (name === null) {
+                    if (name == null) {
                         slots.push({ fn: a.spread, name: null, path, slot });
                     }
                     else if (name.startsWith('on')) {
@@ -294,8 +294,6 @@ const hydrate = (renderable: Renderable, level: number) => {
             // @ts-ignore
             fn(node as Element, values[slot], name);
         }
-
-        a.apply();
     }
 
     for (let element = firstChild.call(fragment as Element); element; element = nextSibling.call(element)) {
