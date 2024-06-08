@@ -27,18 +27,22 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         index = 0,
         level = 0,
         levels = [{
-            children: 0, elements: 0, path: [] as NonNullable<Template['slots']>[0]['path']
+            children: 0,
+            elements: 0,
+            path: [] as NonNullable<Template['slots']>[0]['path']
         }],
         slot = 0,
         slots: Template['slots'] = [],
         total = values.length;
 
     for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
-        let name = match[1];
+        let name = match[1] || null,
+            value = match[2];
 
-        if (name !== undefined) {
-            let value = match[2];
-
+        if (name === null || value === SLOT_MARKER) {
+            attributes.push(name);
+        }
+        else {
             for (let i = 0, n = value.length; i < n; i++) {
                 if ((i = value.indexOf(SLOT_MARKER, i)) === -1) {
                     break;
@@ -46,9 +50,6 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
                 attributes.push(name);
             }
-        }
-        else {
-            attributes.push(null);
         }
     }
 
@@ -84,11 +85,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
                     else {
                         let value = values[slot];
 
-                        if (
-                            typeof value === 'object'
-                            && value !== null
-                            && (value as Record<PropertyKey, unknown>)[RENDERABLE] === RENDERABLE_INLINE
-                        ) {
+                        if (isInlineable(value)) {
                             buffer += literals[slot++] + flatten(
                                 (value as Renderable).literals,
                                 (value as Renderable).values
@@ -119,11 +116,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         else if (type === NODE_SLOT) {
             let value = values[slot];
 
-            if (
-                typeof value === 'object'
-                && value !== null
-                && (value as Record<PropertyKey, unknown>)[RENDERABLE] === RENDERABLE_INLINE
-            ) {
+            if (isInlineable(value)) {
                 buffer += literals[slot++] + flatten(
                     (value as Renderable).literals,
                     (value as Renderable).values
@@ -221,6 +214,10 @@ function get(renderable: Renderable, level: number) {
     }
 
     return template;
+}
+
+function isInlineable(value: unknown) {
+    return typeof value === 'object' && value !== null && (value as Record<PropertyKey, unknown>)[RENDERABLE] === RENDERABLE_INLINE;
 }
 
 function methods(children: number, copy: (typeof firstChild)[], first: (typeof firstChild), next: (typeof firstChild)) {

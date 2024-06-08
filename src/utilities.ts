@@ -22,6 +22,8 @@ const firstElementChild = Object.getOwnPropertyDescriptor(prototype, 'firstEleme
 
 const nextElementSibling = Object.getOwnPropertyDescriptor(prototype, 'nextElementSibling')!.get!;
 
+const parentElement = Object.getOwnPropertyDescriptor(prototype, 'parentElement')!.get!;
+
 const prepend = prototype.prepend;
 
 const removeAttribute = prototype.removeAttribute;
@@ -39,6 +41,8 @@ const nextSibling = Object.getOwnPropertyDescriptor(prototype, 'nextSibling')!.g
 
 const nodeValue = Object.getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
 
+
+const defineProperty = Object.defineProperty;
 
 const fragment = (html: string) => {
     innerHTML.call(template, html);
@@ -69,6 +73,7 @@ export {
     addEventListener,
     className,
     cloneNode,
+    defineProperty,
     firstChild,
     firstElementChild,
     fragment,
@@ -77,6 +82,7 @@ export {
     nextElementSibling,
     nextSibling,
     nodeValue,
+    parentElement,
     prepend,
     raf,
     removeAttribute,

@@ -1,6 +1,6 @@
 import { root } from '@esportsplus/reactivity';
 import { Element } from './types';
-import { addEventListener } from './utilities';
+import { addEventListener, defineProperty, parentElement } from './utilities';
 
 
 let capture = new Set(['blur', 'focus', 'scroll']),
@@ -20,7 +20,7 @@ function register(event: string) {
     addEventListener.call(window.document, type, (e) => {
         let node = e.target as Element | null;
 
-        Object.defineProperty(e, 'currentTarget', {
+        defineProperty(e, 'currentTarget', {
             configurable: true,
             get() {
                 return node || window.document;
@@ -32,7 +32,7 @@ function register(event: string) {
                 return (node[key] as Function).call(node, e);
             }
 
-            node = node.parentElement as Element | null;
+            node = parentElement.call(node);
         }
     }, {
         capture: capture.has(type),

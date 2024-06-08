@@ -38,7 +38,7 @@ const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=\s*["'][^"']*["'])/g;
 
 const REGEX_EMPTY_TEXT_NODES = /\s+(<|{)|(>|})\s+/g;
 
-const REGEX_SLOT_ATTRIBUTES = /(?:([\w-:]+)(?:=["']([^"']*(?:{{\$}})[^"']*)["']))|{{\$}}[^<]*?>+?/g;
+const REGEX_SLOT_ATTRIBUTES = /(?:([\w-:]+)(?:=["']([^"']*(?:{{\$}})[^"']*)["']))|{{\$}}[^<]*?>*?/g;
 
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?(\/)?>|{{\$}}/g;
 

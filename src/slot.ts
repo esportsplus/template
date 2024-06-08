@@ -1,8 +1,8 @@
 import { effect, root, DIRTY } from '@esportsplus/reactivity';
 import { RENDERABLE, SLOT } from './constants';
+import { hydrate } from './html';
 import { Element, Elements, Renderable } from './types';
 import { firstChild, isArray, nextSibling, nodeValue, raf, text } from './utilities'
-import { hydrate } from './html';
 
 
 let level = 0;
