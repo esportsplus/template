@@ -75,8 +75,8 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
                     let name = attributes[attribute++];
 
-                    if (name == null) {
-                        slots.push({ fn: a.spread, name: null, path, slot });
+                    if (name === null) {
+                        slots.push({ fn: a.spread, name, path, slot });
                     }
                     else if (name.startsWith('on')) {
                         events = true;
@@ -85,11 +85,8 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
                     else {
                         let value = values[slot];
 
-                        if (isInlineable(value)) {
-                            buffer += literals[slot++] + flatten(
-                                (value as Renderable).literals,
-                                (value as Renderable).values
-                            );
+                        if (inlineable(value)) {
+                            buffer += literals[slot++] + flatten(value.literals, value.values);
                             continue;
                         }
                         else {
@@ -116,11 +113,8 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         else if (type === NODE_SLOT) {
             let value = values[slot];
 
-            if (isInlineable(value)) {
-                buffer += literals[slot++] + flatten(
-                    (value as Renderable).literals,
-                    (value as Renderable).values
-                );
+            if (inlineable(value)) {
+                buffer += literals[slot++] + flatten(value.literals, value.values);
             }
             else {
                 buffer += literals[slot] + SLOT_HTML;
@@ -216,7 +210,7 @@ function get(renderable: Renderable, level: number) {
     return template;
 }
 
-function isInlineable(value: unknown) {
+function inlineable(value: unknown): value is Renderable {
     return typeof value === 'object' && value !== null && (value as Record<PropertyKey, unknown>)[RENDERABLE] === RENDERABLE_INLINE;
 }
 

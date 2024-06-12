@@ -22,8 +22,6 @@ const firstElementChild = Object.getOwnPropertyDescriptor(prototype, 'firstEleme
 
 const nextElementSibling = Object.getOwnPropertyDescriptor(prototype, 'nextElementSibling')!.get!;
 
-const parentElement = Object.getOwnPropertyDescriptor(prototype, 'parentElement')!.get!;
-
 const prepend = prototype.prepend;
 
 const removeAttribute = prototype.removeAttribute;
@@ -40,6 +38,8 @@ const firstChild = Object.getOwnPropertyDescriptor(prototype, 'firstChild')!.get
 const nextSibling = Object.getOwnPropertyDescriptor(prototype, 'nextSibling')!.get!;
 
 const nodeValue = Object.getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
+
+const parentElement = Object.getOwnPropertyDescriptor(prototype, 'parentElement')!.get!;
 
 
 const defineProperty = Object.defineProperty;
