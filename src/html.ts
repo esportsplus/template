@@ -37,9 +37,9 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
     for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
         let name = match[1] || null,
-            value = match[2];
+            value = match[2] || match[0];
 
-        if (name === null || value === SLOT_MARKER) {
+        if (value === SLOT_MARKER) {
             attributes.push(name);
         }
         else {
