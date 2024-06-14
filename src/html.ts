@@ -1,6 +1,6 @@
 import {
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EVENTS, REGEX_EMPTY_TEXT_NODES,
-    REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, REGEX_WHITESPACE, RENDERABLE, RENDERABLE_ASSET,
+    REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, REGEX_WHITESPACE, RENDERABLE,
     RENDERABLE_INLINE, RENDERABLE_TEMPLATE, SLOT_HTML, SLOT_MARKER
 } from './constants';
 import { Element, Elements, Renderable, Template } from './types';
@@ -192,11 +192,7 @@ function get(renderable: Renderable, level: number) {
     }
 
     if (template === undefined) {
-        template = cache.get(literals) || (
-            renderable[RENDERABLE] === RENDERABLE_ASSET
-                ? set(literals, flatten(literals, values))
-                : build(literals, values)
-        );
+        template = cache.get(literals) || build(literals, values);
 
         if (level) {
             templates.push(template);
@@ -247,10 +243,6 @@ const html = (literals: TemplateStringsArray, ...values: unknown[]): Renderable 
     return { [RENDERABLE]: RENDERABLE_TEMPLATE, literals, template: null, values };
 };
 
-html.asset = (literals: TemplateStringsArray, ...values: unknown[]): Renderable => {
-    return { [RENDERABLE]: RENDERABLE_ASSET, literals, template: null, values };
-};
-
 html.inline = (literals: TemplateStringsArray, ...values: unknown[]): Renderable => {
     return { [RENDERABLE]: RENDERABLE_INLINE, literals, template: null, values };
 };
@@ -283,7 +275,7 @@ const hydrate = (renderable: Renderable, level: number) => {
             }
 
             // @ts-ignore
-            fn(node as Element, values[slot], name);
+            fn(node, values[slot], name);
         }
     }
 

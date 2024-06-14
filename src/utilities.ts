@@ -41,6 +41,8 @@ const nodeValue = Object.getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
 
 const parentElement = Object.getOwnPropertyDescriptor(prototype, 'parentElement')!.get!;
 
+const parentNode = Object.getOwnPropertyDescriptor(prototype, 'parentNode')!.get!;
+
 
 const defineProperty = Object.defineProperty;
 
@@ -83,6 +85,7 @@ export {
     nextSibling,
     nodeValue,
     parentElement,
+    parentNode,
     prepend,
     raf,
     removeAttribute,

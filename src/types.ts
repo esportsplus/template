@@ -1,4 +1,4 @@
-import { RENDERABLE, RENDERABLE_ASSET, RENDERABLE_INLINE, RENDERABLE_TEMPLATE } from './constants';
+import { RENDERABLE, RENDERABLE_INLINE, RENDERABLE_TEMPLATE } from './constants';
 import { firstChild } from './utilities';
 import attributes from './attributes';
 import event from './event';
@@ -12,7 +12,7 @@ type Elements = Element[];
 type Properties = Record<PropertyKey, unknown>;
 
 type Renderable = {
-    [RENDERABLE]: typeof RENDERABLE_ASSET | typeof RENDERABLE_INLINE | typeof RENDERABLE_TEMPLATE;
+    [RENDERABLE]: typeof RENDERABLE_INLINE | typeof RENDERABLE_TEMPLATE;
     literals: TemplateStringsArray;
     template: Template | null;
     values: unknown[];

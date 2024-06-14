@@ -63,7 +63,7 @@ function set(element: Element, name: string, value: unknown) {
     else if (name === 'class') {
         className.call(element, value as string);
     }
-    else if (name === 'style' || name.startsWith('data-')) {
+    else if (name === 'style' || name.startsWith('data-') || 'ownerSVGElement' in element) {
         setAttribute.call(element, name, value as string);
     }
     else {

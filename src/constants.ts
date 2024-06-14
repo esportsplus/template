@@ -47,8 +47,6 @@ const REGEX_WHITESPACE = /\s\s+/g;
 
 const RENDERABLE = Symbol();
 
-const RENDERABLE_ASSET = Symbol();
-
 const RENDERABLE_INLINE = Symbol();
 
 const RENDERABLE_TEMPLATE = Symbol();
@@ -74,7 +72,6 @@ export {
     REGEX_SLOT_NODES,
     REGEX_WHITESPACE,
     RENDERABLE,
-    RENDERABLE_ASSET,
     RENDERABLE_INLINE,
     RENDERABLE_TEMPLATE,
     SLOT,
