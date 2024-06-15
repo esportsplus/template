@@ -43,10 +43,10 @@ function register(event: string) {
 }
 
 
-export default (element: Element, listener: Function, name: string): void => {
-    if (name === 'onrender') {
+export default (element: Element, event: string, listener: Function): void => {
+    if (event === 'onrender') {
         return root(() => listener(element));
     }
 
-    element[keys[name] || register(name)] = listener;
+    element[keys[event] || register(event)] = listener;
 };

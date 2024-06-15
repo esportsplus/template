@@ -6,7 +6,7 @@ const svg = (literals: TemplateStringsArray, ...values: unknown[]) => {
 };
 
 svg.sprite = (svg: { symbol: string }) => {
-    return html`<svg><use href="${svg.symbol}" /></svg>`;
+    return html`<svg><use href='${svg.symbol}' /></svg>`;
 };
 
 

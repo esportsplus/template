@@ -5,12 +5,32 @@ import { className, isArray, raf, removeAttribute, setAttribute } from './utilit
 import event from './event';
 
 
-let delimiters: Record<string, string> = {
+let attributes: Record<string, unknown> = {},
+    delimiters: Record<string, string> = {
         class: ' ',
         style: ';'
     },
-    updates: Record<string, Function> | null = null;
+    events: Record<string, Function> = {};
 
+
+function attribute(element: Element, name: string, value: unknown) {
+    if (value === false || value == null) {
+        value = '';
+    }
+
+    if (value === '') {
+        removeAttribute.call(element, name);
+    }
+    else if (name === 'class') {
+        className.call(element, value as string);
+    }
+    else if (name === 'style' || name.startsWith('data-') || 'ownerSVGElement' in element) {
+        setAttribute.call(element, name, value as string);
+    }
+    else {
+        element[name] = value;
+    }
+}
 
 function normalize(name: keyof typeof delimiters, value: unknown, properties: Properties = {}) {
     if (typeof value === 'string') {
@@ -49,25 +69,6 @@ function reactive(element: Element, id: string, name: string, value: unknown, wa
     }
     else {
         update(element, id, name, value, wait);
-    }
-}
-
-function set(element: Element, name: string, value: unknown) {
-    if (value === false || value == null) {
-        value = '';
-    }
-
-    if (value === '') {
-        removeAttribute.call(element, name);
-    }
-    else if (name === 'class') {
-        className.call(element, value as string);
-    }
-    else if (name === 'style' || name.startsWith('data-') || 'ownerSVGElement' in element) {
-        setAttribute.call(element, name, value as string);
-    }
-    else {
-        element[name] = value;
     }
 }
 
@@ -131,36 +132,35 @@ function update(element: Element, id: null | string, name: string, value: unknow
     }
 
     if (wait) {
-        if (updates === null) {
-            updates = {
-                [name]: () => set(element, name, value)
-            };
-        }
-        else {
-            updates[name] = () => set(element, name, value);
-        }
+        attributes[name] = value;
     }
     else {
-        set(element, name, value);
+        attribute(element, name, value);
     }
 }
 
 
 export default {
-    apply: () => {
-        if (updates === null) {
-            return;
+    apply: (element: Element) => {
+        for (let key in attributes) {
+            attribute(element, key, attributes[key]);
         }
 
-        for (let key in updates) {
-            updates[key]();
+        for (let key in events) {
+            event(element, key, events[key]);
         }
 
-        updates = null;
+        attributes = {};
+        events = {};
     },
     set: (element: Element, value: unknown, name: string) => {
         if (typeof value === 'function') {
-            reactive(element, ('e' + store(element)[ATTRIBUTES]++), name, value, true);
+            if (name.startsWith('on')) {
+                events[name] = value;
+            }
+            else {
+                reactive(element, ('e' + store(element)[ATTRIBUTES]++), name, value, true);
+            }
         }
         else {
             update(element, null, name, value, true);
@@ -174,7 +174,7 @@ export default {
 
             if (typeof value === 'function') {
                 if (name.startsWith('on')) {
-                    event(element, value as Function, name);
+                    events[name] = value;
                 }
                 else {
                     reactive(element, ('e' + data[ATTRIBUTES]++), name, value, true);

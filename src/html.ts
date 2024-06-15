@@ -6,7 +6,6 @@ import {
 import { Element, Elements, Renderable, Template } from './types';
 import { cloneNode, firstChild, firstElementChild, fragment, isArray, nextElementSibling, nextSibling } from './utilities';
 import a from './attributes';
-import e from './event';
 import s from './slot';
 
 
@@ -22,7 +21,6 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
     let attribute = 0,
         attributes: (null | string)[] = [],
         buffer = '',
-        events = false,
         html = minify(literals.join(SLOT_MARKER)),
         index = 0,
         level = 0,
@@ -77,10 +75,6 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
                     if (name === null) {
                         slots.push({ fn: a.spread, name, path, slot });
-                    }
-                    else if (name.startsWith('on')) {
-                        events = true;
-                        slots.push({ fn: e, name, path, slot });
                     }
                     else {
                         let value = values[slot];
@@ -142,7 +136,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         index = (match.index || 0) + match[0].length;
     }
 
-    return set(literals, minify(events ? buffer.replace(REGEX_EVENTS, '') : buffer), slots);
+    return set(literals, minify(buffer.replace(REGEX_EVENTS, '')), slots);
 }
 
 function clone(template: Template) {
@@ -264,14 +258,16 @@ const hydrate = (renderable: Renderable, level: number) => {
 
             if (path === previous) {}
             else {
+                if (node !== undefined) {
+                    a.apply(node);
+                }
+
                 node = fragment;
                 previous = path;
 
                 for (let o = 0, j = path.length; o < j; o++) {
                     node = path[o].call(node as Element);
                 }
-
-                a.apply();
             }
 
             // @ts-ignore
