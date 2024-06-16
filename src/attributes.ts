@@ -9,8 +9,7 @@ let attributes: Record<string, unknown> = {},
     delimiters: Record<string, string> = {
         class: ' ',
         style: ';'
-    },
-    events: Record<string, Function> = {};
+    };
 
 
 function attribute(element: Element, name: string, value: unknown) {
@@ -79,7 +78,7 @@ function update(element: Element, id: null | string, name: string, value: unknow
 
         if (id === null) {
             if (typeof value === 'string' && value) {
-                cache[name + '.static'] += delimiter + value;
+                cache[name + '.static'] += (cache[name + '.static'] ? delimiter : '') + value;
             }
         }
         else {
@@ -145,17 +144,12 @@ export default {
             attribute(element, key, attributes[key]);
         }
 
-        for (let key in events) {
-            event(element, key, events[key]);
-        }
-
         attributes = {};
-        events = {};
     },
     set: (element: Element, value: unknown, name: string) => {
         if (typeof value === 'function') {
             if (name.startsWith('on')) {
-                events[name] = value;
+                event(element, name, value);
             }
             else {
                 reactive(element, ('e' + store(element)[ATTRIBUTES]++), name, value, true);
@@ -173,7 +167,7 @@ export default {
 
             if (typeof value === 'function') {
                 if (name.startsWith('on')) {
-                    events[name] = value;
+                    event(element, name, value);
                 }
                 else {
                     reactive(element, ('e' + data[ATTRIBUTES]++), name, value, true);
