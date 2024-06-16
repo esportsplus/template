@@ -258,9 +258,7 @@ const hydrate = (renderable: Renderable, level: number) => {
 
             if (path === previous) {}
             else {
-                if (node !== undefined) {
-                    a.apply(node);
-                }
+                a.apply(node);
 
                 node = fragment;
                 previous = path;
@@ -273,6 +271,8 @@ const hydrate = (renderable: Renderable, level: number) => {
             // @ts-ignore
             fn(node, values[slot], name);
         }
+
+        a.apply(node);
     }
 
     for (let element = firstChild.call(fragment as Element); element; element = nextSibling.call(element)) {

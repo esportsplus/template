@@ -32,23 +32,6 @@ function attribute(element: Element, name: string, value: unknown) {
     }
 }
 
-function normalize(name: keyof typeof delimiters, value: unknown, properties: Properties = {}) {
-    if (typeof value === 'string') {
-        let key,
-            keys = value.split(delimiters[name]);
-
-        for (let i = 0, n = keys.length; i < n; i ++) {
-            key = keys[i];
-
-            if (key) {
-                properties[key] = null;
-            }
-        }
-    }
-
-    return properties;
-}
-
 function reactive(element: Element, id: string, name: string, value: unknown, wait = false) {
     if (typeof value === 'function') {
         effect(() => {
@@ -72,16 +55,8 @@ function reactive(element: Element, id: string, name: string, value: unknown, wa
     }
 }
 
-function store(element: Element, name?: string) {
-    let data = (
-            element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES]: 0 })
-        ) as Properties & { [ATTRIBUTES]: number };
-
-    if (name !== undefined && name in data === false) {
-        data[name] = normalize(name, element.getAttribute(name));
-    }
-
-    return data;
+function store(element: Element) {
+    return ( element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES]: 0 }) ) as Properties & { [ATTRIBUTES]: number };
 }
 
 function update(element: Element, id: null | string, name: string, value: unknown, wait = false) {
@@ -89,46 +64,70 @@ function update(element: Element, id: null | string, name: string, value: unknow
         value = '';
     }
 
-    if (name in delimiters) {
-        let data = store(element, name),
-            delimiter = delimiters[name] || '',
-            fresh = normalize(name, value),
-            values = data[name] as Properties;
+    let cache = store(element);
 
-        for (let key in fresh) {
-            values[key] = null;
+    if (name in delimiters) {
+        let delimiter = delimiters[name],
+            dynamic = cache[name] as Properties | undefined;
+
+        if (dynamic === undefined) {
+            let value = (element.getAttribute(name) || '').trim();
+
+            cache[name] = dynamic = {};
+            cache[name + '.static'] = value.endsWith(delimiter) ? value.slice(0, -1) : value;
         }
 
-        if (typeof id === 'string') {
-            let stale = data[id] as Properties | undefined;
+        if (id === null) {
+            if (typeof value === 'string' && value) {
+                cache[name + '.static'] += delimiter + value;
+            }
+        }
+        else {
+            let hot: Properties = {};
 
-            if (stale !== undefined) {
-                for (let key in stale) {
-                    if (key in fresh) {
+            if (typeof value === 'string') {
+                let key: string,
+                    keys = value.split(delimiter);
+
+                for (let i = 0, n = keys.length; i < n; i ++) {
+                    key = keys[i].trim();
+
+                    if (key === '') {
                         continue;
                     }
 
-                    delete values[key];
+                    dynamic[key] = null;
+                    hot[key] = null;
                 }
             }
 
-            data[id] = fresh;
+            let cold = cache[id] as Properties | undefined;
+
+            if (cold !== undefined) {
+                for (let key in cold) {
+                    if (key in hot) {
+                        continue;
+                    }
+
+                    delete dynamic[key];
+                }
+            }
+
+            cache[id] = hot;
         }
 
-        value = '';
+        value = cache[name + '.static'];
 
-        for (let key in values) {
+        for (let key in dynamic) {
             value += (value ? delimiter : '') + key;
         }
     }
-    else if (id !== null) {
-        let data = store(element);
-
-        if (data[name] === value) {
+    else if (typeof id === 'string') {
+        if (cache[name] === value) {
             return;
         }
 
-        data[name] = value as string;
+        cache[name] = value as string;
     }
 
     if (wait) {
