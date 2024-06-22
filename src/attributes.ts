@@ -54,6 +54,20 @@ function reactive(element: Element, id: string, name: string, value: unknown, wa
     }
 }
 
+function set(element: Element, value: unknown, name: string) {
+    if (typeof value === 'function') {
+        if (name.startsWith('on')) {
+            event(element, name, value);
+        }
+        else {
+            reactive(element, ('e' + store(element)[ATTRIBUTES]++), name, value, true);
+        }
+    }
+    else {
+        update(element, null, name, value, true);
+    }
+}
+
 function store(element: Element) {
     return ( element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES]: 0 }) ) as Properties & { [ATTRIBUTES]: number };
 }
@@ -147,30 +161,18 @@ export default {
 
         attributes = {};
     },
-    set: (element: Element, value: unknown, name: string) => {
-        if (typeof value === 'function') {
-            if (name.startsWith('on')) {
-                event(element, name, value);
-            }
-            else {
-                reactive(element, ('e' + store(element)[ATTRIBUTES]++), name, value, true);
-            }
-        }
-        else {
-            update(element, null, name, value, true);
-        }
-    },
+    set,
     spread: function (element: Element, properties: Properties) {
         for (let name in properties) {
             let value = properties[name];
 
             if (isArray(value)) {
                 for (let i = 0, n = value.length; i < n; i++) {
-                    this.set(element, value[i], name);
+                    set(element, value[i], name);
                 }
             }
             else {
-                this.set(element, value, name);
+                set(element, value, name);
             }
         }
     }
