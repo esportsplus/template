@@ -1,8 +1,8 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/reactivity": "^0.1.26",
-        "@esportsplus/tasks": "^0.1.5"
+        "@esportsplus/reactivity": "^0.1.27",
+        "@esportsplus/tasks": "^0.1.6"
     },
     "devDependencies": {
         "@esportsplus/typescript": "^0.4.9"
