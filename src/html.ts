@@ -53,7 +53,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
     for (let match of html.matchAll(REGEX_SLOT_NODES)) {
         let parent = levels[level],
-            type = match[1] === undefined ? NODE_SLOT : (NODE_WHITELIST[match[1]] || NODE_ELEMENT);
+            type = match[1] === undefined ? NODE_SLOT : (NODE_WHITELIST[match[1].toLowerCase()] || NODE_ELEMENT);
 
         // Text nodes
         if ((match.index || 1) - 1 > index) {
