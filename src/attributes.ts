@@ -34,11 +34,11 @@ function attribute(element: Element, name: string, value: unknown) {
 function reactive(element: Element, id: string, name: string, value: unknown, wait = false) {
     if (typeof value === 'function') {
         effect(() => {
-            let v = (value as Function)();
+            let v = (value as Function)(element);
 
             if (typeof v === 'function') {
                 root(() => {
-                    reactive(element, id, name, v(), wait);
+                    reactive(element, id, name, v(element), wait);
                 });
             }
             else {
