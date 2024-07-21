@@ -1,7 +1,8 @@
+import { ReactiveArray } from '@esportsplus/reactivity';
 import {
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EVENTS, REGEX_EMPTY_TEXT_NODES,
     REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, REGEX_WHITESPACE, RENDERABLE,
-    RENDERABLE_INLINE, RENDERABLE_TEMPLATE, SLOT_HTML, SLOT_MARKER
+    RENDERABLE_INLINE, RENDERABLE_REACTIVE_TEMPLATE, RENDERABLE_TEMPLATE, SLOT_HTML, SLOT_MARKER
 } from './constants';
 import { Element, Elements, Renderable, Template } from './types';
 import { cloneNode, firstChild, firstElementChild, fragment, isArray, nextElementSibling, nextSibling } from './utilities';
@@ -241,7 +242,17 @@ html.inline = (literals: TemplateStringsArray, ...values: unknown[]): Renderable
     return { [RENDERABLE]: RENDERABLE_INLINE, literals, template: null, values };
 };
 
+html.reactive = <T>(values: ReactiveArray<T>, factory: Renderable<T>['factory']): Renderable => {
+    // @ts-ignore
+    return { [RENDERABLE]: RENDERABLE_REACTIVE_TEMPLATE, factory, literals: null, template: null, values };
+};
+
 const hydrate = (renderable: Renderable, level: number) => {
+    if (renderable[RENDERABLE] === RENDERABLE_REACTIVE_TEMPLATE) {
+        console.log(renderable);
+        return [];
+    }
+
     let template = renderable.template || (renderable.template = get(renderable, level));
 
     let elements: Elements = [],

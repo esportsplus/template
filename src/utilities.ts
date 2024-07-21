@@ -1,4 +1,5 @@
 import { raf as tasks } from '@esportsplus/tasks';
+import { defineProperty, isArray } from '@esportsplus/utilities';
 import { Element as E } from './types';
 
 
@@ -44,8 +45,6 @@ const parentElement = Object.getOwnPropertyDescriptor(prototype, 'parentElement'
 const parentNode = Object.getOwnPropertyDescriptor(prototype, 'parentNode')!.get!;
 
 
-const defineProperty = Object.defineProperty;
-
 const fragment = (html: string) => {
     innerHTML.call(template, html);
 
@@ -55,8 +54,6 @@ const fragment = (html: string) => {
 
     return content;
 };
-
-const isArray = Array.isArray;
 
 const raf = tasks();
 

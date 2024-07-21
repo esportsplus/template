@@ -1,4 +1,4 @@
-import { RENDERABLE, RENDERABLE_INLINE, RENDERABLE_TEMPLATE } from './constants';
+import { RENDERABLE, RENDERABLE_INLINE, RENDERABLE_REACTIVE_TEMPLATE, RENDERABLE_TEMPLATE } from './constants';
 import { firstChild } from './utilities';
 import attributes from './attributes';
 import event from './event';
@@ -11,8 +11,9 @@ type Elements = Element[];
 
 type Properties = Record<PropertyKey, unknown>;
 
-type Renderable = {
-    [RENDERABLE]: typeof RENDERABLE_INLINE | typeof RENDERABLE_TEMPLATE;
+type Renderable<T = any> = {
+    [RENDERABLE]: typeof RENDERABLE_INLINE | typeof RENDERABLE_REACTIVE_TEMPLATE | typeof RENDERABLE_TEMPLATE;
+    factory?: (this: T[], value: T, i: number) => Renderable;
     literals: TemplateStringsArray;
     template: Template | null;
     values: unknown[];
