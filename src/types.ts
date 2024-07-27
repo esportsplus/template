@@ -24,7 +24,7 @@ type RenderableInline = {
 type RenderableReactive<T = unknown> = {
     [RENDERABLE]: typeof RENDERABLE_REACTIVE;
     literals: null;
-    template: <U>(this: ReactiveArray<T>, value: T, i: number) => U;
+    template: (this: ReactiveArray<T>, value: T, i: number) => RenderableStatic;
     values: ReactiveArray<T>;
 };
 
