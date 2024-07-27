@@ -1,7 +1,7 @@
 import html from './html';
 
 
-const svg = <T>(literals: TemplateStringsArray, ...values: T[]) => {
+const svg = (literals: TemplateStringsArray, ...values: unknown[]) => {
     return html(literals, ...values);
 };
 
