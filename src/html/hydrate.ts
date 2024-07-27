@@ -1,5 +1,4 @@
 import { root, ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_REACTIVE } from '~/constants';
 import { Element, Elements, Renderable, RenderableReactive, RenderableStatic, Template } from '~/types';
 import { Slot } from '~/slot';
 import { cloneNode, firstChild, fragment, nextSibling } from '~/utilities';
@@ -22,15 +21,15 @@ function clone(template: Template) {
     return cloneNode.call(template.fragment, true);
 }
 
-function reactive<T>(renderable: RenderableReactive<T>, level: number, slot: Slot) {
+function reactive<T>(renderable: RenderableReactive<T>, slot: Slot) {
     let array = renderable.values,
         factory = renderable.template,
         refresh = () => {
             slot.length = 0;
-            reactive(renderable, 1, slot);
+            reactive(renderable, slot);
         },
         render = (i: number, n?: number) => {
-            return root(() => template(array, factory, level, i, n), scheduler);
+            return root(() => template(array, factory, i, n), scheduler);
         },
         renderables = array.map( factory ),
         scheduler = root((scope) => scope.scheduler);
@@ -43,7 +42,7 @@ function reactive<T>(renderable: RenderableReactive<T>, level: number, slot: Slo
     array.on('splice', ({ deleteCount: d, items: i, start: s }) => slot.splice(s, d, ...render(s, i.length)));
     array.on('unshift', ({ items }) => slot.unshift(...render(0, items.length)));
 
-    return template(array, factory, level, 0, renderables.length);
+    return template(array, factory, 0, renderables.length);
 }
 
 function render<T>(renderable: Renderable<T>, template: Template) {
@@ -85,7 +84,7 @@ function render<T>(renderable: Renderable<T>, template: Template) {
     return elements;
 }
 
-function template<T>(array: ReactiveArray<T>, template: RenderableReactive<T>['template'], level: number, i: number, n?: number) {
+function template<T>(array: ReactiveArray<T>, template: RenderableReactive<T>['template'], i: number, n?: number) {
     let groups: Elements[] = [],
         renderables = array.map< RenderableStatic >(template, i, n);
 
@@ -93,7 +92,7 @@ function template<T>(array: ReactiveArray<T>, template: RenderableReactive<T>['t
         let renderable = renderables[i];
 
         groups.push(
-            render(renderable, cache.get(renderable, level))
+            render(renderable, cache.get(renderable, 1))
         );
     }
 
@@ -101,14 +100,11 @@ function template<T>(array: ReactiveArray<T>, template: RenderableReactive<T>['t
 }
 
 
-export default <T>(renderable: Renderable<T>, level: number, slot?: Slot) => {
-    if (renderable[RENDERABLE] === RENDERABLE_REACTIVE) {
-        if (slot === undefined) {
-            throw new Error(`Template: reactive renderable is missing a slot: ${JSON.stringify(renderable)}`);
-        }
-
-        return reactive(renderable, level, slot);
+export default {
+    reactive: <T>(renderable: RenderableReactive<T>, slot: Slot) => {
+        return reactive(renderable, slot);
+    },
+    static: (renderable: RenderableStatic, level: number) => {
+        return render(renderable, renderable.template || (renderable.template = cache.get(renderable, level)));
     }
-
-    return render(renderable, renderable.template || (renderable.template = cache.get(renderable, level)));
 };
