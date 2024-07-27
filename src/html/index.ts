@@ -4,11 +4,11 @@ import { RenderableInline, RenderableReactive, RenderableTemplate } from '~/type
 import hydrate from './hydrate';
 
 
-const html = <T>(literals: TemplateStringsArray, ...values: T[]): RenderableTemplate => {
+const html = (literals: TemplateStringsArray, ...values: unknown[]): RenderableTemplate => {
     return { [RENDERABLE]: RENDERABLE_TEMPLATE, literals, template: null, values };
 };
 
-html.inline = <T>(literals: TemplateStringsArray, ...values: T[]): RenderableInline => {
+html.inline = (literals: TemplateStringsArray, ...values: unknown[]): RenderableInline => {
     return { [RENDERABLE]: RENDERABLE_INLINE, literals, template: null, values };
 };
 

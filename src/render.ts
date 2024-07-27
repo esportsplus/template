@@ -8,7 +8,7 @@ let marker = firstChild.call(fragment(SLOT_HTML)),
     node;
 
 
-export default <T>(renderable: Renderable<T>, parent: HTMLElement | Slot) => {
+export default (renderable: Renderable, parent: HTMLElement | Slot) => {
     if (SLOT in parent) {
         return parent.render(renderable);
     }
