@@ -1,6 +1,7 @@
 import { raf as tasks } from '@esportsplus/tasks';
-import { defineProperty, isArray } from '@esportsplus/utilities';
-import { Element as E } from './types';
+import { defineProperty, isArray, isObject } from '@esportsplus/utilities';
+import { Element as E, RenderableStatic } from './types';
+import { RENDERABLE, RENDERABLE_INLINE } from './constants';
 
 
 let prototype,
@@ -55,6 +56,10 @@ const fragment = (html: string) => {
     return content;
 };
 
+const isInlineable = (value: unknown): value is RenderableStatic => {
+    return isObject(value) && value[RENDERABLE] === RENDERABLE_INLINE;
+};
+
 const raf = tasks();
 
 const text = (value: string) => {
@@ -78,6 +83,8 @@ export {
     fragment,
     innerHTML,
     isArray,
+    isInlineable,
+    isObject,
     nextElementSibling,
     nextSibling,
     nodeValue,

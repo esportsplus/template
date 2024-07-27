@@ -1,12 +1,12 @@
 import html from './html';
 
 
-const svg = (literals: TemplateStringsArray, ...values: unknown[]) => {
+const svg = <T>(literals: TemplateStringsArray, ...values: T[]) => {
     return html(literals, ...values);
 };
 
-svg.sprite = (svg: { symbol: string }) => {
-    return html`<svg><use href='${svg.symbol}' /></svg>`;
+svg.sprite = ({ symbol }: { symbol: string }) => {
+    return html`<svg><use href='${symbol}' /></svg>`;
 };
 
 

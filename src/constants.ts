@@ -38,7 +38,7 @@ const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=\s*["'][^"']*["'])/g;
 
 const REGEX_EMPTY_TEXT_NODES = /\s+(<|{)|(>|})\s+/g;
 
-const REGEX_SLOT_ATTRIBUTES = /(?:([\w-:]+)(?:=["']([^"']*(?:{{\$}})[^"']*)["']))|{{\$}}[^<]*?>/g;
+const REGEX_SLOT_ATTRIBUTES = /([\w-:]+)=((?:["'][^"']*(?:{{\$}})[^"']*["'])|{{\$}})|{{\$}}|{{\$}}[^<]*?>/g;
 
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?(\/)?>|{{\$}}/g;
 
@@ -49,7 +49,7 @@ const RENDERABLE = Symbol();
 
 const RENDERABLE_INLINE = Symbol();
 
-const RENDERABLE_REACTIVE_TEMPLATE = Symbol();
+const RENDERABLE_REACTIVE = Symbol();
 
 const RENDERABLE_TEMPLATE = Symbol();
 
@@ -75,7 +75,7 @@ export {
     REGEX_WHITESPACE,
     RENDERABLE,
     RENDERABLE_INLINE,
-    RENDERABLE_REACTIVE_TEMPLATE,
+    RENDERABLE_REACTIVE,
     RENDERABLE_TEMPLATE,
     SLOT,
     SLOT_HTML,

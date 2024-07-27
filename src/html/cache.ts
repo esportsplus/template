@@ -1,13 +1,11 @@
-import { ReactiveArray } from '@esportsplus/reactivity';
 import {
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EVENTS, REGEX_EMPTY_TEXT_NODES,
-    REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, REGEX_WHITESPACE, RENDERABLE,
-    RENDERABLE_INLINE, RENDERABLE_REACTIVE_TEMPLATE, RENDERABLE_TEMPLATE, SLOT_HTML, SLOT_MARKER
-} from './constants';
-import { Element, Elements, Renderable, Template } from './types';
-import { cloneNode, firstChild, firstElementChild, fragment, isArray, nextElementSibling, nextSibling } from './utilities';
-import a from './attributes';
-import s from './slot';
+    REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, REGEX_WHITESPACE, SLOT_HTML, SLOT_MARKER
+} from '~/constants';
+import { RenderableStatic, Template } from '~/types';
+import { firstChild, firstElementChild, isArray, isInlineable, nextElementSibling, nextSibling } from '~/utilities';
+import a from '~/attributes';
+import s from '~/slot';
 
 
 let cache = new WeakMap<TemplateStringsArray, Template>(),
@@ -80,7 +78,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
                     else {
                         let value = values[slot];
 
-                        if (inlineable(value)) {
+                        if (isInlineable(value)) {
                             buffer += literals[slot++] + flatten(value.literals, value.values);
                             continue;
                         }
@@ -108,7 +106,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         else if (type === NODE_SLOT) {
             let value = values[slot];
 
-            if (inlineable(value)) {
+            if (isInlineable(value)) {
                 buffer += literals[slot++] + flatten(value.literals, value.values);
             }
             else {
@@ -140,21 +138,6 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
     return set(literals, minify(buffer.replace(REGEX_EVENTS, '')), slots);
 }
 
-function clone(template: Template) {
-    if (typeof template.fragment === 'boolean') {
-        if (template.fragment === true) {
-            template.fragment = fragment(template.html);
-        }
-        else {
-            template.fragment = true;
-
-            return fragment(template.html);
-        }
-    }
-
-    return cloneNode.call(template.fragment, true);
-}
-
 function flatten(literals: TemplateStringsArray, values: unknown[]) {
     let html = '',
         value;
@@ -166,43 +149,6 @@ function flatten(literals: TemplateStringsArray, values: unknown[]) {
     }
 
     return html;
-}
-
-function get(renderable: Renderable, level: number) {
-    let { literals, values } = renderable,
-        template;
-
-    if (level) {
-        if (templates.length) {
-            for (let i = templates.length - 1; i >= 0; i--) {
-                if (templates[i].literals === literals) {
-                    template = templates[i];
-                    break;
-                }
-            }
-        }
-    }
-    else {
-        templates = [];
-    }
-
-    if (template === undefined) {
-        template = cache.get(literals) || build(literals, values);
-
-        if (level) {
-            templates.push(template);
-        }
-    }
-
-    if (template.fragment === false) {
-        template.fragment = true;
-    }
-
-    return template;
-}
-
-function inlineable(value: unknown): value is Renderable {
-    return typeof value === 'object' && value !== null && (value as Record<PropertyKey, unknown>)[RENDERABLE] === RENDERABLE_INLINE;
 }
 
 function methods(children: number, copy: (typeof firstChild)[], first: (typeof firstChild), next: (typeof firstChild)) {
@@ -234,65 +180,37 @@ function set(literals: TemplateStringsArray, html: string, slots: Template['slot
 }
 
 
-const html = (literals: TemplateStringsArray, ...values: unknown[]): Renderable => {
-    return { [RENDERABLE]: RENDERABLE_TEMPLATE, literals, template: null, values };
-};
+const get = ({ literals, values }: RenderableStatic, level: number) => {
+    let template;
 
-html.inline = (literals: TemplateStringsArray, ...values: unknown[]): Renderable => {
-    return { [RENDERABLE]: RENDERABLE_INLINE, literals, template: null, values };
-};
-
-html.reactive = <T>(values: ReactiveArray<T>, factory: Renderable<T>['factory']): Renderable => {
-    // @ts-ignore
-    return { [RENDERABLE]: RENDERABLE_REACTIVE_TEMPLATE, factory, literals: null, template: null, values };
-};
-
-const hydrate = (renderable: Renderable, level: number) => {
-    if (renderable[RENDERABLE] === RENDERABLE_REACTIVE_TEMPLATE) {
-        console.log(renderable);
-        return [];
-    }
-
-    let template = renderable.template || (renderable.template = get(renderable, level));
-
-    let elements: Elements = [],
-        fragment = clone(template),
-        slots = template.slots;
-
-    if (slots !== null) {
-        let node,
-            previous,
-            values = renderable.values;
-
-        for (let i = slots.length - 1; i >= 0; i--) {
-            let { fn, name, path, slot } = slots[i];
-
-            if (path === previous) {}
-            else {
-                a.apply(node);
-
-                node = fragment;
-                previous = path;
-
-                for (let o = 0, j = path.length; o < j; o++) {
-                    node = path[o].call(node as Element);
+    if (level !== 0) {
+        if (templates.length) {
+            for (let i = templates.length - 1; i >= 0; i--) {
+                if (templates[i].literals === literals) {
+                    template = templates[i];
+                    break;
                 }
             }
-
-            // @ts-ignore
-            fn(node, values[slot], name);
         }
-
-        a.apply(node);
+    }
+    else {
+        templates = [];
     }
 
-    for (let element = firstChild.call(fragment as Element); element; element = nextSibling.call(element)) {
-        elements.push(element);
+    if (template === undefined) {
+        template = cache.get(literals) || build(literals, values);
+
+        if (level !== 0) {
+            templates.push(template);
+        }
     }
 
-    return elements;
+    if (template.fragment === false) {
+        template.fragment = true;
+    }
+
+    return template;
 };
 
 
-export default html;
-export { hydrate };
+export default { get };

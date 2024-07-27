@@ -1,8 +1,8 @@
 import { effect, root, DIRTY } from '@esportsplus/reactivity';
-import { RENDERABLE, SLOT } from './constants';
+import { RENDERABLE, RENDERABLE_REACTIVE, SLOT } from './constants';
 import { hydrate } from './html';
 import { Element, Elements, Renderable } from './types';
-import { firstChild, isArray, nextSibling, nodeValue, raf, text } from './utilities'
+import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from './utilities'
 
 
 let level = 0;
@@ -71,7 +71,18 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
         let nodes: Elements = [];
 
         if (RENDERABLE in input) {
-            nodes = hydrate(input as Renderable, level);
+            if (input[RENDERABLE] === RENDERABLE_REACTIVE) {
+                let groups = hydrate(input as Renderable, level + 1, slot) as Elements[];
+
+                if (anchor) {
+                    afterGroups(anchor, groups);
+                }
+
+                return groups;
+            }
+            else {
+                nodes = hydrate(input as Renderable, level, slot) as Elements;
+            }
         }
         else if (input instanceof NodeList) {
             for (let node = firstChild.call(input as any as Element); node; node = nextSibling.call(node)) {
@@ -196,7 +207,7 @@ class Slot {
 
         this.clear();
 
-        if (isArray(input)) {
+        if (isArray(input) || (isObject(input) && input[RENDERABLE] === RENDERABLE_REACTIVE)) {
             this.nodes = render(this.marker, input, this) as Elements[];
         }
         else {
@@ -223,10 +234,6 @@ class Slot {
 
 
 export default (marker: Element, value: unknown) => {
-    if (typeof value === 'function') {
-        return (new Slot(marker)).render(value);
-    }
-
-    render(marker, value);
+    return new Slot(marker).render(value);
 };
 export { Slot };
