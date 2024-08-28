@@ -44,7 +44,28 @@ function register(event: string) {
 
 
 export default (element: Element, event: string, listener: Function): void => {
-    if (event === 'onrender') {
+    if (event === 'onmount') {
+        let interval: ReturnType<typeof setInterval> = setInterval(() => {
+                retry--;
+
+                if (element.isConnected) {
+                    retry = 0;
+
+                    try {
+                        root(() => listener(element));
+                    }
+                    catch {}
+                }
+
+                if (retry === 0) {
+                    clearInterval(interval);
+                }
+            }, 1000 / 60),
+            retry = 60;
+
+        return;
+    }
+    else if (event === 'onrender') {
         return root(() => listener(element));
     }
 

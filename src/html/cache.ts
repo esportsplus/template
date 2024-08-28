@@ -184,17 +184,15 @@ const get = ({ literals, values }: RenderableStatic, level: number) => {
     let template;
 
     if (level !== 0) {
-        if (templates.length) {
-            for (let i = templates.length - 1; i >= 0; i--) {
-                if (templates[i].literals === literals) {
-                    template = templates[i];
-                    break;
-                }
+        for (let i = templates.length - 1; i >= 0; i--) {
+            if (templates[i].literals === literals) {
+                template = templates[i];
+                break;
             }
         }
     }
     else {
-        templates = [];
+        templates.length = 0;
     }
 
     if (template === undefined) {
