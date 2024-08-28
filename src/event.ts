@@ -1,4 +1,4 @@
-import { Root, root } from '@esportsplus/reactivity';
+import { root } from '@esportsplus/reactivity';
 import { Element } from './types';
 import { addEventListener, defineProperty, parentElement } from './utilities';
 
@@ -58,9 +58,7 @@ export default (element: Element, event: string, listener: Function): void => {
                 }
             }, 1000 / 60),
             retry = 60,
-            scheduler = root(function (this: Root) {
-                return this.scheduler;
-            });
+            scheduler = root(({ scheduler }) => scheduler);
 
         return;
     }
