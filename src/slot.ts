@@ -5,7 +5,9 @@ import { Element, Elements, RenderableReactive, RenderableStatic } from './types
 import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from './utilities'
 
 
-let level = 0;
+// Using a private symbol since 'SLOT' is used as a different flag in 'render.ts'
+let key = Symbol(),
+    level = 0;
 
 
 function afterGroups(anchor: Element, groups: Elements[]) {
@@ -27,7 +29,15 @@ function removeGroup(group?: Elements) {
     }
 
     for (let i = 0, n = group.length; i < n; i++) {
-        group[i].remove();
+        let item = group[i];
+
+        if (key in item) {
+            raf.add(() => {
+                (item[key] as Slot).clear();
+            });
+        }
+
+        item.remove();
     }
 
     return group;
@@ -38,7 +48,15 @@ function removeGroups(groups: Elements[]) {
         let group = groups[i];
 
         for (let j = 0, o = group.length; j < o; j++) {
-            group[j].remove();
+            let item = group[j];
+
+            if (key in item) {
+                raf.add(() => {
+                    (item[key] as Slot).clear();
+                });
+            }
+
+            item.remove();
         }
     }
 
@@ -117,6 +135,8 @@ class Slot {
 
 
     constructor(marker: Element) {
+        marker[key] = this;
+
         this.marker = marker;
         this.nodes = [];
     }
