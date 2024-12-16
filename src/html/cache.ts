@@ -73,7 +73,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
                     let name = attributes[attribute++];
 
-                    if (name === null) {
+                    if (name == null) {
                         slots.push({ fn: a.spread, name, path, slot });
                     }
                     else {
