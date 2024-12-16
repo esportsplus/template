@@ -1,5 +1,5 @@
 import {
-    NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EVENTS, REGEX_EMPTY_TEXT_NODES,
+    NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EVENTS,
     REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, REGEX_WHITESPACE, SLOT_HTML, SLOT_MARKER
 } from '~/constants';
 import { RenderableStatic, Template } from '~/types';
@@ -32,9 +32,10 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         slots: Template['slots'] = [],
         total = values.length;
 
+    // TODO: Test regex find all tags with slots, iterate through and cache info in object with html as key
     for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
         let name = match[1] || null,
-            value = match[2] || match[3] || match[0];
+            value = (match[2] || match[0]).trim();
 
         if (value === SLOT_MARKER) {
             attributes.push(name);
@@ -168,7 +169,7 @@ function methods(children: number, copy: (typeof firstChild)[], first: (typeof f
 }
 
 function minify(html: string) {
-    return html.replace(REGEX_EMPTY_TEXT_NODES, '$1$2').replace(REGEX_WHITESPACE, ' ').trim();
+    return html.replace(REGEX_WHITESPACE, '$1$2').trim();
 }
 
 function set(literals: TemplateStringsArray, html: string, slots: Template['slots'] = null) {

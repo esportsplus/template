@@ -36,13 +36,11 @@ const NODE_WHITELIST: Record<string, number> = {
 
 const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=\s*["'][^"']*["'])/g;
 
-const REGEX_EMPTY_TEXT_NODES = /(>|})\s+(<|{)/g;
-
-const REGEX_SLOT_ATTRIBUTES = /([\w-:]+)=((?:["'][^"']*(?:{{\$}})[^"']*["'])|{{\$}})|({{\$}})(?:[^<>]|[^<]?>)/g;
+const REGEX_SLOT_ATTRIBUTES = /([\w-:]+)=((?:["'][^"']*(?:{{\$}})[^"']*["'])|{{\$}})|(?:[^<>"'\w]?(?:{{\$}})+)+[^<>"'\w]+>/g;
 
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?(\/)?>|{{\$}}/g;
 
-const REGEX_WHITESPACE = /\s\s+/g;
+const REGEX_WHITESPACE = /(>|}|\s)\s+(<|{|\s)/g;
 
 
 const RENDERABLE = Symbol();
@@ -69,7 +67,6 @@ export {
     NODE_VOID,
     NODE_WHITELIST,
     REGEX_EVENTS,
-    REGEX_EMPTY_TEXT_NODES,
     REGEX_SLOT_ATTRIBUTES,
     REGEX_SLOT_NODES,
     REGEX_WHITESPACE,
