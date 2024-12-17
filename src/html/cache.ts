@@ -1,6 +1,6 @@
 import {
-    NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EVENTS,
-    REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, REGEX_WHITESPACE, SLOT_HTML, SLOT_MARKER
+    NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EMPTY_TEXT_NODES, REGEX_EVENTS, REGEX_EXTRA_WHITESPACE,
+    REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, SLOT_HTML, SLOT_MARKER
 } from '~/constants';
 import { RenderableStatic, Template } from '~/types';
 import { firstChild, firstElementChild, isArray, isInlineable, nextElementSibling, nextSibling } from '~/utilities';
@@ -17,8 +17,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         return set(literals, literals[0]);
     }
 
-    let attribute = 0,
-        attributes: (null | string)[] = [],
+    let attributes: Record<string, (null | string)[]> = {},
         buffer = '',
         html = minify(literals.join(SLOT_MARKER)),
         index = 0,
@@ -32,21 +31,63 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         slots: Template['slots'] = [],
         total = values.length;
 
-    // TODO: Test regex find all tags with slots, iterate through and cache info in object with html as key
-    for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
-        let name = match[1] || null,
-            value = (match[2] || match[0]).trim();
+    {
+        let attribute = '',
+            buffer = '',
+            char = '',
+            quote = '';
 
-        if (value === SLOT_MARKER) {
-            attributes.push(name);
-        }
-        else {
-            for (let i = 0, n = value.length; i < n; i++) {
-                if ((i = value.indexOf(SLOT_MARKER, i)) === -1) {
-                    break;
+        for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
+            let found = match[1],
+                metadata: (null | string)[] = attributes[found] = [];
+
+            if (metadata.length) {
+                continue;
+            }
+
+            for (let i = 0, n = found.length; i < n; i++) {
+                char = found[i];
+
+                if (char === ' ') {
+                    buffer = '';
                 }
+                else if (char === '=') {
+                    attribute = buffer;
+                    buffer = '';
+                }
+                else if (char === '"' || char === "'") {
+                    if (!attribute) {
+                    }
+                    else if (!quote) {
+                        quote = char;
+                    }
+                    else if (quote === char) {
+                        attribute = '';
+                        buffer = '';
+                        quote = '';
+                    }
+                }
+                else if (char === '{' && char !== buffer) {
+                    buffer = char;
+                }
+                else {
+                    buffer += char;
 
-                attributes.push(name);
+                    if (buffer === SLOT_MARKER) {
+                        buffer = '';
+
+                        if (attribute) {
+                            metadata.push(attribute);
+
+                            if (!quote) {
+                                attribute = '';
+                            }
+                        }
+                        else {
+                            metadata.push(null);
+                        }
+                    }
+                }
             }
         }
     }
@@ -64,16 +105,17 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
             let attr = match[2];
 
             if (attr) {
-                let path = methods(parent.children, parent.path, firstChild, nextSibling);
+                let metadata = attributes[attr],
+                    path = methods(parent.children, parent.path, firstChild, nextSibling);
 
-                for (let i = 0, n = attr.length; i < n; i++) {
-                    if ((i = attr.indexOf(SLOT_MARKER, i)) === -1) {
-                        break;
-                    }
+                if (!metadata) {
+                    throw new Error(`Template: attribute metadata could not be found for '${attr}'`);
+                }
 
-                    let name = attributes[attribute++];
+                for (let i = 0, n = metadata.length; i < n; i++) {
+                    let name = metadata[i];
 
-                    if (name == null) {
+                    if (name === null) {
                         slots.push({ fn: a.spread, name, path, slot });
                     }
                     else {
@@ -169,7 +211,7 @@ function methods(children: number, copy: (typeof firstChild)[], first: (typeof f
 }
 
 function minify(html: string) {
-    return html.replace(REGEX_WHITESPACE, '$1$2').trim();
+    return html.replace(REGEX_EMPTY_TEXT_NODES, '$1$2').replace(REGEX_EXTRA_WHITESPACE, ' ').trim();
 }
 
 function set(literals: TemplateStringsArray, html: string, slots: Template['slots'] = null) {
