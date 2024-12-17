@@ -1,7 +1,7 @@
 import { effect, root, DIRTY } from '@esportsplus/reactivity';
 import { RENDERABLE, RENDERABLE_REACTIVE, SLOT } from './constants';
 import { hydrate } from './html';
-import { Element, Elements, RenderableReactive, RenderableStatic } from './types';
+import { Element, Elements, RenderableReactive, RenderableTemplate } from './types';
 import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from './utilities'
 
 
@@ -89,7 +89,7 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
                 return afterGroups(anchor!, hydrate.reactive(input as RenderableReactive, slot!));
             }
             else {
-                nodes = hydrate.static(input as RenderableStatic, level);
+                nodes = hydrate.static(input as RenderableTemplate, level);
             }
         }
         else if (input instanceof NodeList) {

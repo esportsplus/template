@@ -47,8 +47,6 @@ const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{
 
 const RENDERABLE = Symbol();
 
-const RENDERABLE_INLINE = Symbol();
-
 const RENDERABLE_REACTIVE = Symbol();
 
 const RENDERABLE_TEMPLATE = Symbol();
@@ -74,7 +72,6 @@ export {
     REGEX_SLOT_ATTRIBUTES,
     REGEX_SLOT_NODES,
     RENDERABLE,
-    RENDERABLE_INLINE,
     RENDERABLE_REACTIVE,
     RENDERABLE_TEMPLATE,
     SLOT,

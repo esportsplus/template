@@ -1,5 +1,5 @@
 import { root, ReactiveArray } from '@esportsplus/reactivity';
-import { Element, Elements, Renderable, RenderableReactive, RenderableStatic, Template } from '~/types';
+import { Element, Elements, Renderable, RenderableReactive, RenderableTemplate, Template } from '~/types';
 import { Slot } from '~/slot';
 import { cloneNode, firstChild, fragment, nextSibling } from '~/utilities';
 import a from '~/attributes';
@@ -86,7 +86,7 @@ function render<T>(renderable: Renderable<T>, template: Template) {
 
 function template<T>(array: ReactiveArray<T>, template: RenderableReactive<T>['template'], i: number, n?: number) {
     let groups: Elements[] = [],
-        renderables = array.map< RenderableStatic >(template, i, n);
+        renderables = array.map< RenderableTemplate >(template, i, n);
 
     for (let i = 0, n = renderables.length; i < n; i++) {
         let renderable = renderables[i];
@@ -104,7 +104,7 @@ export default {
     reactive: <T>(renderable: RenderableReactive<T>, slot: Slot) => {
         return reactive(renderable, slot);
     },
-    static: (renderable: RenderableStatic, level: number) => {
+    static: (renderable: RenderableTemplate, level: number) => {
         return render(renderable, renderable.template || (renderable.template = cache.get(renderable, level)));
     }
 };

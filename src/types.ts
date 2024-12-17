@@ -1,5 +1,5 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_INLINE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from './constants';
+import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from './constants';
 import { firstChild } from './utilities';
 import attributes from './attributes';
 import event from './event';
@@ -12,23 +12,14 @@ type Elements = Element[];
 
 type Properties = Record<PropertyKey, unknown>;
 
-type Renderable<T = unknown> = RenderableReactive<T> | RenderableStatic;
-
-type RenderableInline = {
-    [RENDERABLE]: typeof RENDERABLE_INLINE;
-    literals: TemplateStringsArray;
-    template: Template | null;
-    values: unknown[];
-};
+type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate;
 
 type RenderableReactive<T = unknown> = {
     [RENDERABLE]: typeof RENDERABLE_REACTIVE;
     literals: null;
-    template: (this: ReactiveArray<T>, value: T, i: number) => RenderableStatic;
+    template: (this: ReactiveArray<T>, value: T, i: number) => RenderableTemplate;
     values: ReactiveArray<T>;
 };
-
-type RenderableStatic = RenderableInline | RenderableTemplate;
 
 type RenderableTemplate = {
     [RENDERABLE]: typeof RENDERABLE_TEMPLATE;
@@ -53,6 +44,6 @@ type Template = {
 export {
     Element, Elements,
     Properties,
-    Renderable, RenderableStatic, RenderableInline, RenderableReactive, RenderableTemplate,
+    Renderable, RenderableReactive, RenderableTemplate,
     Template
 };

@@ -2,8 +2,8 @@ import {
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EMPTY_TEXT_NODES, REGEX_EVENTS, REGEX_EXTRA_WHITESPACE,
     REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, SLOT_HTML, SLOT_MARKER
 } from '~/constants';
-import { RenderableStatic, Template } from '~/types';
-import { firstChild, firstElementChild, isArray, isInlineable, nextElementSibling, nextSibling } from '~/utilities';
+import { RenderableTemplate, Template } from '~/types';
+import { firstChild, firstElementChild, nextElementSibling, nextSibling } from '~/utilities';
 import a from '~/attributes';
 import s from '~/slot';
 
@@ -115,20 +115,12 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
                 for (let i = 0, n = metadata.length; i < n; i++) {
                     let name = metadata[i];
 
-                    if (name === null) {
-                        slots.push({ fn: a.spread, name, path, slot });
-                    }
-                    else {
-                        let value = values[slot];
-
-                        if (isInlineable(value)) {
-                            buffer += literals[slot++] + flatten(value.literals, value.values);
-                            continue;
-                        }
-                        else {
-                            slots.push({ fn: a.set, name, path, slot });
-                        }
-                    }
+                    slots.push({
+                        fn: name === null ? a.spread : a.set,
+                        name,
+                        path,
+                        slot
+                    });
 
                     buffer += literals[slot++];
                 }
@@ -147,20 +139,13 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
             parent.elements++;
         }
         else if (type === NODE_SLOT) {
-            let value = values[slot];
-
-            if (isInlineable(value)) {
-                buffer += literals[slot++] + flatten(value.literals, value.values);
-            }
-            else {
-                buffer += literals[slot] + SLOT_HTML;
-                slots.push({
-                    fn: s,
-                    name: null,
-                    path: methods(parent.children, parent.path, firstChild, nextSibling),
-                    slot: slot++
-                });
-            }
+            buffer += literals[slot] + SLOT_HTML;
+            slots.push({
+                fn: s,
+                name: null,
+                path: methods(parent.children, parent.path, firstChild, nextSibling),
+                slot: slot++
+            });
         }
 
         if (slot === total) {
@@ -179,19 +164,6 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
     }
 
     return set(literals, minify(buffer.replace(REGEX_EVENTS, '')), slots);
-}
-
-function flatten(literals: TemplateStringsArray, values: unknown[]) {
-    let html = '',
-        value;
-
-    for (let i = 0, n = literals.length; i < n; i++) {
-        html += (literals[i] || '') + (
-            isArray(value = values[i] || '') ? value.join('') : value
-        );
-    }
-
-    return html;
 }
 
 function methods(children: number, copy: (typeof firstChild)[], first: (typeof firstChild), next: (typeof firstChild)) {
@@ -223,7 +195,7 @@ function set(literals: TemplateStringsArray, html: string, slots: Template['slot
 }
 
 
-const get = ({ literals, values }: RenderableStatic, level: number) => {
+const get = ({ literals, values }: RenderableTemplate, level: number) => {
     let template;
 
     if (level !== 0) {
