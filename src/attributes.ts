@@ -1,7 +1,7 @@
 import { effect, root } from '@esportsplus/reactivity';
 import { ATTRIBUTES } from './constants';
 import { Element, Properties } from './types';
-import { className, isArray, raf, removeAttribute, setAttribute } from './utilities';
+import { className, isArray, isObject, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
 
 
@@ -161,7 +161,21 @@ export default {
 
         attributes = {};
     },
-    set,
+    set: (element: Element, value: unknown, name: string) => {
+        if (isArray(value)) {
+            for (let i = 0, n = value.length; i < n; i++) {
+                set(element, value[i], name);
+            }
+        }
+        else if (isObject(value) && name === 'style') {
+            for (let key in value) {
+                set(element, `${key}: ${value[key]};`, name);
+            }
+        }
+        else {
+            set(element, value, name);
+        }
+    },
     spread: function (element: Element, properties: Properties) {
         for (let name in properties) {
             let value = properties[name];
@@ -169,6 +183,11 @@ export default {
             if (isArray(value)) {
                 for (let i = 0, n = value.length; i < n; i++) {
                     set(element, value[i], name);
+                }
+            }
+            else if (isObject(value) && name === 'style') {
+                for (let key in value) {
+                    set(element, `${key}: ${value[key]};`, name);
                 }
             }
             else {
