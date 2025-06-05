@@ -1,12 +1,12 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/reactivity": "^0.3.3",
-        "@esportsplus/tasks": "^0.1.7",
-        "@esportsplus/utilities": "^0.0.8"
+        "@esportsplus/reactivity": "^0.3.6",
+        "@esportsplus/tasks": "^0.1.9",
+        "@esportsplus/utilities": "^0.0.9"
     },
     "devDependencies": {
-        "@esportsplus/typescript": "^0.6.4"
+        "@esportsplus/typescript": "^0.8.11"
     },
     "main": "./build/index.js",
     "name": "@esportsplus/template",
@@ -14,9 +14,10 @@
     "scripts": {
         "build": "tsc && tsc-alias",
         "-": "-",
-        "prepare": "npm run build",
-        "prepublishOnly": "npm run build"
+        "prepare": "pnpm build",
+        "prepublishOnly": "pnpm build"
     },
+    "type": "module",
     "types": "./build/index.d.ts",
     "version": "0.9.4"
 }

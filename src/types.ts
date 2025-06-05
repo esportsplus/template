@@ -41,7 +41,7 @@ type Template = {
 };
 
 
-export {
+export type {
     Element, Elements,
     Properties,
     Renderable, RenderableReactive, RenderableTemplate,
