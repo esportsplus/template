@@ -1,12 +1,12 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/reactivity": "^0.3.6",
+        "@esportsplus/reactivity": "^0.4.0",
         "@esportsplus/tasks": "^0.1.9",
         "@esportsplus/utilities": "^0.0.9"
     },
     "devDependencies": {
-        "@esportsplus/typescript": "^0.8.11"
+        "@esportsplus/typescript": "^0.8.14"
     },
     "main": "./build/index.js",
     "name": "@esportsplus/template",
