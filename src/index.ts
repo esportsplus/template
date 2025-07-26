@@ -1,4 +1,4 @@
 export { default as html } from './html';
 export { default as render } from './render';
 export { default as svg } from './svg';
-export type { Properties, Renderable } from './types';
+export type { Element, Elements, Properties, Renderable } from './types';
