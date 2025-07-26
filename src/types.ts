@@ -6,16 +6,16 @@ import event from './event';
 import slot from './slot';
 
 
-type Element = HTMLElement & Properties;
-
-type Elements = Element[];
-
-type Properties = {
+type Attributes = {
     class?: string | (string | (() => unknown))[],
     style?: string | (string | (() => unknown))[]
 } & {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (event: GlobalEventHandlersEventMap[K]) => void;
 } & Record<PropertyKey, unknown>;
+
+type Element = HTMLElement & Attributes;
+
+type Elements = Element[];
 
 type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate;
 
@@ -47,8 +47,8 @@ type Template = {
 
 
 export type {
+    Attributes,
     Element, Elements,
-    Properties,
     Renderable, RenderableReactive, RenderableTemplate,
     Template
 };
