@@ -10,7 +10,12 @@ type Element = HTMLElement & Properties;
 
 type Elements = Element[];
 
-type Properties = Record<PropertyKey, unknown>;
+type Properties = {
+    class?: string | (string | (() => unknown))[],
+    style?: string | (string | (() => unknown))[]
+} & {
+    [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (event: GlobalEventHandlersEventMap[K]) => void;
+} & Record<PropertyKey, unknown>;
 
 type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate;
 
