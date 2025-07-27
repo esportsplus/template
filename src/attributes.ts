@@ -1,6 +1,6 @@
 import { effect, root } from '@esportsplus/reactivity';
 import { ATTRIBUTES } from './constants';
-import { Element, Properties } from './types';
+import { Attributes, Element } from './types';
 import { className, isArray, isObject, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
 
@@ -69,7 +69,7 @@ function set(element: Element, value: unknown, name: string) {
 }
 
 function store(element: Element) {
-    return ( element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES]: 0 }) ) as Properties & { [ATTRIBUTES]: number };
+    return ( element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES]: 0 }) ) as Attributes & { [ATTRIBUTES]: number };
 }
 
 function update(element: Element, id: null | string, name: string, value: unknown, wait = false) {
@@ -82,7 +82,7 @@ function update(element: Element, id: null | string, name: string, value: unknow
     if (name in delimiters) {
         let cache = name + '.static',
             delimiter = delimiters[name],
-            dynamic = data[name] as Properties | undefined;
+            dynamic = data[name] as Attributes | undefined;
 
         if (dynamic === undefined) {
             let value = (element.getAttribute(name) || '').trim();
@@ -97,7 +97,7 @@ function update(element: Element, id: null | string, name: string, value: unknow
             }
         }
         else {
-            let hot: Properties = {};
+            let hot: Attributes = {};
 
             if (typeof value === 'string') {
                 let key: string,
@@ -115,7 +115,7 @@ function update(element: Element, id: null | string, name: string, value: unknow
                 }
             }
 
-            let cold = data[id] as Properties | undefined;
+            let cold = data[id] as Attributes | undefined;
 
             if (cold !== undefined) {
                 for (let key in cold) {
@@ -176,9 +176,9 @@ export default {
             set(element, value, name);
         }
     },
-    spread: function (element: Element, properties: Properties) {
-        for (let name in properties) {
-            let value = properties[name];
+    spread: function (element: Element, Attributes: Attributes) {
+        for (let name in Attributes) {
+            let value = Attributes[name];
 
             if (isArray(value)) {
                 for (let i = 0, n = value.length; i < n; i++) {
