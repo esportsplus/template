@@ -69,7 +69,9 @@ function set(element: Element, value: unknown, name: string) {
 }
 
 function store(element: Element) {
-    return ( element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES]: 0 }) ) as Attributes & { [ATTRIBUTES]: number };
+    return (
+        element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES]: 0 })
+    ) as Attributes & { [ATTRIBUTES]: number };
 }
 
 function update(element: Element, id: null | string, name: string, value: unknown, wait = false) {
@@ -100,30 +102,30 @@ function update(element: Element, id: null | string, name: string, value: unknow
             let hot: Attributes = {};
 
             if (typeof value === 'string') {
-                let key: string,
-                    keys = value.split(delimiter);
+                let part: string,
+                    parts = value.split(delimiter);
 
-                for (let i = 0, n = keys.length; i < n; i ++) {
-                    key = keys[i].trim();
+                for (let i = 0, n = parts.length; i < n; i++) {
+                    part = parts[i].trim();
 
-                    if (key === '') {
+                    if (part === '') {
                         continue;
                     }
 
-                    dynamic[key] = null;
-                    hot[key] = null;
+                    dynamic[part] = null;
+                    hot[part] = null;
                 }
             }
 
             let cold = data[id] as Attributes | undefined;
 
             if (cold !== undefined) {
-                for (let key in cold) {
-                    if (key in hot) {
+                for (let part in cold) {
+                    if (part in hot) {
                         continue;
                     }
 
-                    delete dynamic[key];
+                    delete dynamic[part];
                 }
             }
 
@@ -167,39 +169,32 @@ export default {
                 set(element, value[i], name);
             }
         }
-        else if (isObject(value) && name === 'style') {
+        else if (name === 'style' && isObject(value)) {
             for (let key in value) {
-                set(element, `${key}: ${value[key]};`, name);
+                set(element, value[key], name);
             }
         }
         else {
             set(element, value, name);
         }
     },
-    spread: function (element: Element, attributes: Attributes) {
+    spread: function (element: Element, attributes: Attributes | Attributes[]) {
         if (isArray(attributes)) {
             for (let i = 0, n = attributes.length; i < n; i++) {
-                this.spread(element, attributes[i]);
-            }
+                let a = attributes[i];
 
-            return;
+                if (!isObject(a)) {
+                    continue;
+                }
+
+                for (let name in a) {
+                    this.set(element, a[name], name);
+                }
+            }
         }
-
-        for (let name in attributes) {
-            let value = attributes[name];
-
-            if (isArray(value)) {
-                for (let i = 0, n = value.length; i < n; i++) {
-                    set(element, value[i], name);
-                }
-            }
-            else if (isObject(value) && name === 'style') {
-                for (let key in value) {
-                    set(element, `${key}: ${value[key]};`, name);
-                }
-            }
-            else {
-                set(element, value, name);
+        else {
+            for (let name in attributes) {
+                this.set(element, attributes[name], name);
             }
         }
     }
