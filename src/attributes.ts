@@ -176,9 +176,17 @@ export default {
             set(element, value, name);
         }
     },
-    spread: function (element: Element, Attributes: Attributes) {
-        for (let name in Attributes) {
-            let value = Attributes[name];
+    spread: function (element: Element, attributes: Attributes) {
+        if (isArray(attributes)) {
+            for (let i = 0, n = attributes.length; i < n; i++) {
+                this.spread(element, attributes[i]);
+            }
+
+            return;
+        }
+
+        for (let name in attributes) {
+            let value = attributes[name];
 
             if (isArray(value)) {
                 for (let i = 0, n = value.length; i < n; i++) {
