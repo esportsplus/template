@@ -9,7 +9,7 @@ import s from '~/slot';
 
 
 let cache = new WeakMap<TemplateStringsArray, Template>(),
-    templates: Template[] = [];
+    templates = new Map<TemplateStringsArray, Template>();
 
 
 function build(literals: TemplateStringsArray, values: unknown[]) {
@@ -167,11 +167,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 }
 
 function methods(children: number, copy: (typeof firstChild)[], first: (typeof firstChild), next: (typeof firstChild)) {
-    let methods = [];
-
-    for (let i = 0, n = copy.length; i < n; i++) {
-        methods.push(copy[i]);
-    }
+    let methods = copy.slice();
 
     methods.push(first);
 
@@ -199,22 +195,17 @@ const get = ({ literals, values }: RenderableTemplate, level: number) => {
     let template;
 
     if (level !== 0) {
-        for (let i = templates.length - 1; i >= 0; i--) {
-            if (templates[i].literals === literals) {
-                template = templates[i];
-                break;
-            }
-        }
+        template = templates.get(literals);
     }
     else {
-        templates.length = 0;
+        templates.clear();
     }
 
     if (template === undefined) {
         template = cache.get(literals) || build(literals, values);
 
         if (level !== 0) {
-            templates.push(template);
+            templates.set(literals, template);
         }
     }
 
