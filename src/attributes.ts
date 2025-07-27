@@ -164,14 +164,14 @@ export default {
         attributes = {};
     },
     set: (element: Element, value: unknown, name: string) => {
-        if (isArray(value)) {
-            for (let i = 0, n = value.length; i < n; i++) {
-                set(element, value[i], name);
-            }
-        }
-        else if (name === 'style' && isObject(value)) {
+        if (name === 'style' && isObject(value)) {
             for (let key in value) {
                 set(element, value[key], name);
+            }
+        }
+        else if (isArray(value)) {
+            for (let i = 0, n = value.length; i < n; i++) {
+                set(element, value[i], name);
             }
         }
         else {
@@ -179,22 +179,22 @@ export default {
         }
     },
     spread: function (element: Element, attributes: Attributes | Attributes[]) {
-        if (isArray(attributes)) {
+        if (isObject(attributes)) {
+            for (let name in attributes) {
+                this.set(element, attributes[name], name);
+            }
+        }
+        else if (isArray(attributes)) {
             for (let i = 0, n = attributes.length; i < n; i++) {
-                let a = attributes[i];
+                let attrs = attributes[i];
 
-                if (!isObject(a)) {
+                if (!isObject(attrs)) {
                     continue;
                 }
 
-                for (let name in a) {
-                    this.set(element, a[name], name);
+                for (let name in attrs) {
+                    this.set(element, attrs[name], name);
                 }
-            }
-        }
-        else {
-            for (let name in attributes) {
-                this.set(element, attributes[name], name);
             }
         }
     }
