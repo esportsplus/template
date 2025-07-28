@@ -3,13 +3,12 @@ import {
     REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, SLOT_HTML, SLOT_MARKER
 } from '~/constants';
 import { RenderableTemplate, Template } from '~/types';
-import { firstChild, firstElementChild, nextElementSibling, nextSibling } from '~/utilities';
+import { firstChild, firstElementChild, fragment, nextElementSibling, nextSibling } from '~/utilities';
 import a from '~/attributes';
 import s from '~/slot';
 
 
-let cache = new WeakMap<TemplateStringsArray, Template>(),
-    templates = new Map<TemplateStringsArray, Template>();
+let cache = new WeakMap<TemplateStringsArray, Template>();
 
 
 function build(literals: TemplateStringsArray, values: unknown[]) {
@@ -183,7 +182,12 @@ function minify(html: string) {
 }
 
 function set(literals: TemplateStringsArray, html: string, slots: Template['slots'] = null) {
-    let template = { fragment: false, html, literals, slots };
+    let template = {
+            fragment: fragment(html),
+            html,
+            literals,
+            slots
+        };
 
     cache.set(literals, template);
 
@@ -191,29 +195,8 @@ function set(literals: TemplateStringsArray, html: string, slots: Template['slot
 }
 
 
-const get = ({ literals, values }: RenderableTemplate, level: number) => {
-    let template;
-
-    if (level !== 0) {
-        template = templates.get(literals);
-    }
-    else {
-        templates.clear();
-    }
-
-    if (template === undefined) {
-        template = cache.get(literals) || build(literals, values);
-
-        if (level !== 0) {
-            templates.set(literals, template);
-        }
-    }
-
-    if (template.fragment === false) {
-        template.fragment = true;
-    }
-
-    return template;
+const get = ({ literals, values }: RenderableTemplate) => {
+    return cache.get(literals) || build(literals, values);
 };
 
 

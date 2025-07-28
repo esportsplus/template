@@ -33,8 +33,8 @@ type RenderableTemplate = {
     values: unknown[];
 };
 
-type Template = {
-    fragment: DocumentFragment | boolean;
+type Template = Readonly<{
+    fragment: DocumentFragment;
     html: string;
     literals: TemplateStringsArray;
     slots: {
@@ -43,7 +43,7 @@ type Template = {
         path: typeof firstChild[];
         slot: number;
     }[] | null;
-};
+}>;
 
 
 export type {

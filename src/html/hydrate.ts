@@ -1,25 +1,10 @@
 import { root, ReactiveArray } from '@esportsplus/reactivity';
 import { Element, Elements, Renderable, RenderableReactive, RenderableTemplate, Template } from '~/types';
 import { Slot } from '~/slot';
-import { cloneNode, firstChild, fragment, nextSibling } from '~/utilities';
+import { cloneNode, firstChild, nextSibling } from '~/utilities';
 import a from '~/attributes';
 import cache from './cache';
 
-
-function clone(template: Template) {
-    if (typeof template.fragment === 'boolean') {
-        if (template.fragment === true) {
-            template.fragment = fragment(template.html);
-        }
-        else {
-            template.fragment = true;
-
-            return fragment(template.html);
-        }
-    }
-
-    return cloneNode.call(template.fragment, true);
-}
 
 function reactive<T>(renderable: RenderableReactive<T>, slot: Slot) {
     let array = renderable.values,
@@ -47,7 +32,7 @@ function reactive<T>(renderable: RenderableReactive<T>, slot: Slot) {
 
 function render<T>(renderable: Renderable<T>, template: Template) {
     let elements: Elements = [],
-        fragment = clone(template),
+        fragment = cloneNode.call(template.fragment, true),
         slots = template.slots;
 
     if (slots !== null) {
@@ -92,7 +77,7 @@ function template<T>(array: ReactiveArray<T>, template: RenderableReactive<T>['t
         let renderable = renderables[i];
 
         groups.push(
-            render(renderable, cache.get(renderable, 1))
+            render(renderable, cache.get(renderable))
         );
     }
 
@@ -104,7 +89,7 @@ export default {
     reactive: <T>(renderable: RenderableReactive<T>, slot: Slot) => {
         return reactive(renderable, slot);
     },
-    static: (renderable: RenderableTemplate, level: number) => {
-        return render(renderable, renderable.template || (renderable.template = cache.get(renderable, level)));
+    static: (renderable: RenderableTemplate) => {
+        return render(renderable, renderable.template || (renderable.template = cache.get(renderable)));
     }
 };

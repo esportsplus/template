@@ -6,8 +6,7 @@ import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from
 
 
 // Using a private symbol since 'SLOT' is used as a different flag in 'render.ts'
-let key = Symbol(),
-    level = 0;
+let key = Symbol();
 
 
 function afterGroups(anchor: Element, groups: Elements[]) {
@@ -71,13 +70,9 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
         if (isArray(input)) {
             let groups: Elements[] = [];
 
-            level++;
-
             for (let i = 0, n = input.length; i < n; i++) {
                 groups.push( render(null, input[i]) as Elements );
             }
-
-            level--;
 
             return anchor ? afterGroups(anchor, groups) : groups;
         }
@@ -89,7 +84,7 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
                 return afterGroups(anchor!, hydrate.reactive(input as RenderableReactive, slot!));
             }
             else {
-                nodes = hydrate.static(input as RenderableTemplate, level);
+                nodes = hydrate.static(input as RenderableTemplate);
             }
         }
         else if (input instanceof NodeList) {

@@ -94,7 +94,7 @@ function update(element: Element, id: null | string, name: string, value: unknow
         }
 
         if (id === null) {
-            if (typeof value === 'string' && value) {
+            if (value && typeof value === 'string') {
                 data[cache] += (data[cache] ? delimiter : '') + value;
             }
         }
