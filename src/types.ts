@@ -13,8 +13,8 @@ type Attributes = {
 } & {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: Element, event: GlobalEventHandlersEventMap[K]) => void;
 } & {
-    [key: `data-${string}`]: string | undefined;
     [key: `aria-${string}`]: string | number | boolean | undefined;
+    [key: `data-${string}`]: string | undefined;
 } & Record<PropertyKey, unknown>;
 
 type Effect<T> = () => EffectResponse<T>;
