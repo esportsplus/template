@@ -1,5 +1,4 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { Primitive } from '@esportsplus/utilities';
 import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from './constants';
 import { firstChild } from './utilities';
 import attributes from './attributes';
@@ -24,6 +23,10 @@ type EffectResponse<T> = T extends [] ? EffectResponse<T[number]>[] : Primitive 
 type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 
 type Elements = Element[];
+
+// Copied from '@esportsplus/utilities'
+// - Importing from ^ causes 'cannot be named without a reference to...' error
+type Primitive = bigint | boolean | null | number | string | undefined;
 
 type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate<T>;
 
