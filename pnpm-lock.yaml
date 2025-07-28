@@ -15,8 +15,8 @@ importers:
         specifier: ^0.1.9
         version: 0.1.9
       '@esportsplus/utilities':
-        specifier: ^0.17.0
-        version: 0.17.0
+        specifier: ^0.17.3
+        version: 0.17.3
     devDependencies:
       '@esportsplus/typescript':
         specifier: ^0.9.1
@@ -43,8 +43,8 @@ packages:
   '@esportsplus/utilities@0.15.0':
     resolution: {integrity: sha512-Qiinewam7E7wZ1EfcCY4hz/PmfKDyUCboK4yHHHSsFsdVzNoEO3fJVjgUaLVrckdpg1b6Fe7lvIXmC97Lo02Tw==}
 
-  '@esportsplus/utilities@0.17.0':
-    resolution: {integrity: sha512-ohxXUUsjHrpYERu1VWBYmJzEHBGlybTmd6QgPBdO9NXUHY2ELrdgmtE6wC8SrxNyR4RUd1ucu6TQGJ4eYoFj1w==}
+  '@esportsplus/utilities@0.17.3':
+    resolution: {integrity: sha512-WtQ4O2CeznN6qJp62LUZ2hTpFKXJvEmE1I9TvsREKtiRbRI+XnSnfYn8+wK0sfvJxRcrSGSyOGi7ackzKD5CzQ==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -221,7 +221,7 @@ snapshots:
 
   '@esportsplus/utilities@0.15.0': {}
 
-  '@esportsplus/utilities@0.17.0': {}
+  '@esportsplus/utilities@0.17.3': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
