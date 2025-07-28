@@ -4,7 +4,7 @@ import { RenderableReactive, RenderableTemplate } from '~/types';
 import hydrate from './hydrate';
 
 
-const html = (literals: TemplateStringsArray, ...values: RenderableTemplate['values']): RenderableTemplate => {
+const html = <T>(literals: TemplateStringsArray, ...values: RenderableTemplate<T>['values']): RenderableTemplate<T> => {
     return { [RENDERABLE]: RENDERABLE_TEMPLATE, literals, template: null, values };
 };
 

@@ -17,7 +17,7 @@ type Attributes = {
     [key: `aria-${string}`]: string | number | boolean | undefined;
 } & Record<PropertyKey, unknown>;
 
-type Effect<T = unknown> = () => EffectResponse<T>;
+type Effect<T> = () => EffectResponse<T>;
 
 type EffectResponse<T> = T extends [] ? EffectResponse<T[number]>[] : Primitive | Renderable<T>;
 
@@ -25,23 +25,23 @@ type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 
 type Elements = Element[];
 
-type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate;
+type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate<T>;
 
 type RenderableReactive<T = unknown> = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_REACTIVE;
     literals: null;
-    template: (this: ReactiveArray<T>, value: T, i: number) => RenderableTemplate;
+    template: (this: ReactiveArray<T>, value: T, i: number) => RenderableTemplate<T>;
     values: ReactiveArray<T>;
 }>;
 
-type RenderableTemplate = {
+type RenderableTemplate<T> = {
     [RENDERABLE]: typeof RENDERABLE_TEMPLATE;
     literals: TemplateStringsArray;
     template: Template | null;
-    values: (RenderableValues | RenderableValues[])[];
+    values: (RenderableValues<T> | RenderableValues<T>[])[];
 };
 
-type RenderableValues = Attributes | Readonly<Attributes> | Effect | Primitive | Renderable;
+type RenderableValues<T> = Attributes | Readonly<Attributes> | Effect<T> | Primitive | Renderable;
 
 type Template = {
     fragment: DocumentFragment;

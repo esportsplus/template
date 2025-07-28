@@ -71,7 +71,7 @@ function render<T>(renderable: Renderable<T>, template: Template) {
 
 function template<T>(array: ReactiveArray<T>, template: RenderableReactive<T>['template'], i: number, n?: number) {
     let groups: Elements[] = [],
-        renderables = array.map< RenderableTemplate >(template, i, n);
+        renderables = array.map< RenderableTemplate<T> >(template, i, n);
 
     for (let i = 0, n = renderables.length; i < n; i++) {
         let renderable = renderables[i];
@@ -89,7 +89,7 @@ export default {
     reactive: <T>(renderable: RenderableReactive<T>, slot: Slot) => {
         return reactive(renderable, slot);
     },
-    static: (renderable: RenderableTemplate) => {
+    static: <T>(renderable: RenderableTemplate<T>) => {
         return render(renderable, renderable.template || (renderable.template = cache.get(renderable)));
     }
 };

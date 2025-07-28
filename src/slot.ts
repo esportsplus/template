@@ -90,7 +90,7 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
                 return afterGroups(anchor!, hydrate.reactive(input as RenderableReactive, slot!));
             }
             else {
-                nodes = hydrate.static(input as RenderableTemplate);
+                nodes = hydrate.static(input as RenderableTemplate<unknown>);
             }
         }
         else if (input instanceof NodeList) {

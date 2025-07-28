@@ -197,7 +197,7 @@ function set(literals: TemplateStringsArray, html: string, slots: Template['slot
 }
 
 
-const get = ({ literals, values }: RenderableTemplate) => {
+const get = <T>({ literals, values }: RenderableTemplate<T>) => {
     return cache.get(literals) || build(literals, values);
 };
 

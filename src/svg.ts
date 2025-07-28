@@ -3,7 +3,7 @@ import { RenderableTemplate } from './types';
 
 
 const svg = html.bind(null) as typeof html & {
-    sprite: (symbol: string) => RenderableTemplate
+    sprite: <T>(symbol: string) => RenderableTemplate<T>
 };
 
 svg.sprite = (symbol: string) => {
