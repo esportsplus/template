@@ -38,11 +38,13 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
         for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
             let found = match[1],
-                metadata: (null | string)[] = attributes[found] = [];
+                metadata = attributes[found];
 
-            if (metadata.length) {
+            if (metadata) {
                 continue;
             }
+
+            metadata = attributes[found] = [];
 
             for (let i = 0, n = found.length; i < n; i++) {
                 char = found[i];

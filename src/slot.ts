@@ -6,7 +6,9 @@ import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from
 
 
 // Using a private symbol since 'SLOT' is used as a different flag in 'render.ts'
-let key = Symbol();
+let cleanup: Slot[] = [],
+    key = Symbol(),
+    scheduled = false;
 
 
 function afterGroups(anchor: Element, groups: Elements[]) {
@@ -31,12 +33,14 @@ function removeGroup(group?: Elements) {
         let item = group[i];
 
         if (key in item) {
-            raf.add(() => {
-                (item[key] as Slot).clear();
-            });
+            cleanup.push(item[key] as Slot);
         }
 
         item.remove();
+    }
+
+    if (!scheduled && cleanup.length) {
+        schedule();
     }
 
     return group;
@@ -50,13 +54,15 @@ function removeGroups(groups: Elements[]) {
             let item = group[j];
 
             if (key in item) {
-                raf.add(() => {
-                    (item[key] as Slot).clear();
-                });
+                cleanup.push(item[key] as Slot);
             }
 
             item.remove();
         }
+    }
+
+    if (!scheduled && cleanup.length) {
+        schedule();
     }
 
     return groups;
@@ -118,6 +124,27 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
     }
 
     return [ node ];
+}
+
+function schedule() {
+    if (scheduled) {
+        return;
+    }
+
+    scheduled = true;
+
+    raf.add(() => {
+        try {
+            let slot;
+
+            while (slot = cleanup.pop()) {
+                slot.clear();
+            }
+        }
+        catch(e) {}
+
+        scheduled = false;
+    });
 }
 
 
@@ -200,11 +227,13 @@ class Slot {
         }
 
         if (this.text) {
-            if (typeof input === 'object' && input !== null) {}
+            let type = typeof input;
+
+            if (type === 'object' && input !== null) {}
             else if (this.text.isConnected) {
                 nodeValue.call(
                     this.text,
-                    (typeof input === 'string' || typeof input === 'number') ? input : ''
+                    (type === 'string' || type === 'number') ? input : ''
                 );
                 return this;
             }
