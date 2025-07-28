@@ -7,11 +7,13 @@ import slot from './slot';
 
 
 type Attributes = {
-    class?: string | (string | (() => unknown))[],
-    style?: string | (string | (() => unknown))[]
+    class?: string | Effect | (string | Effect)[],
+    style?: string | Effect | (string | Effect)[]
 } & {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (event: GlobalEventHandlersEventMap[K]) => void;
 } & Record<PropertyKey, unknown>;
+
+type Effect = () => unknown;
 
 type Element = HTMLElement & Attributes;
 
