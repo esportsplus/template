@@ -1,15 +1,16 @@
 import { Effect, ReactiveArray } from '@esportsplus/reactivity';
-import { Primitive } from '@esportsplus/utilities';
 import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from '~/constants';
-import { Attributes, RenderableReactive, RenderableTemplate } from '~/types';
+import { Attributes, Renderable, RenderableReactive, RenderableTemplate } from '~/types';
 import hydrate from './hydrate';
 
 
-type Value<T> = T extends Record<any, any>
-    ? Attributes
-    : T extends Function
-        ? Effect
-        : Primitive;
+type Value<T> = T extends []
+    ? Value<T>[]
+    : T extends Record<PropertyKey, unknown>
+        ? Attributes | Renderable
+        : T extends Function
+            ? Effect
+            : any;
 
 
 const html = <T>(literals: TemplateStringsArray, ...values: Value<T>[]): RenderableTemplate => {
