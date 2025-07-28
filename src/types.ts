@@ -15,7 +15,7 @@ type Attributes = {
 } & {
     [key: `data-${string}`]: string | undefined;
     [key: `aria-${string}`]: string | number | boolean | undefined;
-};
+} & Record<PropertyKey, unknown>;
 
 type Effect<T = unknown> = () => EffectResponse<T>;
 
@@ -27,21 +27,23 @@ type Elements = Element[];
 
 type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate;
 
-type RenderableReactive<T = unknown> = {
+type RenderableReactive<T = unknown> = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_REACTIVE;
     literals: null;
     template: (this: ReactiveArray<T>, value: T, i: number) => RenderableTemplate;
     values: ReactiveArray<T>;
-};
+}>;
 
-type RenderableTemplate<T = unknown> = {
+type RenderableTemplate = {
     [RENDERABLE]: typeof RENDERABLE_TEMPLATE;
     literals: TemplateStringsArray;
     template: Template | null;
-    values: T[];
+    values: (RenderableValues | RenderableValues[])[];
 };
 
-type Template = Readonly<{
+type RenderableValues = Attributes | Readonly<Attributes> | Effect | Primitive | Renderable;
+
+type Template = {
     fragment: DocumentFragment;
     html: string;
     literals: TemplateStringsArray;
@@ -51,12 +53,12 @@ type Template = Readonly<{
         path: typeof firstChild[];
         slot: number;
     }[] | null;
-}>;
+};
 
 
 export type {
     Attributes,
     Effect, Element, Elements,
-    Renderable, RenderableReactive, RenderableTemplate,
+    Renderable, RenderableReactive, RenderableTemplate, RenderableValues,
     Template
 };

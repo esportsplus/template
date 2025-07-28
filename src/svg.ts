@@ -1,8 +1,9 @@
 import html from './html';
+import { RenderableTemplate } from './types';
 
 
-const svg = (literals: TemplateStringsArray, ...values: unknown[]) => {
-    return html(literals, ...values);
+const svg = html.bind(null) as typeof html & {
+    sprite: (symbol: string) => RenderableTemplate
 };
 
 svg.sprite = (symbol: string) => {

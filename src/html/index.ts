@@ -1,14 +1,10 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { Primitive } from '@esportsplus/utilities';
 import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from '~/constants';
-import { Attributes, Effect, Renderable, RenderableReactive, RenderableTemplate } from '~/types';
+import { RenderableReactive, RenderableTemplate } from '~/types';
 import hydrate from './hydrate';
 
 
-type Values = Attributes | Effect | Primitive | Renderable | Values[];
-
-
-const html = (literals: TemplateStringsArray, ...values: (Values | Readonly<Values>)[]): RenderableTemplate => {
+const html = (literals: TemplateStringsArray, ...values: RenderableTemplate['values']): RenderableTemplate => {
     return { [RENDERABLE]: RENDERABLE_TEMPLATE, literals, template: null, values };
 };
 
