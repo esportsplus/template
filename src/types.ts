@@ -38,15 +38,10 @@ type RenderableTemplate<T> = {
     [RENDERABLE]: typeof RENDERABLE_TEMPLATE;
     literals: TemplateStringsArray;
     template: Template | null;
-    values: RenderableValue<T>[];
+    values: (RenderableValue<T> | RenderableValue<T>[])[];
 };
 
-type RenderableValue<T = unknown> =
-    Attributes | Attributes[] |
-    Readonly<Attributes> | Readonly<Attributes[]> |
-    Effect<T> | Effect<T>[] |
-    Primitive | Primitive[] |
-    Renderable | Renderable[];
+type RenderableValue<T = unknown> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | Renderable;
 
 type Template = {
     fragment: DocumentFragment;
