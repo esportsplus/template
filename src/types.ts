@@ -41,7 +41,7 @@ type RenderableTemplate<T> = {
     values: (RenderableValues<T> | RenderableValues<T>[])[];
 };
 
-type RenderableValues<T> = Attributes | Readonly<Attributes> | Effect<T> | Primitive | Renderable;
+type RenderableValues<T> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | Renderable;
 
 type Template = {
     fragment: DocumentFragment;
