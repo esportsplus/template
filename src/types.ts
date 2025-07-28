@@ -6,14 +6,14 @@ import event from './event';
 import slot from './slot';
 
 
-type Attributes = {
+type Attributes = Record<PropertyKey, unknown> & {
     class?: string | Effect | (string | Effect)[],
     style?: string | Effect | (string | Effect)[]
 } & {
-    [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (event: GlobalEventHandlersEventMap[K]) => void;
-} & Record<PropertyKey, unknown>;
+    [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: Element, event: GlobalEventHandlersEventMap[K]) => void;
+};
 
-type Effect = () => unknown;
+type Effect = <T>() => T;
 
 type Element = HTMLElement & Attributes;
 
