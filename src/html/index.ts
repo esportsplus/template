@@ -8,7 +8,7 @@ import hydrate from './hydrate';
 type Values = Attributes | Effect | Primitive | Renderable | Values[];
 
 
-const html = (literals: TemplateStringsArray, ...values: Values[]): RenderableTemplate => {
+const html = (literals: TemplateStringsArray, ...values: (Values | Readonly<Values>)[]): RenderableTemplate => {
     return { [RENDERABLE]: RENDERABLE_TEMPLATE, literals, template: null, values };
 };
 
