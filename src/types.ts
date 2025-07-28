@@ -38,10 +38,10 @@ type RenderableTemplate<T> = {
     [RENDERABLE]: typeof RENDERABLE_TEMPLATE;
     literals: TemplateStringsArray;
     template: Template | null;
-    values: (RenderableValues<T> | RenderableValues<T>[])[];
+    values: (RenderableValue<T> | RenderableValue<T>[])[];
 };
 
-type RenderableValues<T> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | Renderable;
+type RenderableValue<T> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | Renderable;
 
 type Template = {
     fragment: DocumentFragment;
@@ -59,6 +59,6 @@ type Template = {
 export type {
     Attributes,
     Effect, Element, Elements,
-    Renderable, RenderableReactive, RenderableTemplate, RenderableValues,
+    Renderable, RenderableReactive, RenderableTemplate, RenderableValue,
     Template
 };
