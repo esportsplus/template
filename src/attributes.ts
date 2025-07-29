@@ -1,5 +1,4 @@
 import { effect, root } from '@esportsplus/reactivity';
-import { ATTRIBUTES } from './constants';
 import { Attributes, Element } from './types';
 import { className, isArray, isObject, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
@@ -9,7 +8,8 @@ let attributes: Record<string, unknown> = {},
     delimiters: Record<string, string> = {
         class: ' ',
         style: ';'
-    };
+    },
+    key = Symbol();
 
 
 function attribute(element: Element, name: string, value: unknown) {
@@ -55,12 +55,22 @@ function reactive(element: Element, id: string, name: string, value: unknown, wa
 }
 
 function set(element: Element, value: unknown, name: string) {
-    if (typeof value === 'function') {
+    if (name === 'style' && isObject(value)) {
+        for (let key in value) {
+            set(element, value[key], name);
+        }
+    }
+    else if (isArray(value)) {
+        for (let i = 0, n = value.length; i < n; i++) {
+            set(element, value[i], name);
+        }
+    }
+    else if (typeof value === 'function') {
         if (name.startsWith('on')) {
             event(element, name, value);
         }
         else {
-            reactive(element, ('e' + store(element)[ATTRIBUTES]++), name, value, true);
+            reactive(element, ('e' + store(element)[key]++), name, value, true);
         }
     }
     else {
@@ -70,8 +80,8 @@ function set(element: Element, value: unknown, name: string) {
 
 function store(element: Element) {
     return (
-        element[ATTRIBUTES] || (element[ATTRIBUTES] = { [ATTRIBUTES]: 0 })
-    ) as Attributes & { [ATTRIBUTES]: number };
+        element[key] || (element[key] = { [key]: 0 })
+    ) as Attributes & { [key]: number };
 }
 
 function update(element: Element, id: null | string, name: string, value: unknown, wait = false) {
@@ -155,47 +165,37 @@ function update(element: Element, id: null | string, name: string, value: unknow
 }
 
 
-export default {
-    apply: (element: Element) => {
-        for (let key in attributes) {
-            attribute(element, key, attributes[key]);
-        }
+const apply = (element: Element) => {
+    for (let key in attributes) {
+        attribute(element, key, attributes[key]);
+    }
 
-        attributes = {};
-    },
-    set: (element: Element, value: unknown, name: string) => {
-        if (name === 'style' && isObject(value)) {
-            for (let key in value) {
-                set(element, value[key], name);
-            }
-        }
-        else if (isArray(value)) {
-            for (let i = 0, n = value.length; i < n; i++) {
-                set(element, value[i], name);
-            }
-        }
-        else {
-            set(element, value, name);
-        }
-    },
-    spread: function (element: Element, attributes: Attributes | Attributes[]) {
-        if (isObject(attributes)) {
-            for (let name in attributes) {
-                this.set(element, attributes[name], name);
-            }
-        }
-        else if (isArray(attributes)) {
-            for (let i = 0, n = attributes.length; i < n; i++) {
-                let attrs = attributes[i];
+    attributes = {};
+};
 
-                if (!isObject(attrs)) {
-                    continue;
-                }
+const spread = function (element: Element, attributes: Attributes | Attributes[]) {
+    if (isObject(attributes)) {
+        for (let name in attributes) {
+            set(element, attributes[name], name);
+        }
+    }
+    else if (isArray(attributes)) {
+        for (let i = 0, n = attributes.length; i < n; i++) {
+            let attrs = attributes[i];
 
-                for (let name in attrs) {
-                    this.set(element, attrs[name], name);
-                }
+            if (!isObject(attrs)) {
+                continue;
+            }
+
+            for (let name in attrs) {
+                set(element, attrs[name], name);
             }
         }
     }
+    else {
+        throw new Error('@esportsplus/template: attributes must be of type `Attributes` or `Attributes[]`; Received ' + JSON.stringify(attributes));
+    }
 };
+
+export default { apply, spread };
+export { apply, spread }

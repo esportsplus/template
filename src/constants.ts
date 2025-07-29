@@ -1,6 +1,3 @@
-const ATTRIBUTES = Symbol();
-
-
 const NODE_CLOSING = 1;
 
 const NODE_COMMENT = 2;
@@ -36,12 +33,6 @@ const NODE_WHITELIST: Record<string, number> = {
 
 const REGEX_EMPTY_TEXT_NODES = /(>|})\s+(<|{)/g;
 
-const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=\s*["'][^"']*["'])/g;
-
-const REGEX_EXTRA_WHITESPACE = /\s\s+/g;
-
-const REGEX_SLOT_ATTRIBUTES = /<[\w-]+([^><]*{{\$}}[^><]*)>/g;
-
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{{\$}}/g;
 
 
@@ -58,23 +49,22 @@ const SLOT_HTML = '<!--$-->';
 
 const SLOT_MARKER = '{{$}}';
 
+const SLOT_MARKER_LENGTH = SLOT_MARKER.length;
+
 
 export {
-    ATTRIBUTES,
     NODE_CLOSING,
     NODE_ELEMENT,
     NODE_SLOT,
     NODE_VOID,
     NODE_WHITELIST,
     REGEX_EMPTY_TEXT_NODES,
-    REGEX_EVENTS,
-    REGEX_EXTRA_WHITESPACE,
-    REGEX_SLOT_ATTRIBUTES,
     REGEX_SLOT_NODES,
     RENDERABLE,
     RENDERABLE_REACTIVE,
     RENDERABLE_TEMPLATE,
     SLOT,
     SLOT_HTML,
-    SLOT_MARKER
+    SLOT_MARKER,
+    SLOT_MARKER_LENGTH
 };

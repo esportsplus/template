@@ -1,10 +1,10 @@
 import {
-    NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EMPTY_TEXT_NODES, REGEX_EVENTS, REGEX_EXTRA_WHITESPACE,
-    REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES, SLOT_HTML, SLOT_MARKER
+    NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EMPTY_TEXT_NODES,
+    REGEX_SLOT_NODES, SLOT_HTML, SLOT_MARKER, SLOT_MARKER_LENGTH
 } from '~/constants';
 import { RenderableTemplate, Template } from '~/types';
 import { firstChild, firstElementChild, fragment, nextElementSibling, nextSibling } from '~/utilities';
-import a from '~/attributes';
+import { spread } from '~/attributes';
 import s from '~/slot';
 
 
@@ -16,9 +16,10 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         return set(literals, literals[0]);
     }
 
-    let attributes: Record<string, (null | string)[]> = {},
-        buffer = '',
-        html = minify(literals.join(SLOT_MARKER)),
+    let buffer = '',
+        html = literals.join(SLOT_MARKER)
+            .replace(REGEX_EMPTY_TEXT_NODES, '$1$2')
+            .trim(),
         index = 0,
         level = 0,
         levels = [{
@@ -26,72 +27,10 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
             elements: 0,
             path: [] as NonNullable<Template['slots']>[0]['path']
         }],
+        parsed = html.split(SLOT_MARKER),
         slot = 0,
         slots: Template['slots'] = [],
         total = values.length;
-
-    {
-        let attribute = '',
-            buffer = '',
-            char = '',
-            quote = '';
-
-        for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
-            let found = match[1],
-                metadata = attributes[found];
-
-            if (metadata) {
-                continue;
-            }
-
-            metadata = attributes[found] = [];
-
-            for (let i = 0, n = found.length; i < n; i++) {
-                char = found[i];
-
-                if (char === ' ') {
-                    buffer = '';
-                }
-                else if (char === '=') {
-                    attribute = buffer;
-                    buffer = '';
-                }
-                else if (char === '"' || char === "'") {
-                    if (!attribute) {
-                    }
-                    else if (!quote) {
-                        quote = char;
-                    }
-                    else if (quote === char) {
-                        attribute = '';
-                        buffer = '';
-                        quote = '';
-                    }
-                }
-                else if (char === '{' && char !== buffer) {
-                    buffer = char;
-                }
-                else {
-                    buffer += char;
-
-                    if (buffer === SLOT_MARKER) {
-                        buffer = '';
-
-                        if (attribute) {
-                            metadata.push(attribute);
-
-                            if (!quote) {
-                                attribute = '';
-                            }
-                        }
-                        else {
-                            metadata.push(null);
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     for (let match of html.matchAll(REGEX_SLOT_NODES)) {
         let parent = levels[level],
@@ -106,24 +45,18 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
             let attr = match[2];
 
             if (attr) {
-                let metadata = attributes[attr],
+                let i = attr.indexOf(SLOT_MARKER),
                     path = methods(parent.children, parent.path, firstChild, nextSibling);
 
-                if (!metadata) {
-                    throw new Error(`Template: attribute metadata could not be found for '${attr}'`);
-                }
-
-                for (let i = 0, n = metadata.length; i < n; i++) {
-                    let name = metadata[i];
-
+                while (i !== -1) {
                     slots.push({
-                        fn: name === null ? a.spread : a.set,
-                        name,
+                        fn: spread,
                         path,
                         slot
                     });
 
-                    buffer += literals[slot++];
+                    buffer += parsed[slot++];
+                    i = attr.indexOf(SLOT_MARKER, i + SLOT_MARKER_LENGTH);
                 }
             }
 
@@ -140,17 +73,16 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
             parent.elements++;
         }
         else if (type === NODE_SLOT) {
-            buffer += literals[slot] + SLOT_HTML;
+            buffer += parsed[slot] + SLOT_HTML;
             slots.push({
                 fn: s,
-                name: null,
                 path: methods(parent.children, parent.path, firstChild, nextSibling),
                 slot: slot++
             });
         }
 
         if (slot === total) {
-            buffer += literals[slot];
+            buffer += parsed[slot];
             break;
         }
 
@@ -164,7 +96,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         index = (match.index || 0) + match[0].length;
     }
 
-    return set(literals, minify(buffer.replace(REGEX_EVENTS, '')), slots);
+    return set(literals, buffer, slots);
 }
 
 function methods(children: number, copy: (typeof firstChild)[], first: (typeof firstChild), next: (typeof firstChild)) {
@@ -177,10 +109,6 @@ function methods(children: number, copy: (typeof firstChild)[], first: (typeof f
     }
 
     return methods;
-}
-
-function minify(html: string) {
-    return html.replace(REGEX_EMPTY_TEXT_NODES, '$1$2').replace(REGEX_EXTRA_WHITESPACE, ' ').trim();
 }
 
 function set(literals: TemplateStringsArray, html: string, slots: Template['slots'] = null) {

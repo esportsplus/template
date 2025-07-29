@@ -14,6 +14,12 @@ type Attributes = {
 } & {
     [key: `aria-${string}`]: string | number | boolean | undefined;
     [key: `data-${string}`]: string | undefined;
+    // Element is mounted to DOM
+    // - Trigger animations, etc.
+    onmount?: (element: Element) => void;
+    // Element is rendered in fragment
+    // - Used to retrieve reference to the element
+    onrender?: (element: Element) => void;
 } & Record<PropertyKey, unknown>;
 
 type Effect<T> = () => EffectResponse<T>;
@@ -51,8 +57,7 @@ type Template = {
     html: string;
     literals: TemplateStringsArray;
     slots: {
-        fn: typeof attributes.set | typeof attributes.spread | typeof event | typeof slot;
-        name: PropertyKey | null;
+        fn: typeof attributes.spread | typeof event | typeof slot;
         path: typeof firstChild[];
         slot: number;
     }[] | null;

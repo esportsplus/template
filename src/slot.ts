@@ -5,8 +5,8 @@ import { Element, Elements, RenderableReactive, RenderableTemplate } from './typ
 import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from './utilities'
 
 
-// Using a private symbol since 'SLOT' is used as a different flag in 'render.ts'
 let cleanup: Slot[] = [],
+    // Using a private symbol since 'SLOT' is used as a different flag in 'render.ts'
     key = Symbol(),
     scheduled = false;
 

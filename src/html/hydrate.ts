@@ -2,7 +2,7 @@ import { root, ReactiveArray } from '@esportsplus/reactivity';
 import { Element, Elements, Renderable, RenderableReactive, RenderableTemplate, Template } from '~/types';
 import { Slot } from '~/slot';
 import { cloneNode, firstChild, nextSibling } from '~/utilities';
-import a from '~/attributes';
+import { apply } from '~/attributes';
 import cache from './cache';
 
 
@@ -41,11 +41,11 @@ function render<T>(renderable: Renderable<T>, template: Template) {
             values = renderable.values;
 
         for (let i = slots.length - 1; i >= 0; i--) {
-            let { fn, name, path, slot } = slots[i];
+            let { fn, path, slot } = slots[i];
 
             if (path === previous) {}
             else {
-                a.apply(node);
+                apply(node);
 
                 node = fragment;
                 previous = path;
@@ -59,7 +59,9 @@ function render<T>(renderable: Renderable<T>, template: Template) {
             fn(node, values[slot], name);
         }
 
-        a.apply(node);
+        if (node) {
+            apply(node);
+        }
     }
 
     for (let element = firstChild.call(fragment as Element); element; element = nextSibling.call(element)) {
