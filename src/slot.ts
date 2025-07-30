@@ -1,17 +1,15 @@
 import { effect, root, DIRTY } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_REACTIVE, SLOT } from './constants';
+import { RENDERABLE, RENDERABLE_REACTIVE, SLOT, SLOT_CLEANUP } from './constants';
 import { hydrate } from './html';
 import { Element, Elements, RenderableReactive, RenderableTemplate } from './types';
 import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from './utilities'
 
 
-let cleanup: Slot[] = [],
-    // Using a private symbol since 'SLOT' is used as a different flag in 'render.ts'
-    key = Symbol(),
+let cleanup: VoidFunction[] = [],
     scheduled = false;
 
 
-function afterGroups(anchor: Element, groups: Elements[]) {
+function after(anchor: Element, groups: Elements[]) {
     for (let i = 0, n = groups.length; i < n; i++) {
         let group = groups[i];
 
@@ -24,37 +22,15 @@ function afterGroups(anchor: Element, groups: Elements[]) {
     return groups;
 }
 
-function removeGroup(group?: Elements) {
-    if (group === undefined) {
-        return group;
-    }
-
-    for (let i = 0, n = group.length; i < n; i++) {
-        let item = group[i];
-
-        if (key in item) {
-            cleanup.push(item[key] as Slot);
-        }
-
-        item.remove();
-    }
-
-    if (!scheduled && cleanup.length) {
-        schedule();
-    }
-
-    return group;
-}
-
-function removeGroups(groups: Elements[]) {
+function remove(...groups: Elements[]) {
     for (let i = 0, n = groups.length; i < n; i++) {
         let group = groups[i];
 
         for (let j = 0, o = group.length; j < o; j++) {
             let item = group[j];
 
-            if (key in item) {
-                cleanup.push(item[key] as Slot);
+            if (item[SLOT_CLEANUP]) {
+                cleanup.push(...item[SLOT_CLEANUP]);
             }
 
             item.remove();
@@ -80,14 +56,14 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
                 groups.push( render(null, input[i]) as Elements );
             }
 
-            return anchor ? afterGroups(anchor, groups) : groups;
+            return anchor ? after(anchor, groups) : groups;
         }
 
         let nodes: Elements = [];
 
         if (RENDERABLE in input) {
             if (input[RENDERABLE] === RENDERABLE_REACTIVE) {
-                return afterGroups(anchor!, hydrate.reactive(input as RenderableReactive, slot!));
+                return after(anchor!, hydrate.reactive(input as RenderableReactive, slot!));
             }
             else {
                 nodes = hydrate.static(input as RenderableTemplate<unknown>);
@@ -135,15 +111,19 @@ function schedule() {
 
     raf.add(() => {
         try {
-            let slot;
+            let fn;
 
-            while (slot = cleanup.pop()) {
-                slot.clear();
+            while (fn = cleanup.pop()) {
+                fn();
             }
         }
-        catch(e) {}
+        catch(e) { }
 
         scheduled = false;
+
+        if (cleanup.length) {
+            schedule();
+        }
     });
 }
 
@@ -157,7 +137,9 @@ class Slot {
 
 
     constructor(marker: Element) {
-        marker[key] = this;
+        ( marker[SLOT_CLEANUP] ??= [] ).push(() => {
+            this.clear();
+        });
 
         this.marker = marker;
         this.nodes = [];
@@ -185,16 +167,22 @@ class Slot {
     }
 
     clear() {
-        removeGroups(this.nodes);
+        remove(...this.nodes);
         this.text = null;
     }
 
     pop() {
-        return removeGroup(this.nodes.pop());
+        let group = this.nodes.pop();
+
+        if (!group) {
+            return undefined;
+        }
+
+        return remove(group);
     }
 
     push(...groups: Elements[]) {
-        afterGroups(this.anchor(), groups);
+        after(this.anchor(), groups);
 
         for (let i = 0, n = groups.length; i < n; i++) {
             this.nodes.push(groups[i]);
@@ -252,17 +240,23 @@ class Slot {
     }
 
     shift() {
-        return removeGroup(this.nodes.shift());
+        let group = this.nodes.shift();
+
+        if (!group) {
+            return undefined;
+        }
+
+        return remove(group);
     }
 
     splice(start: number, stop: number = this.nodes.length, ...groups: Elements[]) {
-        return removeGroups(
-            this.nodes.splice(start, stop, ...afterGroups(this.anchor(start), groups))
+        return remove(
+            ...this.nodes.splice(start, stop, ...after(this.anchor(start), groups))
         );
     }
 
     unshift(...groups: Elements[]) {
-        return this.nodes.unshift(...afterGroups(this.marker, groups));
+        return this.nodes.unshift(...after(this.marker, groups));
     }
 }
 

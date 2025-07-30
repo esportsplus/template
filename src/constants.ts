@@ -45,6 +45,8 @@ const RENDERABLE_TEMPLATE = Symbol();
 
 const SLOT = Symbol();
 
+const SLOT_CLEANUP = Symbol();
+
 const SLOT_HTML = '<!--$-->';
 
 const SLOT_MARKER = '{{$}}';
@@ -64,6 +66,7 @@ export {
     RENDERABLE_REACTIVE,
     RENDERABLE_TEMPLATE,
     SLOT,
+    SLOT_CLEANUP,
     SLOT_HTML,
     SLOT_MARKER,
     SLOT_MARKER_LENGTH

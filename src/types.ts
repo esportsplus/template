@@ -1,5 +1,5 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from './constants';
+import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE, SLOT_CLEANUP } from './constants';
 import { firstChild } from './utilities';
 import attributes from './attributes';
 import event from './event';
@@ -26,7 +26,7 @@ type Effect<T> = () => EffectResponse<T>;
 
 type EffectResponse<T> = T extends [] ? EffectResponse<T[number]>[] : Primitive | Renderable<T>;
 
-type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
+type Element = HTMLElement & Attributes & { [SLOT_CLEANUP]?: VoidFunction[] } & Record<PropertyKey, unknown>;
 
 type Elements = Element[];
 

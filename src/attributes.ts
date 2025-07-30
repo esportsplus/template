@@ -67,7 +67,7 @@ function set(element: Element, value: unknown, name: string) {
     }
     else if (typeof value === 'function') {
         if (name.startsWith('on')) {
-            event(element, name, value);
+            event(element, name as `on${string}`, value);
         }
         else {
             reactive(element, ('e' + store(element)[key]++), name, value, true);
@@ -196,6 +196,7 @@ const spread = function (element: Element, attributes: Attributes | Attributes[]
         throw new Error('@esportsplus/template: attributes must be of type `Attributes` or `Attributes[]`; Received ' + JSON.stringify(attributes));
     }
 };
+
 
 export default { apply, spread };
 export { apply, spread }
