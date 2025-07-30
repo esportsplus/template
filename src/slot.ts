@@ -137,9 +137,7 @@ class Slot {
 
 
     constructor(marker: Element) {
-        ( marker[SLOT_CLEANUP] ??= [] ).push(() => {
-            this.clear();
-        });
+        oncleanup(marker, () => this.clear());
 
         this.marker = marker;
         this.nodes = [];
@@ -193,23 +191,26 @@ class Slot {
 
     render(input: unknown) {
         if (typeof input === 'function') {
-            effect((self) => {
-                let v = (input as Function)();
+            let instance = effect((self) => {
+                    let v = (input as Function)();
 
-                if (typeof v === 'function') {
-                    root(() => {
-                        this.render(v());
-                    });
-                }
-                else if (self.state === DIRTY) {
-                    this.render(v);
-                }
-                else {
-                    raf.add(() => {
+                    if (typeof v === 'function') {
+                        root((root) => {
+                            instance.on('cleanup', () => root.dispose());
+                            this.render(v());
+                        });
+                    }
+                    else if (self.state === DIRTY) {
                         this.render(v);
-                    });
-                }
-            });
+                    }
+                    else {
+                        raf.add(() => {
+                            this.render(v);
+                        });
+                    }
+                });
+
+            oncleanup(this.marker, () => instance.dispose());
 
             return this;
         }
@@ -261,7 +262,12 @@ class Slot {
 }
 
 
+const oncleanup = (element: Element, fn: VoidFunction) => {
+    ( element[SLOT_CLEANUP] ??= [] ).push(fn);
+};
+
+
 export default (marker: Element, value: unknown) => {
     return new Slot(marker).render(value);
 };
-export { Slot };
+export { oncleanup, Slot };

@@ -1,4 +1,5 @@
 import { effect, root } from '@esportsplus/reactivity';
+import { oncleanup } from './slot';
 import { Attributes, Element } from './types';
 import { className, isArray, isObject, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
@@ -33,20 +34,27 @@ function attribute(element: Element, name: string, value: unknown) {
 
 function reactive(element: Element, id: string, name: string, value: unknown, wait = false) {
     if (typeof value === 'function') {
-        effect(() => {
-            let v = (value as Function)(element);
+        let instance = effect(() => {
+                let v = (value as Function)(element);
 
-            if (typeof v === 'function') {
-                root(() => {
-                    reactive(element, id, name, v(element), wait);
-                });
-            }
-            else {
-                raf.add(() => {
-                    update(element, id, name, v, wait);
-                });
-            }
-        });
+                if (typeof v === 'function') {
+                    root((root) => {
+                        instance.on('cleanup', () => root.dispose());
+                        reactive(element, id, name, v(element), wait);
+                    });
+                }
+                else if (isArray(v) || isObject(v)) {
+                    spread(element, v as Attributes | Attributes[]);
+                }
+                else {
+                    raf.add(() => {
+                        update(element, id, name, v, wait);
+                    });
+                }
+            });
+
+        oncleanup(element, () => instance.dispose());
+
         wait = false;
     }
     else {
@@ -184,7 +192,7 @@ const spread = function (element: Element, attributes: Attributes | Attributes[]
             let attrs = attributes[i];
 
             if (!isObject(attrs)) {
-                continue;
+                throw new Error('@esportsplus/template: attributes must be of type `Attributes` or `Attributes[]`; Received ' + JSON.stringify(attributes));
             }
 
             for (let name in attrs) {

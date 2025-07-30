@@ -1,5 +1,5 @@
 import { root } from '@esportsplus/reactivity';
-import { SLOT_CLEANUP } from './constants';
+import { oncleanup } from './slot';
 import { Element } from './types';
 import { addEventListener, defineProperty, parentElement } from './utilities';
 
@@ -65,14 +65,14 @@ export default (element: Element, event: `on${string}`, listener: Function) => {
     if (controller) {
         controller.listeners++;
 
-        ( element[SLOT_CLEANUP] ??= [] ).push(() => {
+        oncleanup(element, () => {
             if (--controller.listeners) {
                 return;
             }
 
             controller.abort();
             controllers.set(event, null);
-        })
+        });
         signal = controller.signal;
     }
 
