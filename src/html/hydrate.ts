@@ -14,10 +14,9 @@ function reactive<T>(renderable: RenderableReactive<T>, slot: Slot) {
             reactive(renderable, slot);
         },
         render = (i: number, n?: number) => {
-            return root(() => template(array, factory, i, n), scheduler);
+            return root(() => template(array, factory, i, n));
         },
-        renderables = array.map( factory ),
-        scheduler = root((scope) => scope.scheduler);
+        renderables = array.map(factory);
 
     array.on('pop', () => slot.pop());
     array.on('push', ({ items }) => slot.push(...render(array.length - items.length)));

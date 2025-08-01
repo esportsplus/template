@@ -1,4 +1,4 @@
-import { effect, root } from '@esportsplus/reactivity';
+import { computed, dispose, root } from '@esportsplus/reactivity';
 import { oncleanup } from './slot';
 import { Attributes, Element } from './types';
 import { className, isArray, isObject, raf, removeAttribute, setAttribute } from './utilities';
@@ -34,12 +34,11 @@ function attribute(element: Element, name: string, value: unknown) {
 
 function reactive(element: Element, id: string, name: string, value: unknown, wait = false) {
     if (typeof value === 'function') {
-        let instance = effect(() => {
+        let instance = computed(() => {
                 let v = (value as Function)(element);
 
                 if (typeof v === 'function') {
-                    root((root) => {
-                        instance.on('cleanup', () => root.dispose());
+                    root(() => {
                         reactive(element, id, name, v(element), wait);
                     });
                 }
@@ -53,7 +52,7 @@ function reactive(element: Element, id: string, name: string, value: unknown, wa
                 }
             });
 
-        oncleanup(element, () => instance.dispose());
+        oncleanup(element, () => dispose(instance));
 
         wait = false;
     }

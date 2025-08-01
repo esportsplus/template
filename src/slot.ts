@@ -1,8 +1,9 @@
-import { effect, root, DIRTY } from '@esportsplus/reactivity';
+import { computed, dispose, root } from '@esportsplus/reactivity';
 import { RENDERABLE, RENDERABLE_REACTIVE, SLOT, SLOT_CLEANUP } from './constants';
 import { hydrate } from './html';
 import { Element, Elements, RenderableReactive, RenderableTemplate } from './types';
 import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from './utilities'
+import { isFunction } from '@esportsplus/utilities';
 
 
 let cleanup: VoidFunction[] = [],
@@ -190,18 +191,12 @@ class Slot {
     }
 
     render(input: unknown) {
-        if (typeof input === 'function') {
-            let instance = effect((self) => {
+        if (isFunction(input)) {
+            let instance = computed(() => {
                     let v = (input as Function)();
 
-                    if (typeof v === 'function') {
-                        root((root) => {
-                            instance.on('cleanup', () => root.dispose());
-                            this.render(v());
-                        });
-                    }
-                    else if (self.state === DIRTY) {
-                        this.render(v);
+                    if (isFunction(v)) {
+                        root(() => this.render(v()));
                     }
                     else {
                         raf.add(() => {
@@ -210,7 +205,7 @@ class Slot {
                     }
                 });
 
-            oncleanup(this.marker, () => instance.dispose());
+            oncleanup(this.marker, () => dispose(instance));
 
             return this;
         }

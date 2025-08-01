@@ -24,22 +24,25 @@ let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
 
 
 export default (element: Element, event: `on${string}`, listener: Function) => {
-    if (event === 'onmount') {
+    if (event === 'onconnected') {
         let interval = setInterval(() => {
                 retry--;
 
                 if (element.isConnected) {
                     retry = 0;
-                    root(() => listener(element), scheduler);
+                    root(() => listener(element));
                 }
 
                 if (retry === 0) {
                     clearInterval(interval);
                 }
             }, 1000 / 60),
-            retry = 60,
-            scheduler = root(({ scheduler }) => scheduler);
+            retry = 60;
 
+        return;
+    }
+    else if (event === 'oncleanup') {
+        oncleanup(element, () => listener(element));
         return;
     }
     else if (event === 'onrender') {

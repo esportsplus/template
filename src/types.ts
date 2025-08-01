@@ -14,10 +14,9 @@ type Attributes = {
 } & {
     [key: `aria-${string}`]: string | number | boolean | undefined;
     [key: `data-${string}`]: string | undefined;
-    // Element is mounted to DOM
-    // - Trigger animations, etc.
-    onmount?: (element: Element) => void;
-    // Element is rendered in fragment
+    onconnected?: (element: Element) => void;
+    oncleanup?: (element: Element) => void;
+    // Rendered in fragment
     // - Used to retrieve reference to the element
     onrender?: (element: Element) => void;
 } & Record<PropertyKey, unknown>;
@@ -39,7 +38,9 @@ type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate<T>;
 type RenderableReactive<T = unknown> = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_REACTIVE;
     literals: null;
-    template: (this: ReactiveArray<T>, value: T, i: number) => RenderableTemplate<T>;
+    template: (
+        ...args: Parameters< Parameters<ReactiveArray<T>['map']>[0] >
+    ) => RenderableTemplate<T>;
     values: ReactiveArray<T>;
 }>;
 
