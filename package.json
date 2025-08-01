@@ -1,15 +1,9 @@
 {
     "author": "ICJR",
     "dependencies": {
-<<<<<<< Updated upstream
-        "@esportsplus/reactivity": "^0.4.8",
-        "@esportsplus/tasks": "^0.1.11",
-        "@esportsplus/utilities": "^0.19.1"
-=======
         "@esportsplus/reactivity": "^0.6.2",
         "@esportsplus/tasks": "^0.1.11",
         "@esportsplus/utilities": "^0.21.0"
->>>>>>> Stashed changes
     },
     "devDependencies": {
         "@esportsplus/typescript": "^0.9.2"
