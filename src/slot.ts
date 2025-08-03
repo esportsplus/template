@@ -1,9 +1,9 @@
-import { computed, dispose, root } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_REACTIVE, SLOT, SLOT_CLEANUP } from './constants';
+import { effect, root } from '@esportsplus/reactivity';
+import { isArray, isFunction, isInstanceOf, isObject  } from '@esportsplus/utilities';
+import { RENDERABLE, RENDERABLE_REACTIVE, SLOT_CLEANUP } from './constants';
 import { hydrate } from './html';
 import { Element, Elements, RenderableReactive, RenderableTemplate } from './types';
-import { firstChild, isArray, isObject, nextSibling, nodeValue, raf, text } from './utilities'
-import { isFunction } from '@esportsplus/utilities';
+import { firstChild, nextSibling, nodeValue, raf, text } from './utilities'
 
 
 let cleanup: VoidFunction[] = [],
@@ -49,7 +49,7 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
     if (input === false || input == null) {
         input = '';
     }
-    else if (typeof input === 'object') {
+    else if (isObject(input)) {
         if (isArray(input)) {
             let groups: Elements[] = [];
 
@@ -70,12 +70,12 @@ function render(anchor: Element | null, input: unknown, slot?: Slot): Elements |
                 nodes = hydrate.static(input as RenderableTemplate<unknown>);
             }
         }
-        else if (input instanceof NodeList) {
-            for (let node = firstChild.call(input as any as Element); node; node = nextSibling.call(node)) {
+        else if (isInstanceOf(input, NodeList)) {
+            for (let node = firstChild.call(input); node; node = nextSibling.call(node)) {
                 nodes.push(node);
             }
         }
-        else if (input instanceof Node) {
+        else if (isInstanceOf(input, Node)) {
             nodes = [input] as Elements;
         }
 
@@ -130,15 +130,13 @@ function schedule() {
 
 
 class Slot {
-    [SLOT] = null;
-
     marker: Element;
     nodes: Elements[];
     text: Element | null = null;
 
 
     constructor(marker: Element) {
-        oncleanup(marker, () => this.clear());
+        onRemove(marker, () => this.clear());
 
         this.marker = marker;
         this.nodes = [];
@@ -192,7 +190,9 @@ class Slot {
 
     render(input: unknown) {
         if (isFunction(input)) {
-            let instance = computed(() => {
+            onRemove(
+                this.marker,
+                effect(() => {
                     let v = (input as Function)();
 
                     if (isFunction(v)) {
@@ -203,9 +203,8 @@ class Slot {
                             this.render(v);
                         });
                     }
-                });
-
-            oncleanup(this.marker, () => dispose(instance));
+                })
+            );
 
             return this;
         }
@@ -257,7 +256,7 @@ class Slot {
 }
 
 
-const oncleanup = (element: Element, fn: VoidFunction) => {
+const onRemove = (element: Element, fn: VoidFunction) => {
     ( element[SLOT_CLEANUP] ??= [] ).push(fn);
 };
 
@@ -265,4 +264,4 @@ const oncleanup = (element: Element, fn: VoidFunction) => {
 export default (marker: Element, value: unknown) => {
     return new Slot(marker).render(value);
 };
-export { oncleanup, Slot };
+export { onRemove, Slot };

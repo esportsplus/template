@@ -58,9 +58,7 @@ function render<T>(renderable: Renderable<T>, template: Template) {
             fn(node, values[slot], name);
         }
 
-        if (node) {
-            apply(node);
-        }
+        apply(node);
     }
 
     for (let element = firstChild.call(fragment as Element); element; element = nextSibling.call(element)) {

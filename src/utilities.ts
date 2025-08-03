@@ -1,5 +1,4 @@
 import { raf as tasks } from '@esportsplus/tasks';
-import { defineProperty, isArray, isObject } from '@esportsplus/utilities';
 import { Element as E } from './types';
 
 
@@ -70,24 +69,12 @@ const text = (value: string) => {
 
 export {
     addEventListener,
-    className,
-    cloneNode,
-    defineProperty,
-    firstChild,
-    firstElementChild,
-    fragment,
+    className, cloneNode,
+    firstChild, firstElementChild, fragment,
     innerHTML,
-    isArray,
-    isObject,
-    nextElementSibling,
-    nextSibling,
-    nodeValue,
-    parentElement,
-    parentNode,
-    prepend,
-    raf,
-    removeAttribute,
-    removeEventListener,
+    nextElementSibling, nextSibling, nodeValue,
+    parentElement, parentNode, prepend,
+    raf, removeAttribute, removeEventListener,
     setAttribute,
     text
 };

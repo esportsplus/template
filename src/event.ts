@@ -1,7 +1,8 @@
 import { root } from '@esportsplus/reactivity';
-import { oncleanup } from './slot';
+import { defineProperty } from '@esportsplus/utilities';
+import { onRemove } from './slot';
 import { Element } from './types';
-import { addEventListener, defineProperty, parentElement } from './utilities';
+import { addEventListener, parentElement } from './utilities';
 
 
 let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
@@ -23,7 +24,7 @@ let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
 });
 
 
-export default (element: Element, event: `on${string}`, listener: Function) => {
+export default (element: Element, event: `on${string}`, listener: Function): void => {
     if (event === 'onconnected') {
         let interval = setInterval(() => {
                 retry--;
@@ -33,7 +34,7 @@ export default (element: Element, event: `on${string}`, listener: Function) => {
                     root(() => listener(element));
                 }
 
-                if (retry === 0) {
+                if (!retry) {
                     clearInterval(interval);
                 }
             }, 1000 / 60),
@@ -41,12 +42,13 @@ export default (element: Element, event: `on${string}`, listener: Function) => {
 
         return;
     }
-    else if (event === 'oncleanup') {
-        oncleanup(element, () => listener(element));
+    else if (event === 'onremove') {
+        onRemove(element, () => listener(element));
         return;
     }
     else if (event === 'onrender') {
-        return root(() => listener(element));
+        root(() => listener(element));
+        return;
     }
 
     let controller = controllers.get(event),
@@ -68,7 +70,7 @@ export default (element: Element, event: `on${string}`, listener: Function) => {
     if (controller) {
         controller.listeners++;
 
-        oncleanup(element, () => {
+        onRemove(element, () => {
             if (--controller.listeners) {
                 return;
             }

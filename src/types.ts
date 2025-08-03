@@ -7,15 +7,15 @@ import slot from './slot';
 
 
 type Attributes = {
-    class?: string | Effect<Primitive> | (string | Effect<Primitive>)[];
-    style?: string | Effect<Primitive> | (string | Effect<Primitive>)[];
+    class?: string | Effect<Primitive | Primitive[]> | (string | Effect<Primitive | Primitive[]>)[];
+    style?: string | Effect<Primitive | Primitive[]> | (string | Effect<Primitive | Primitive[]>)[];
 } & {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: Element, event: GlobalEventHandlersEventMap[K]) => void;
 } & {
     [key: `aria-${string}`]: string | number | boolean | undefined;
     [key: `data-${string}`]: string | undefined;
     onconnected?: (element: Element) => void;
-    oncleanup?: (element: Element) => void;
+    onremove?: (element: Element) => void;
     // Rendered in fragment
     // - Used to retrieve reference to the element
     onrender?: (element: Element) => void;

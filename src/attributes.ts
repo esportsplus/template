@@ -1,7 +1,8 @@
-import { computed, dispose, root } from '@esportsplus/reactivity';
-import { oncleanup } from './slot';
+import { effect } from '@esportsplus/reactivity';
+import { isArray, isFunction, isObject, isString } from '@esportsplus/utilities';
+import { onRemove } from './slot';
 import { Attributes, Element } from './types';
-import { className, isArray, isObject, raf, removeAttribute, setAttribute } from './utilities';
+import { className, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
 
 
@@ -32,56 +33,42 @@ function attribute(element: Element, name: string, value: unknown) {
     }
 }
 
-function reactive(element: Element, id: string, name: string, value: unknown, wait = false) {
-    if (typeof value === 'function') {
-        let instance = computed(() => {
-                let v = (value as Function)(element);
-
-                if (typeof v === 'function') {
-                    root(() => {
-                        reactive(element, id, name, v(element), wait);
-                    });
-                }
-                else if (isArray(v) || isObject(v)) {
-                    spread(element, v as Attributes | Attributes[]);
-                }
-                else {
-                    raf.add(() => {
-                        update(element, id, name, v, wait);
-                    });
-                }
-            });
-
-        oncleanup(element, () => dispose(instance));
-
-        wait = false;
-    }
-    else {
-        update(element, id, name, value, wait);
-    }
-}
-
-function set(element: Element, value: unknown, name: string) {
-    if (name === 'style' && isObject(value)) {
-        for (let key in value) {
-            set(element, value[key], name);
-        }
-    }
-    else if (isArray(value)) {
+function set(element: Element, value: unknown, name: string, wait = false) {
+    if (isArray(value)) {
         for (let i = 0, n = value.length; i < n; i++) {
-            set(element, value[i], name);
+            set(element, value[i], name, wait);
         }
     }
-    else if (typeof value === 'function') {
+    else if (isFunction(value)) {
         if (name.startsWith('on')) {
             event(element, name as `on${string}`, value);
         }
         else {
-            reactive(element, ('e' + store(element)[key]++), name, value, true);
+            let id = ('e' + store(element)[key]++);
+
+            onRemove(
+                element,
+                effect(() => {
+                    let v = (value as Function)(element);
+
+                    if (isArray(v)) {
+                        let last = v.length - 1;
+
+                        for (let i = 0, n = v.length; i < n; i++) {
+                            update(element, id, name, v[i], wait || i !== last);
+                        }
+                    }
+                    else {
+                        update(element, id, name, v, wait);
+                    }
+                })
+            );
+
+            wait = false;
         }
     }
     else {
-        update(element, null, name, value, true);
+        update(element, null, name, value, wait);
     }
 }
 
@@ -111,14 +98,14 @@ function update(element: Element, id: null | string, name: string, value: unknow
         }
 
         if (id === null) {
-            if (value && typeof value === 'string') {
+            if (value && isString(value)) {
                 data[cache] += (data[cache] ? delimiter : '') + value;
             }
         }
         else {
             let hot: Attributes = {};
 
-            if (typeof value === 'string') {
+            if (isString(value)) {
                 let part: string,
                     parts = value.split(delimiter);
 
@@ -155,7 +142,7 @@ function update(element: Element, id: null | string, name: string, value: unknow
             value += (value ? delimiter : '') + key;
         }
     }
-    else if (typeof id === 'string') {
+    else if (isString(id)) {
         if (data[name] === value) {
             return;
         }
@@ -164,10 +151,14 @@ function update(element: Element, id: null | string, name: string, value: unknow
     }
 
     if (wait) {
-        attributes[name] = value;
+        if (id === null) {
+            attributes[name] = value;
+        }
     }
     else {
-        attribute(element, name, value);
+        raf.add(() => {
+            attribute(element, name, value);
+        });
     }
 }
 
@@ -183,7 +174,7 @@ const apply = (element: Element) => {
 const spread = function (element: Element, attributes: Attributes | Attributes[]) {
     if (isObject(attributes)) {
         for (let name in attributes) {
-            set(element, attributes[name], name);
+            set(element, attributes[name], name, true);
         }
     }
     else if (isArray(attributes)) {
@@ -195,7 +186,7 @@ const spread = function (element: Element, attributes: Attributes | Attributes[]
             }
 
             for (let name in attrs) {
-                set(element, attrs[name], name);
+                set(element, attrs[name], name, true);
             }
         }
     }
