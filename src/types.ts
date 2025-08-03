@@ -39,6 +39,7 @@ type RenderableReactive<T = unknown> = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_REACTIVE;
     literals: null;
     template: (
+        this: ThisParameterType< Parameters<ReactiveArray<T>['map']>[0] >,
         ...args: Parameters< Parameters<ReactiveArray<T>['map']>[0] >
     ) => RenderableTemplate<T>;
     values: ReactiveArray<T>;
