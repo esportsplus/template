@@ -6,9 +6,11 @@ import event from './event';
 import slot from './slot';
 
 
+type Attribute = Primitive | Effect<Primitive | Primitive[]>;
+
 type Attributes = {
-    class?: string | Effect<Primitive | Primitive[]> | (string | Effect<Primitive | Primitive[]>)[];
-    style?: string | Effect<Primitive | Primitive[]> | (string | Effect<Primitive | Primitive[]>)[];
+    class?: Attribute | Attribute[];
+    style?: Attribute | Attribute[];
 } & {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: Element, event: GlobalEventHandlersEventMap[K]) => void;
 } & {
