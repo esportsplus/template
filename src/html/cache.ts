@@ -88,8 +88,6 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
 
         if (type === NODE_CLOSING) {
             level--;
-
-            // TODO: support multiple root nodes in template literals
         }
         else {
             parent.children++;
