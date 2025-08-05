@@ -42,7 +42,7 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
 
         return;
     }
-    else if (event === 'onremove') {
+    else if (event === 'ondisconnected') {
         onRemove(element, () => listener(element));
         return;
     }
