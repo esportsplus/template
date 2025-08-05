@@ -16,8 +16,8 @@ type Attributes = {
 } & {
     [key: `aria-${string}`]: string | number | boolean | undefined;
     [key: `data-${string}`]: string | undefined;
-    onconnected?: (element: Element) => void;
-    ondisconnected?: (element: Element) => void;
+    onconnect?: (element: Element) => void;
+    ondisconnect?: (element: Element) => void;
     // Rendered in fragment
     // - Used to retrieve reference to the element
     onrender?: (element: Element) => void;

@@ -136,7 +136,7 @@ class Slot {
 
 
     constructor(marker: Element) {
-        onRemove(marker, () => this.clear());
+        onCleanup(marker, () => this.clear());
 
         this.marker = marker;
         this.nodes = [];
@@ -190,7 +190,7 @@ class Slot {
 
     render(input: unknown) {
         if (isFunction(input)) {
-            onRemove(
+            onCleanup(
                 this.marker,
                 effect(() => {
                     let v = (input as Function)();
@@ -256,7 +256,7 @@ class Slot {
 }
 
 
-const onRemove = (element: Element, fn: VoidFunction) => {
+const onCleanup = (element: Element, fn: VoidFunction) => {
     ( element[SLOT_CLEANUP] ??= [] ).push(fn);
 };
 
@@ -264,4 +264,4 @@ const onRemove = (element: Element, fn: VoidFunction) => {
 export default (marker: Element, value: unknown) => {
     return new Slot(marker).render(value);
 };
-export { onRemove, Slot };
+export { onCleanup, Slot };

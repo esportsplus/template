@@ -1,6 +1,6 @@
 import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
-import { onRemove } from './slot';
+import { onCleanup } from './slot';
 import { Element } from './types';
 import { addEventListener, parentElement } from './utilities';
 
@@ -25,7 +25,7 @@ let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
 
 
 export default (element: Element, event: `on${string}`, listener: Function): void => {
-    if (event === 'onconnected') {
+    if (event === 'onconnect') {
         let interval = setInterval(() => {
                 retry--;
 
@@ -42,8 +42,8 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
 
         return;
     }
-    else if (event === 'ondisconnected') {
-        onRemove(element, () => listener(element));
+    else if (event === 'ondisconnect') {
+        onCleanup(element, () => listener(element));
         return;
     }
     else if (event === 'onrender') {
@@ -70,7 +70,7 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
     if (controller) {
         controller.listeners++;
 
-        onRemove(element, () => {
+        onCleanup(element, () => {
             if (--controller.listeners) {
                 return;
             }

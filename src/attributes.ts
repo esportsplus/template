@@ -1,6 +1,6 @@
 import { effect } from '@esportsplus/reactivity';
 import { isArray, isFunction, isObject, isString } from '@esportsplus/utilities';
-import { onRemove } from './slot';
+import { onCleanup } from './slot';
 import { Attributes, Element } from './types';
 import { className, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
@@ -15,11 +15,7 @@ let attributes: Record<string, unknown> = {},
 
 
 function attribute(element: Element, name: string, value: unknown) {
-    if (value === false || value == null) {
-        value = '';
-    }
-
-    if (value === '') {
+    if (value === '' || value === false || value == null) {
         removeAttribute.call(element, name);
     }
     else if (name === 'class') {
@@ -46,7 +42,7 @@ function set(element: Element, value: unknown, name: string, wait = false) {
         else {
             let id = ('e' + store(element)[key]++);
 
-            onRemove(
+            onCleanup(
                 element,
                 effect(() => {
                     let v = (value as Function)(element);
@@ -181,17 +177,10 @@ const spread = function (element: Element, attributes: Attributes | Attributes[]
         for (let i = 0, n = attributes.length; i < n; i++) {
             let attrs = attributes[i];
 
-            if (!isObject(attrs)) {
-                throw new Error('@esportsplus/template: attributes must be of type `Attributes` or `Attributes[]`; Received ' + JSON.stringify(attributes));
-            }
-
             for (let name in attrs) {
                 set(element, attrs[name], name, true);
             }
         }
-    }
-    else {
-        throw new Error('@esportsplus/template: attributes must be of type `Attributes` or `Attributes[]`; Received ' + JSON.stringify(attributes));
     }
 };
 
