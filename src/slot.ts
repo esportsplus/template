@@ -3,11 +3,11 @@ import { isArray, isFunction, isInstanceOf, isObject  } from '@esportsplus/utili
 import { RENDERABLE, RENDERABLE_REACTIVE, SLOT_CLEANUP } from './constants';
 import { hydrate } from './html';
 import { Element, Elements, RenderableReactive, RenderableTemplate } from './types';
-import { firstChild, nextSibling, nodeValue, raf, text } from './utilities'
+import { firstChild, microtask, nextSibling, nodeValue, raf, text } from './utilities'
 import queue from '@esportsplus/queue';
 
 
-let cleanup = queue<VoidFunction[]>(),
+let cleanup = queue<VoidFunction[]>(1024),
     scheduled = false;
 
 
@@ -111,24 +111,26 @@ function schedule() {
 
     scheduled = true;
 
-    raf.add(() => {
-        try {
-            let fns;
+    microtask.add(task);
+}
 
-            while (fns = cleanup.next()) {
-                for (let i = 0, n = fns.length; i < n; i++) {
-                    fns[i]();
-                }
+function task() {
+    let fns;
+
+    while (fns = cleanup.next()) {
+        for (let i = 0, n = fns.length; i < n; i++) {
+            try {
+                fns[i]();
             }
+            catch { }
         }
-        catch(e) { }
+    }
 
-        scheduled = false;
+    scheduled = false;
 
-        if (cleanup.length) {
-            schedule();
-        }
-    });
+    if (cleanup.length) {
+        schedule();
+    }
 }
 
 

@@ -1,4 +1,4 @@
-import { raf as tasks } from '@esportsplus/tasks';
+import { micro as m, raf as r } from '@esportsplus/tasks';
 import { Element as E } from './types';
 
 
@@ -54,7 +54,9 @@ const fragment = (html: string) => {
     return content;
 };
 
-const raf = tasks();
+const microtask = m();
+
+const raf = r();
 
 const text = (value: string) => {
     let element = cloneNode.call(t);
@@ -72,6 +74,7 @@ export {
     className, cloneNode,
     firstChild, firstElementChild, fragment,
     innerHTML,
+    microtask,
     nextElementSibling, nextSibling, nodeValue,
     parentElement, parentNode, prepend,
     raf, removeAttribute, removeEventListener,
