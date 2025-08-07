@@ -1,6 +1,6 @@
 import { effect } from '@esportsplus/reactivity';
 import { isArray, isFunction, isObject, isString } from '@esportsplus/utilities';
-import { onCleanup } from './slot';
+import { ondisconnect } from './slot';
 import { Attributes, Element } from './types';
 import { className, raf, removeAttribute, setAttribute } from './utilities';
 import event from './event';
@@ -42,7 +42,7 @@ function set(element: Element, value: unknown, name: string, wait = false) {
         else {
             let id = ('e' + store(element)[key]++);
 
-            onCleanup(
+            ondisconnect(
                 element,
                 effect(() => {
                     let v = (value as Function)(element);

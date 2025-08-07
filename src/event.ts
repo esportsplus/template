@@ -1,6 +1,6 @@
 import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
-import { onCleanup } from './slot';
+import { ondisconnect } from './slot';
 import { Element } from './types';
 import { addEventListener, parentElement } from './utilities';
 
@@ -43,7 +43,7 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
         return;
     }
     else if (event === 'ondisconnect') {
-        onCleanup(element, () => listener(element));
+        ondisconnect(element, () => listener(element));
         return;
     }
     else if (event === 'onrender') {
@@ -70,7 +70,7 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
     if (controller) {
         controller.listeners++;
 
-        onCleanup(element, () => {
+        ondisconnect(element, () => {
             if (--controller.listeners) {
                 return;
             }

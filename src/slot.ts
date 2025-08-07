@@ -4,9 +4,10 @@ import { RENDERABLE, RENDERABLE_REACTIVE, SLOT_CLEANUP } from './constants';
 import { hydrate } from './html';
 import { Element, Elements, RenderableReactive, RenderableTemplate } from './types';
 import { firstChild, nextSibling, nodeValue, raf, text } from './utilities'
+import queue from '@esportsplus/queue';
 
 
-let cleanup: VoidFunction[] = [],
+let cleanup = queue<VoidFunction[]>(),
     scheduled = false;
 
 
@@ -31,7 +32,7 @@ function remove(...groups: Elements[]) {
             let item = group[j];
 
             if (item[SLOT_CLEANUP]) {
-                cleanup.push(...item[SLOT_CLEANUP]);
+                cleanup.add( item[SLOT_CLEANUP] );
             }
 
             item.remove();
@@ -112,10 +113,12 @@ function schedule() {
 
     raf.add(() => {
         try {
-            let fn;
+            let fns;
 
-            while (fn = cleanup.pop()) {
-                fn();
+            while (fns = cleanup.next()) {
+                for (let i = 0, n = fns.length; i < n; i++) {
+                    fns[i]();
+                }
             }
         }
         catch(e) { }
@@ -136,7 +139,7 @@ class Slot {
 
 
     constructor(marker: Element) {
-        onCleanup(marker, () => this.clear());
+        ondisconnect(marker, () => this.clear());
 
         this.marker = marker;
         this.nodes = [];
@@ -190,7 +193,7 @@ class Slot {
 
     render(input: unknown) {
         if (isFunction(input)) {
-            onCleanup(
+            ondisconnect(
                 this.marker,
                 effect(() => {
                     let v = (input as Function)();
@@ -256,7 +259,7 @@ class Slot {
 }
 
 
-const onCleanup = (element: Element, fn: VoidFunction) => {
+const ondisconnect = (element: Element, fn: VoidFunction) => {
     ( element[SLOT_CLEANUP] ??= [] ).push(fn);
 };
 
@@ -264,4 +267,4 @@ const onCleanup = (element: Element, fn: VoidFunction) => {
 export default (marker: Element, value: unknown) => {
     return new Slot(marker).render(value);
 };
-export { onCleanup, Slot };
+export { ondisconnect, Slot };
