@@ -2,9 +2,9 @@
     "author": "ICJR",
     "dependencies": {
         "@esportsplus/queue": "^0.1.0",
-        "@esportsplus/reactivity": "^0.12.3",
+        "@esportsplus/reactivity": "^0.12.4",
         "@esportsplus/tasks": "^0.2.1",
-        "@esportsplus/utilities": "^0.21.1"
+        "@esportsplus/utilities": "^0.22.1"
     },
     "devDependencies": {
         "@esportsplus/typescript": "^0.9.2"
