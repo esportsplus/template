@@ -12,6 +12,8 @@ prototype = Element.prototype;
 
 const addEventListener = prototype.addEventListener;
 
+const append = prototype.append;
+
 const removeEventListener = prototype.removeEventListener;
 
 const className = Object.getOwnPropertyDescriptor(prototype, 'className')!.set!;
@@ -70,7 +72,7 @@ const text = (value: string) => {
 
 
 export {
-    addEventListener,
+    addEventListener, append,
     className, cloneNode,
     firstChild, firstElementChild, fragment,
     innerHTML,

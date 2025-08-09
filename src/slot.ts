@@ -2,26 +2,44 @@ import { effect, root } from '@esportsplus/reactivity';
 import { isArray, isFunction, isInstanceOf, isObject  } from '@esportsplus/utilities';
 import { RENDERABLE, RENDERABLE_REACTIVE, SLOT_CLEANUP } from './constants';
 import { hydrate } from './html';
-import { Element, Elements, RenderableReactive, RenderableTemplate } from './types';
-import { firstChild, microtask, nextSibling, nodeValue, raf, text } from './utilities'
+import { Element, Elements, RenderableReactive, RenderableTemplate, RenderedGroup } from './types';
+import { append, firstChild, fragment, microtask, nextSibling, nodeValue, raf, text } from './utilities'
 import queue from '@esportsplus/queue';
 
 
-let cleanup = queue<VoidFunction[]>(1024),
+let cleanup = queue<VoidFunction[]>(64),
+    fallback = fragment(''),
     scheduled = false;
 
 
-function after(anchor: Element, groups: Elements[]) {
-    for (let i = 0, n = groups.length; i < n; i++) {
-        let group = groups[i];
+function after(anchor: Element, groups: RenderedGroup[]) {
+    let elements: Elements[] = [],
+        n = groups.length;
 
-        if (group.length) {
-            anchor.after(anchor, ...group);
-            anchor = group.at(-1)!;
+    if (n) {
+        let fragment = groups[0].fragment || fallback;
+
+        if (n === 1) {
+            elements.push( groups[0].elements );
         }
+        else {
+            for (let i = 1; i < n; i++) {
+                let group = groups[i];
+
+                if (group.fragment) {
+                    append.call(fragment, group.fragment);
+                    group.fragment = null;
+                }
+
+                elements.push(group.elements);
+            }
+        }
+
+        anchor.after(fragment);
+        groups[0].fragment = null;
     }
 
-    return groups;
+    return elements;
 }
 
 function remove(...groups: Elements[]) {
@@ -32,7 +50,7 @@ function remove(...groups: Elements[]) {
             let item = group[j];
 
             if (item[SLOT_CLEANUP]) {
-                cleanup.add( item[SLOT_CLEANUP] );
+                cleanup.add(item[SLOT_CLEANUP]);
             }
 
             item.remove();
@@ -46,62 +64,57 @@ function remove(...groups: Elements[]) {
     return groups;
 }
 
-function render(anchor: Element | null, input: unknown, slot?: Slot): Elements | Elements[] {
-    if (input === false || input == null) {
-        input = '';
-    }
-    else if (isObject(input)) {
-        if (isArray(input)) {
-            let groups: Elements[] = [];
-
-            for (let i = 0, n = input.length; i < n; i++) {
-                groups.push( render(null, input[i]) as Elements );
-            }
-
-            return anchor ? after(anchor, groups) : groups;
-        }
-
-        let nodes: Elements = [];
-
-        if (RENDERABLE in input) {
-            if (input[RENDERABLE] === RENDERABLE_REACTIVE) {
-                return after(anchor!, hydrate.reactive(input as RenderableReactive, slot!));
-            }
-            else {
-                nodes = hydrate.static(input as RenderableTemplate<unknown>);
-            }
-        }
-        else if (isInstanceOf(input, NodeList)) {
-            for (let node = firstChild.call(input); node; node = nextSibling.call(node)) {
-                nodes.push(node);
-            }
-        }
-        else if (isInstanceOf(input, Node)) {
-            nodes = [input] as Elements;
-        }
-
-        if (anchor) {
-            anchor.after(...nodes);
-        }
-
-        return nodes;
+function render(groups: RenderedGroup[], input: unknown, slot?: Slot) {
+    if (input === false || input == null || input === '') {
+        return groups;
     }
 
-    if (input === '') {
-        return [];
+    if (isArray(input)) {
+        for (let i = 0, n = input.length; i < n; i++) {
+            render(groups, input[i]);
+        }
     }
+    else if (isObject(input) && RENDERABLE in input) {
+        if (input[RENDERABLE] === RENDERABLE_REACTIVE) {
+            groups.push(
+                ...hydrate.reactive(input as RenderableReactive, slot!)
+            );
+        }
+        else {
+            groups.push(
+                hydrate.static(input as RenderableTemplate<unknown>)
+            );
+        }
+    }
+    else if (isInstanceOf(input, NodeList)) {
+        let elements: Elements = [];
 
-    let node = text(input as string);
+        for (let node = firstChild.call(input); node; node = nextSibling.call(node)) {
+            elements.push(node);
+        }
 
-    if (anchor) {
-        anchor.after(node);
+        groups.push({ elements, fragment: null });
+    }
+    else if (isInstanceOf(input, Node)) {
+        groups.push({
+            elements: [ input as Element ],
+            fragment: input as RenderedGroup['fragment']
+        });
+    }
+    else {
+        let element = text( typeof input === 'string' ? input : String(input) );
 
         if (slot) {
-            slot.text = node;
+            slot.text = element;
         }
+
+        groups.push({
+            elements: [ element ],
+            fragment: element
+        });
     }
 
-    return [ node ];
+    return groups;
 }
 
 function schedule() {
@@ -110,20 +123,19 @@ function schedule() {
     }
 
     scheduled = true;
-
     microtask.add(task);
 }
 
 function task() {
-    let fns;
+    let fn, fns;
 
     while (fns = cleanup.next()) {
-        for (let i = 0, n = fns.length; i < n; i++) {
-            try {
-                fns[i]();
+        try {
+            while (fn = fns.pop()) {
+                fn();
             }
-            catch { }
         }
+        catch { }
     }
 
     scheduled = false;
@@ -170,6 +182,7 @@ class Slot {
 
     clear() {
         remove(...this.nodes);
+        this.nodes.length = 0;
         this.text = null;
     }
 
@@ -183,14 +196,8 @@ class Slot {
         return remove(group);
     }
 
-    push(...groups: Elements[]) {
-        after(this.anchor(), groups);
-
-        for (let i = 0, n = groups.length; i < n; i++) {
-            this.nodes.push(groups[i]);
-        }
-
-        return this.nodes.length;
+    push(...groups: RenderedGroup[]) {
+        return this.nodes.push( ...after(this.anchor(), groups) );
     }
 
     render(input: unknown) {
@@ -198,7 +205,7 @@ class Slot {
             ondisconnect(
                 this.marker,
                 effect(() => {
-                    let v = (input as Function)();
+                    let v = input();
 
                     if (isFunction(v)) {
                         root(() => this.render(v()));
@@ -217,7 +224,8 @@ class Slot {
         if (this.text) {
             let type = typeof input;
 
-            if (type === 'object' && input !== null) {}
+            if (type === 'object' && input !== null) {
+            }
             else if (this.text.isConnected) {
                 nodeValue.call(
                     this.text,
@@ -228,13 +236,7 @@ class Slot {
         }
 
         this.clear();
-
-        if (isArray(input) || (isObject(input) && input[RENDERABLE] === RENDERABLE_REACTIVE)) {
-            this.nodes = render(this.marker, input, this) as Elements[];
-        }
-        else {
-            this.nodes = [ render(this.marker, input, this) as Elements ];
-        }
+        this.nodes = after(this.marker, render([], input, this));
 
         return this;
     }
@@ -249,14 +251,18 @@ class Slot {
         return remove(group);
     }
 
-    splice(start: number, stop: number = this.nodes.length, ...groups: Elements[]) {
+    splice(start: number, stop: number = this.nodes.length, ...groups: RenderedGroup[]) {
         return remove(
-            ...this.nodes.splice(start, stop, ...after(this.anchor(start), groups))
+            ...this.nodes.splice(
+                start,
+                stop,
+                ...after(this.anchor(start), groups)
+            )
         );
     }
 
-    unshift(...groups: Elements[]) {
-        return this.nodes.unshift(...after(this.marker, groups));
+    unshift(...groups: RenderedGroup[]) {
+        return this.nodes.unshift( ...after(this.marker, groups) );
     }
 }
 

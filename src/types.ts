@@ -1,8 +1,11 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE, SLOT_CLEANUP } from './constants';
+import {
+    ATTRIBUTE_STORE,
+    RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE,
+    SLOT_CLEANUP
+} from './constants';
 import { firstChild } from './utilities';
 import attributes from './attributes';
-import event from './event';
 import slot from './slot';
 
 
@@ -27,7 +30,10 @@ type Effect<T> = () => EffectResponse<T>;
 
 type EffectResponse<T> = T extends [] ? EffectResponse<T[number]>[] : Primitive | Renderable<T>;
 
-type Element = HTMLElement & Attributes & { [SLOT_CLEANUP]?: VoidFunction[] } & Record<PropertyKey, unknown>;
+type Element = HTMLElement & Attributes & {
+    [ATTRIBUTE_STORE]?: Record<PropertyKey, unknown>;
+    [SLOT_CLEANUP]?: VoidFunction[]
+} & Record<PropertyKey, unknown>;
 
 type Elements = Element[];
 
@@ -56,12 +62,14 @@ type RenderableTemplate<T> = {
 
 type RenderableValue<T = unknown> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | Renderable;
 
+type RenderedGroup = { elements: Elements, fragment: DocumentFragment | Node | null };
+
 type Template = {
     fragment: DocumentFragment;
     html: string;
     literals: TemplateStringsArray;
     slots: {
-        fn: typeof attributes.spread | typeof event | typeof slot;
+        fn: typeof attributes.spread | typeof slot;
         path: typeof firstChild[];
         slot: number;
     }[] | null;
@@ -71,6 +79,6 @@ type Template = {
 export type {
     Attributes,
     Effect, Element, Elements,
-    Renderable, RenderableReactive, RenderableTemplate, RenderableValue,
+    Renderable, RenderableReactive, RenderableTemplate, RenderableValue, RenderedGroup,
     Template
 };

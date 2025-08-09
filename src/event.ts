@@ -2,7 +2,7 @@ import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
 import { ondisconnect } from './slot';
 import { Element } from './types';
-import { addEventListener, parentElement } from './utilities';
+import { addEventListener, parentElement, raf } from './utilities';
 
 
 let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
@@ -26,7 +26,8 @@ let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
 
 export default (element: Element, event: `on${string}`, listener: Function): void => {
     if (event === 'onconnect') {
-        let interval = setInterval(() => {
+        let retry = 60,
+            task = () => {
                 retry--;
 
                 if (element.isConnected) {
@@ -34,11 +35,12 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
                     root(() => listener(element));
                 }
 
-                if (!retry) {
-                    clearInterval(interval);
+                if (retry) {
+                    raf.add(task);
                 }
-            }, 1000 / 60),
-            retry = 60;
+            };
+
+        raf.add(task);
 
         return;
     }

@@ -1,5 +1,5 @@
-import { root, ReactiveArray } from '@esportsplus/reactivity';
-import { Element, Elements, Renderable, RenderableReactive, RenderableTemplate, Template } from '~/types';
+import { root } from '@esportsplus/reactivity';
+import { Element, Elements, Renderable, RenderableReactive, RenderableTemplate, RenderedGroup, Template } from '~/types';
 import { Slot } from '~/slot';
 import { cloneNode, firstChild, nextSibling } from '~/utilities';
 import { apply } from '~/attributes';
@@ -10,23 +10,38 @@ function reactive<T>(renderable: RenderableReactive<T>, slot: Slot) {
     let array = renderable.values,
         factory = renderable.template,
         refresh = () => {
-            slot.length = 0;
-            reactive(renderable, slot);
+            slot.render(
+                root(() => array.map(template))
+            );
         },
-        render = (i: number, n?: number) => {
-            return root(() => template(array, factory, i, n));
+        renderer = (i: number, n?: number) => {
+            return root(() => array.map(template, i, n)) as RenderedGroup[];
         },
-        renderables = array.map(factory);
+        template = function(data, i) {
+            let renderable = factory.call(this, data, i);
 
-    array.on('pop', () => slot.pop());
-    array.on('push', ({ items }) => slot.push(...render(array.length - items.length)));
+            return render(renderable, cache.get(renderable));
+        } as Parameters<typeof array['map']>[0];
+
+    array.on('pop', () => {
+        slot.pop();
+    });
+    array.on('push', ({ items }) => {
+        slot.push(...renderer(array.length - items.length));
+    });
     array.on('reverse', refresh);
-    array.on('shift', () => slot.shift());
+    array.on('shift', () => {
+        slot.shift();
+    });
     array.on('sort', refresh);
-    array.on('splice', ({ deleteCount: d, items: i, start: s }) => slot.splice(s, d, ...render(s, i.length)));
-    array.on('unshift', ({ items }) => slot.unshift(...render(0, items.length)));
+    array.on('splice', ({ deleteCount: d, items: i, start: s }) => {
+        slot.splice(s, d, ...renderer(s, i.length));
+    });
+    array.on('unshift', ({ items }) => {
+        slot.unshift(...renderer(0, items.length));
+    });
 
-    return template(array, factory, 0, renderables.length);
+    return array.map(template) as RenderedGroup[];
 }
 
 function render<T>(renderable: Renderable<T>, template: Template) {
@@ -42,8 +57,7 @@ function render<T>(renderable: Renderable<T>, template: Template) {
         for (let i = slots.length - 1; i >= 0; i--) {
             let { fn, path, slot } = slots[i];
 
-            if (path === previous) {}
-            else {
+            if (path !== previous) {
                 apply(node);
 
                 node = fragment;
@@ -55,7 +69,7 @@ function render<T>(renderable: Renderable<T>, template: Template) {
             }
 
             // @ts-ignore
-            fn(node, values[slot], name);
+            fn(node, values[slot]);
         }
 
         apply(node);
@@ -65,22 +79,7 @@ function render<T>(renderable: Renderable<T>, template: Template) {
         elements.push(element);
     }
 
-    return elements;
-}
-
-function template<T>(array: ReactiveArray<T>, template: RenderableReactive<T>['template'], i: number, n?: number) {
-    let groups: Elements[] = [],
-        renderables = array.map< RenderableTemplate<T> >(template, i, n);
-
-    for (let i = 0, n = renderables.length; i < n; i++) {
-        let renderable = renderables[i];
-
-        groups.push(
-            render(renderable, cache.get(renderable))
-        );
-    }
-
-    return groups;
+    return { elements, fragment };
 }
 
 
