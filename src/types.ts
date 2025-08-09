@@ -1,9 +1,5 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import {
-    ATTRIBUTE_STORE,
-    RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE,
-    SLOT_CLEANUP
-} from './constants';
+import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from './constants';
 import { firstChild } from './utilities';
 import attributes from './attributes';
 import slot from './slot';
@@ -30,12 +26,11 @@ type Effect<T> = () => EffectResponse<T>;
 
 type EffectResponse<T> = T extends [] ? EffectResponse<T[number]>[] : Primitive | Renderable<T>;
 
-type Element = HTMLElement & Attributes & {
-    [ATTRIBUTE_STORE]?: Record<PropertyKey, unknown>;
-    [SLOT_CLEANUP]?: VoidFunction[]
-} & Record<PropertyKey, unknown>;
+type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 
 type Elements = Element[];
+
+type HydrateResult = { elements: Elements, fragment: DocumentFragment | Node };
 
 // Copied from '@esportsplus/utilities'
 // - Importing from ^ causes 'cannot be named without a reference to...' error
@@ -62,8 +57,6 @@ type RenderableTemplate<T> = {
 
 type RenderableValue<T = unknown> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | Renderable;
 
-type RenderedGroup = { elements: Elements, fragment: DocumentFragment | Node | null };
-
 type Template = {
     fragment: DocumentFragment;
     html: string;
@@ -79,6 +72,7 @@ type Template = {
 export type {
     Attributes,
     Effect, Element, Elements,
-    Renderable, RenderableReactive, RenderableTemplate, RenderableValue, RenderedGroup,
+    HydrateResult,
+    Renderable, RenderableReactive, RenderableTemplate, RenderableValue,
     Template
 };

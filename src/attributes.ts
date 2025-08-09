@@ -1,6 +1,5 @@
 import { effect } from '@esportsplus/reactivity';
 import { isArray, isFunction, isObject, isString } from '@esportsplus/utilities';
-import { ATTRIBUTE_STORE } from '~/constants';
 import { ondisconnect } from './slot';
 import { Attributes, Element } from './types';
 import { className, raf, removeAttribute, setAttribute } from './utilities';
@@ -10,7 +9,12 @@ import event from './event';
 
 const EFFECT_KEY = Symbol();
 
+const HYDRATE_KEY = Symbol();
+
+const STORE_KEY = Symbol();
+
 const UPDATES_KEY = Symbol();
+
 
 const STATE_HYDRATING = 0;
 
@@ -33,7 +37,6 @@ let delimiters: Record<string, string> = {
         class: ' ',
         style: ';'
     },
-    hydrating: Record<string, unknown> = {},
     queue = q<Context>(64),
     scheduled = false;
 
@@ -213,7 +216,7 @@ function update(
     }
 
     if (state === STATE_HYDRATING) {
-        hydrating[name] = value;
+        ((context.element[HYDRATE_KEY] ??= {}) as Record<PropertyKey, unknown>)[name] = value;
     }
     else {
         context.updates[name] = value;
@@ -231,15 +234,21 @@ function update(
 
 
 const apply = (element: Element) => {
-    for (let key in hydrating) {
-        attribute(element, key, hydrating[key]);
+    let attributes = element[HYDRATE_KEY] as Record<PropertyKey, unknown> | undefined;
+
+    if (!attributes) {
+        return;
     }
 
-    hydrating = {};
+    for (let key in attributes) {
+        attribute(element, key, attributes[key]);
+    }
+
+    delete element[HYDRATE_KEY];
 };
 
 const spread = function (element: Element, value: Attributes | Attributes[]) {
-    let cache = element[ATTRIBUTE_STORE] ??= { [UPDATES_KEY]: {} },
+    let cache = (element[STORE_KEY] ??= { [UPDATES_KEY]: {} }) as Record<PropertyKey, unknown>,
         context = {
             element,
             store: cache,
