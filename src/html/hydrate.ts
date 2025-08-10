@@ -53,7 +53,9 @@ function hydrate<T>(renderable: Renderable<T>, template: Template): HydrateResul
             let { fn, path, slot } = slots[i];
 
             if (path !== previous) {
-                apply(node);
+                if (node) {
+                    apply(node);
+                }
 
                 node = fragment;
                 previous = path;

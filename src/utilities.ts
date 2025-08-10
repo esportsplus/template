@@ -7,12 +7,14 @@ let prototype,
     t = document.createTextNode('');
 
 
+prototype = DocumentFragment.prototype;
+
+const append = prototype.append
+
 // https://github.com/localvoid/ivi/blob/master/packages/ivi/src/client/core.ts#L38
 prototype = Element.prototype;
 
 const addEventListener = prototype.addEventListener;
-
-const append = prototype.append;
 
 const removeEventListener = prototype.removeEventListener;
 
