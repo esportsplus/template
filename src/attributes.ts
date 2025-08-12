@@ -9,8 +9,6 @@ import event from './event';
 
 const EFFECT_KEY = Symbol();
 
-const HYDRATE_KEY = Symbol();
-
 const STORE_KEY = Symbol();
 
 const UPDATES_KEY = Symbol();
@@ -216,7 +214,7 @@ function update(
     }
 
     if (state === STATE_HYDRATING) {
-        ((context.element[HYDRATE_KEY] ??= {}) as Record<PropertyKey, unknown>)[name] = value;
+        attribute(context.element, name, value);
     }
     else {
         context.updates[name] = value;
@@ -232,20 +230,6 @@ function update(
     }
 }
 
-
-const apply = (element: Element) => {
-    let attributes = element[HYDRATE_KEY] as Record<PropertyKey, unknown> | undefined;
-
-    if (!attributes) {
-        return;
-    }
-
-    for (let key in attributes) {
-        attribute(element, key, attributes[key]);
-    }
-
-    delete element[HYDRATE_KEY];
-};
 
 const spread = function (element: Element, value: Attributes | Attributes[]) {
     let cache = (element[STORE_KEY] ??= { [UPDATES_KEY]: {} }) as Record<PropertyKey, unknown>,
@@ -273,5 +257,5 @@ const spread = function (element: Element, value: Attributes | Attributes[]) {
 };
 
 
-export default { apply, spread };
-export { apply, spread };
+export default { spread };
+export { spread };

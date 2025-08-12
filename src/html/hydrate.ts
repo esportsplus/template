@@ -2,7 +2,6 @@ import { root } from '@esportsplus/reactivity';
 import { Element, Elements, HydrateResult, Renderable, RenderableReactive, RenderableTemplate, Template } from '~/types';
 import { Slot } from '~/slot';
 import { cloneNode, firstChild, nextSibling } from '~/utilities';
-import { apply } from '~/attributes';
 import cache from './cache';
 
 
@@ -53,10 +52,6 @@ function hydrate<T>(renderable: Renderable<T>, template: Template): HydrateResul
             let { fn, path, slot } = slots[i];
 
             if (path !== previous) {
-                if (node) {
-                    apply(node);
-                }
-
                 node = fragment;
                 previous = path;
 
@@ -68,8 +63,6 @@ function hydrate<T>(renderable: Renderable<T>, template: Template): HydrateResul
             // @ts-ignore
             fn(node, values[slot]);
         }
-
-        apply(node);
     }
 
     for (let element = firstChild.call(fragment as Element); element; element = nextSibling.call(element)) {

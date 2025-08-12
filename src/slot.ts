@@ -9,6 +9,10 @@ import queue from '@esportsplus/queue';
 
 const CLEANUP_KEY = Symbol();
 
+const CONNECTED = 0;
+
+const HYDRATING = 1;
+
 
 let cleanup = queue<VoidFunction[]>(64),
     scheduled = false,
@@ -22,19 +26,14 @@ function after(anchor: Element, groups: HydrateResult[]) {
         return [];
     }
 
-    let elements: Elements[] = [],
-        fragment = groups[0].fragment || cloneNode.call(template);
+    let fragment = cloneNode.call(template),
+        elements = new Array(n);
 
-    if (n === 1) {
-        elements.push( groups[0].elements );
-    }
-    else {
-        for (let i = 1; i < n; i++) {
-            let { elements: e, fragment: f } = groups[i];
+    for (let i = 0; i < n; i++) {
+        let { elements: e, fragment: f } = groups[i];
 
-            append.call(fragment, f);
-            elements.push(e);
-        }
+        append.call(fragment, f);
+        elements[i] = e;
     }
 
     anchor.after(fragment);
@@ -42,7 +41,7 @@ function after(anchor: Element, groups: HydrateResult[]) {
     return elements;
 }
 
-function remove(...groups: Elements[]) {
+function remove(groups: Elements[]) {
     for (let i = 0, n = groups.length; i < n; i++) {
         let group = groups[i];
 
@@ -69,7 +68,19 @@ function render(elements: Elements[], fragment: DocumentFragment | Node, input: 
         return;
     }
 
-    if (isArray(input)) {
+    let type = typeof input;
+
+    if (type === 'string' || type === 'number') {
+        let element = text(type === 'string' ? input as string : String(input));
+
+        if (slot) {
+            slot.text = element;
+        }
+
+        append.call(fragment, element);
+        elements.push([element]);
+    }
+    else if (isArray(input)) {
         for (let i = 0, n = input.length; i < n; i++) {
             render(elements, fragment, input[i]);
         }
@@ -93,10 +104,11 @@ function render(elements: Elements[], fragment: DocumentFragment | Node, input: 
         }
     }
     else if (isInstanceOf(input, NodeList)) {
-        let e: Elements = [];
+        let e: Elements = new Array(input.length),
+            i = 0;
 
         for (let node = firstChild.call(input); node; node = nextSibling.call(node)) {
-            e.push(node);
+            e[i++] = node;
         }
 
         append.call(fragment, ...e);
@@ -105,16 +117,6 @@ function render(elements: Elements[], fragment: DocumentFragment | Node, input: 
     else if (isInstanceOf(input, Node)) {
         append.call(fragment, input);
         elements.push([ input as Element ]);
-    }
-    else {
-        let element = text( typeof input === 'string' ? input : String(input) );
-
-        if (slot) {
-            slot.text = element;
-        }
-
-        append.call(fragment, element);
-        elements.push([ element ]);
     }
 }
 
@@ -171,18 +173,13 @@ class Slot {
 
 
     anchor(index: number = this.nodes.length - 1) {
-        let node,
-            nodes = this.nodes[index];
+        let nodes = this.nodes[index];
 
-        if (nodes) {
-            node = nodes[nodes.length - 1];
-        }
-
-        return node || this.marker;
+        return nodes ? nodes[nodes.length - 1] : this.marker;
     }
 
     clear() {
-        remove(...this.nodes);
+        remove(this.nodes);
         this.nodes.length = 0;
         this.text = null;
     }
@@ -194,14 +191,14 @@ class Slot {
             return undefined;
         }
 
-        return remove(group);
+        return remove([group]);
     }
 
     push(...groups: HydrateResult[]) {
         return this.nodes.push( ...after(this.anchor(), groups) );
     }
 
-    render(input: unknown) {
+    render(input: unknown, state = HYDRATING) {
         if (isFunction(input)) {
             ondisconnect(
                 this.marker,
@@ -209,11 +206,16 @@ class Slot {
                     let v = input();
 
                     if (isFunction(v)) {
-                        root(() => this.render(v()));
+                        root(() => this.render(v(), state));
+                        state = CONNECTED;
                     }
-                    else {
+                    else if (state === HYDRATING) {
+                        this.render(v, state);
+                        state = CONNECTED;
+                    }
+                    else if (state === CONNECTED) {
                         raf.add(() => {
-                            this.render(v);
+                            this.render(v, state);
                         });
                     }
                 })
@@ -222,16 +224,11 @@ class Slot {
             return this;
         }
 
-        if (this.text) {
+        if (this.text && this.text.isConnected) {
             let type = typeof input;
 
-            if (type === 'object' && input !== null) {
-            }
-            else if (this.text.isConnected) {
-                nodeValue.call(
-                    this.text,
-                    (type === 'string' || type === 'number') ? input : ''
-                );
+            if (input == null || type !== 'object') {
+                nodeValue.call(this.text, (type === 'number' || type === 'string') ? input : '');
                 return this;
             }
         }
@@ -256,12 +253,16 @@ class Slot {
             return undefined;
         }
 
-        return remove(group);
+        return remove([group]);
     }
 
     splice(start: number, stop: number = this.nodes.length, ...groups: HydrateResult[]) {
+        if (!groups.length) {
+            return remove(this.nodes.splice(start, stop));
+        }
+
         return remove(
-            ...this.nodes.splice(
+            this.nodes.splice(
                 start,
                 stop,
                 ...after(this.anchor(start), groups)

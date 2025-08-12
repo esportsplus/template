@@ -63,6 +63,7 @@ type Template = {
     literals: TemplateStringsArray;
     slots: {
         fn: typeof attributes.spread | typeof slot;
+        parent: typeof firstChild[];
         path: typeof firstChild[];
         slot: number;
     }[] | null;

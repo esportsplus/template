@@ -51,6 +51,7 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
                 while (i !== -1) {
                     slots.push({
                         fn: spread,
+                        parent: parent.path,
                         path,
                         slot
                     });
@@ -76,7 +77,8 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
             buffer += parsed[slot] + SLOT_HTML;
             slots.push({
                 fn: s,
-                path: methods(parent.children, parent.path, firstChild, nextSibling),
+                parent: parent.path,
+                path: methods(parent.children, [], firstChild, nextSibling),
                 slot: slot++
             });
         }
