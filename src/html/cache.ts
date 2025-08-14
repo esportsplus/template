@@ -2,7 +2,7 @@ import {
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST, REGEX_EMPTY_TEXT_NODES,
     REGEX_SLOT_NODES, SLOT_HTML, SLOT_MARKER, SLOT_MARKER_LENGTH
 } from '~/constants';
-import { RenderableTemplate, Template } from '~/types';
+import { Template } from '~/types';
 import { firstChild, firstElementChild, fragment, nextElementSibling, nextSibling } from '~/utilities';
 import { spread } from '~/attributes';
 import s from '~/slot';
@@ -11,8 +11,10 @@ import s from '~/slot';
 let cache = new WeakMap<TemplateStringsArray, Template>();
 
 
-function build(literals: TemplateStringsArray, values: unknown[]) {
-    if (values.length === 0) {
+function build(literals: TemplateStringsArray) {
+    let n = literals.length - 1;
+
+    if (n === 0) {
         return set(literals, literals[0]);
     }
 
@@ -25,12 +27,11 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         levels = [{
             children: 0,
             elements: 0,
-            path: [] as NonNullable<Template['slots']>[0]['path']
+            path: [] as NonNullable<Template['slots']>[number]['path']['parent']
         }],
         parsed = html.split(SLOT_MARKER),
         slot = 0,
-        slots: Template['slots'] = [],
-        total = values.length;
+        slots: Template['slots'] = [];
 
     for (let match of html.matchAll(REGEX_SLOT_NODES)) {
         let parent = levels[level],
@@ -42,17 +43,23 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
         }
 
         if (type === NODE_ELEMENT || type === NODE_VOID) {
-            let attr = match[2];
+            let attr = match[2],
+                path = parent.path.length
+                    ? methods(parent.elements, parent.path, firstElementChild, nextElementSibling)
+                    : methods(parent.children, [], firstChild, nextSibling);
 
             if (attr) {
                 let i = attr.indexOf(SLOT_MARKER),
-                    path = methods(parent.children, parent.path, firstChild, nextSibling);
+                    p = {
+                        absolute: path,
+                        parent: parent.path,
+                        relative: path.slice(parent.path.length)
+                    };
 
                 while (i !== -1) {
                     slots.push({
                         fn: spread,
-                        parent: parent.path,
-                        path,
+                        path: p,
                         slot
                     });
 
@@ -65,25 +72,28 @@ function build(literals: TemplateStringsArray, values: unknown[]) {
                 levels[++level] = {
                     children: 0,
                     elements: 0,
-                    path: parent.path.length
-                        ? methods(parent.elements, parent.path, firstElementChild, nextElementSibling)
-                        : methods(parent.children, [], firstChild, nextSibling)
+                    path
                 };
             }
 
             parent.elements++;
         }
         else if (type === NODE_SLOT) {
+            let relative = methods(parent.children, [], firstChild, nextSibling);
+
             buffer += parsed[slot] + SLOT_HTML;
             slots.push({
                 fn: s,
-                parent: parent.path,
-                path: methods(parent.children, [], firstChild, nextSibling),
+                path: {
+                    absolute: [...parent.path, ...relative],
+                    parent: parent.path,
+                    relative
+                },
                 slot: slot++
             });
         }
 
-        if (slot === total) {
+        if (slot === n) {
             buffer += parsed[slot];
             break;
         }
@@ -127,8 +137,8 @@ function set(literals: TemplateStringsArray, html: string, slots: Template['slot
 }
 
 
-const get = <T>({ literals, values }: RenderableTemplate<T>) => {
-    return cache.get(literals) || build(literals, values);
+const get = (literals: TemplateStringsArray) => {
+    return cache.get(literals) || build(literals);
 };
 
 

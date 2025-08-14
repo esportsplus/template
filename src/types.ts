@@ -30,7 +30,7 @@ type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 
 type Elements = Element[];
 
-type HydrateResult = { elements: Elements, fragment: DocumentFragment | Node };
+type Fragment = DocumentFragment | Node;
 
 // Copied from '@esportsplus/utilities'
 // - Importing from ^ causes 'cannot be named without a reference to...' error
@@ -48,7 +48,7 @@ type RenderableReactive<T = unknown> = Readonly<{
     values: ReactiveArray<T>;
 }>;
 
-type RenderableTemplate<T> = {
+type RenderableTemplate<T = unknown> = {
     [RENDERABLE]: typeof RENDERABLE_TEMPLATE;
     literals: TemplateStringsArray;
     template: Template | null;
@@ -63,8 +63,11 @@ type Template = {
     literals: TemplateStringsArray;
     slots: {
         fn: typeof attributes.spread | typeof slot;
-        parent: typeof firstChild[];
-        path: typeof firstChild[];
+        path: {
+            absolute: typeof firstChild[],
+            parent: typeof firstChild[],
+            relative: typeof firstChild[]
+        };
         slot: number;
     }[] | null;
 };
@@ -73,7 +76,7 @@ type Template = {
 export type {
     Attributes,
     Effect, Element, Elements,
-    HydrateResult,
+    Fragment,
     Renderable, RenderableReactive, RenderableTemplate, RenderableValue,
     Template
 };

@@ -2,7 +2,7 @@
     "author": "ICJR",
     "dependencies": {
         "@esportsplus/queue": "^0.1.0",
-        "@esportsplus/reactivity": "^0.12.4",
+        "@esportsplus/reactivity": "^0.13.2",
         "@esportsplus/tasks": "^0.2.1",
         "@esportsplus/utilities": "^0.22.1"
     },

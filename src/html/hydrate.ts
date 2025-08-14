@@ -1,62 +1,108 @@
 import { root } from '@esportsplus/reactivity';
-import { Element, Elements, HydrateResult, Renderable, RenderableReactive, RenderableTemplate, Template } from '~/types';
+import { EMPTY_FRAGMENT } from '~/constants';
+import { Elements, Fragment, RenderableReactive, RenderableTemplate } from '~/types';
 import { Slot } from '~/slot';
-import { cloneNode, firstChild, nextSibling } from '~/utilities';
+import { cloneNode } from '~/utilities';
 import cache from './cache';
 
 
-function reactive<T>(renderable: RenderableReactive<T>, slot: Slot) {
+function reactive<T>(elements: Elements[], fragment: Fragment, renderable: RenderableReactive<T>, slot: Slot) {
     let array = renderable.values,
         factory = renderable.template,
         refresh = () => {
-            slot.render( root(() => array.map(template)) );
+            root(() => array.map(template));
+
+            slot.clear();
+            slot.anchor().after(fragment);
+            slot.nodes = elements;
+
+            reset();
+        },
+        reset = () => {
+            elements = [];
+            fragment = cloneNode.call(EMPTY_FRAGMENT);
         },
         template = function(data, i) {
-            let renderable = factory.call(this, data, i);
+            hydrate(elements, fragment, factory.call(this, data, i));
+        } as (this: typeof array, ...args: Parameters<Parameters<typeof array['map']>[0]>) => void;
 
-            return hydrate<T>(renderable, cache.get(renderable));
-        } as (this: typeof array, ...args: Parameters<Parameters<typeof array['map']>[0]>) => HydrateResult;
-
-    array.on('pop', () => {
-        slot.pop();
-    });
-    array.on('push', ({ items }) => {
-        slot.push( ...root(() => array.map(template, array.length - items.length)) );
-    });
+    array.on('clear', () => slot.clear());
+    array.on('pop', () => slot.pop());
     array.on('reverse', refresh);
-    array.on('shift', () => {
-        slot.shift();
-    });
+    array.on('shift', () => slot.shift());
     array.on('sort', refresh);
+
+    array.on('push', ({ items }) => {
+        let anchor = slot.anchor();
+
+        elements = slot.nodes;
+
+        root(() => array.map(template, array.length - items.length));
+
+        anchor.after(fragment);
+        reset();
+    });
     array.on('splice', ({ deleteCount: d, items: i, start: s }) => {
-        slot.splice(s, d, ...root(() => array.map(template, s, i.length)));
+        if (array.length === 0) {
+            slot.clear();
+            return;
+        }
+
+        root(() => array.map(template, s, i.length))
+
+        slot.splice(s, d, fragment, ...elements);
+        reset();
     });
     array.on('unshift', ({ items }) => {
-        slot.unshift( ...root(() => array.map(template, 0, items.length)) );
+        root(() => array.map(template, 0, items.length))
+
+        slot.unshift(fragment, ...elements);
+        reset();
     });
 
-    return array.map(template);
+    root(() => array.map(template));
+    reset();
 }
 
-function hydrate<T>(renderable: Renderable<T>, template: Template): HydrateResult {
-    let elements: Elements = [],
-        fragment = cloneNode.call(template.fragment, true),
-        slots = template.slots;
+function hydrate<T>(elements: Elements[] | null, fragment: Fragment, renderable: RenderableTemplate<T>) {
+    let { fragment: frag, slots } = cache.get(renderable.literals),
+        clone = cloneNode.call(frag, true);
 
     if (slots !== null) {
         let node,
-            previous,
+            nodePath,
+            parent,
+            parentPath,
             values = renderable.values;
 
-        for (let i = slots.length - 1; i >= 0; i--) {
-            let { fn, path, slot } = slots[i];
+        for (let i = 0, n = slots.length; i < n; i++) {
+            let { fn, path, slot } = slots[i],
+                pp = path.parent,
+                pr = path.relative;
 
-            if (path !== previous) {
-                node = fragment;
-                previous = path;
+            if (pp !== parentPath) {
+                if (pp === nodePath) {
+                    parent = node;
+                    parentPath = nodePath;
 
-                for (let o = 0, j = path.length; o < j; o++) {
-                    node = path[o].call(node as Element);
+                    nodePath = undefined;
+                }
+                else {
+                    parent = clone;
+                    parentPath = pp;
+
+                    for (let o = 0, j = pp.length; o < j; o++) {
+                        parent = pp[o].call(parent);
+                    }
+                }
+            }
+
+            if (pr !== nodePath) {
+                node = parent;
+                nodePath = path.absolute;
+
+                for (let o = 0, j = pr.length; o < j; o++) {
+                    node = pr[o].call(node);
                 }
             }
 
@@ -65,19 +111,15 @@ function hydrate<T>(renderable: Renderable<T>, template: Template): HydrateResul
         }
     }
 
-    for (let element = firstChild.call(fragment as Element); element; element = nextSibling.call(element)) {
-        elements.push(element);
+    if (elements) {
+        elements.push([...clone.childNodes] as Elements);
     }
 
-    return { elements, fragment };
+    fragment.appendChild(clone)
 }
 
 
 export default {
-    reactive: <T>(renderable: RenderableReactive<T>, slot: Slot) => {
-        return reactive(renderable, slot);
-    },
-    static: <T>(renderable: RenderableTemplate<T>) => {
-        return hydrate(renderable, renderable.template || (renderable.template = cache.get(renderable)));
-    }
+    reactive,
+    static: hydrate
 };

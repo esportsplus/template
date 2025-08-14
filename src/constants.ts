@@ -1,3 +1,9 @@
+import { fragment } from './utilities';
+
+
+const EMPTY_FRAGMENT = fragment('');
+
+
 const NODE_CLOSING = 1;
 
 const NODE_COMMENT = 2;
@@ -51,6 +57,7 @@ const SLOT_MARKER_LENGTH = SLOT_MARKER.length;
 
 
 export {
+    EMPTY_FRAGMENT,
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST,
     REGEX_EMPTY_TEXT_NODES, REGEX_SLOT_NODES,
     RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE,
