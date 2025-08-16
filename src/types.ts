@@ -1,8 +1,9 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from './constants';
+import { RENDERABLE, RENDERABLE_HTML_FRAGMENT, RENDERABLE_HTML_REACTIVE_ARRAY } from './constants';
 import { firstChild } from './utilities';
 import attributes from './attributes';
 import slot from './slot';
+import html from './html';
 
 
 type Attribute = Primitive | Effect<Primitive | Primitive[]>;
@@ -24,38 +25,43 @@ type Attributes = {
 
 type Effect<T> = () => EffectResponse<T>;
 
-type EffectResponse<T> = T extends [] ? EffectResponse<T[number]>[] : Primitive | Renderable<T>;
+type EffectResponse<T> = T extends [] ? (Primitive | Renderable)[] : Primitive | Renderable;
 
 type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 
 type Elements = Element[];
 
-type Fragment = DocumentFragment | Node;
+type Fragment = (DocumentFragment | Node) & Record<PropertyKey, unknown>;
 
 // Copied from '@esportsplus/utilities'
 // - Importing from ^ causes 'cannot be named without a reference to...' error
 type Primitive = bigint | boolean | null | number | string | undefined;
 
-type Renderable<T = unknown> = RenderableReactive<T> | RenderableTemplate<T>;
+type Renderable = Fragment | RenderableReactive;
 
-type RenderableReactive<T = unknown> = Readonly<{
-    [RENDERABLE]: typeof RENDERABLE_REACTIVE;
-    literals: null;
+type RenderableReactive = Readonly<{
+    [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;
+    array: ReactiveArray<unknown[]>;
     template: (
-        this: ThisParameterType< Parameters<ReactiveArray<T>['map']>[0] >,
-        ...args: Parameters< Parameters<ReactiveArray<T>['map']>[0] >
-    ) => RenderableTemplate<T>;
-    values: ReactiveArray<T>;
+        this: ReactiveArray<unknown[]>,
+        ...args: Parameters< Parameters<ReactiveArray<unknown[]>['map']>[0] >
+    ) => ReturnType<typeof html>;
 }>;
 
-type RenderableTemplate<T = unknown> = {
-    [RENDERABLE]: typeof RENDERABLE_TEMPLATE;
+type RenderableTemplate = {
+    [RENDERABLE]: typeof RENDERABLE_HTML_FRAGMENT;
+    fragment: Fragment;
     literals: TemplateStringsArray;
-    template: Template | null;
-    values: (RenderableValue<T> | RenderableValue<T>[])[];
 };
 
-type RenderableValue<T = unknown> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | Renderable;
+type RenderableValue<T = unknown> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Fragment | Primitive | RenderableReactive;
+
+type RenderableValues = RenderableValue | RenderableValue[];
+
+type SlotGroup = {
+    head: Element;
+    tail: Element;
+};
 
 type Template = {
     fragment: DocumentFragment;
@@ -77,6 +83,7 @@ export type {
     Attributes,
     Effect, Element, Elements,
     Fragment,
-    Renderable, RenderableReactive, RenderableTemplate, RenderableValue,
+    Renderable, RenderableReactive, RenderableTemplate, RenderableValue, RenderableValues,
+    SlotGroup,
     Template
 };

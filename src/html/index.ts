@@ -1,17 +1,25 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_REACTIVE, RENDERABLE_TEMPLATE } from '~/constants';
-import { RenderableReactive, RenderableTemplate } from '~/types';
+import { RENDERABLE, RENDERABLE_HTML_FRAGMENT, RENDERABLE_HTML_REACTIVE_ARRAY } from '~/constants';
+import { RenderableReactive, RenderableTemplate, RenderableValues } from '~/types';
 import hydrate from './hydrate';
+import cache from './cache';
 
 
-const html = <T>(literals: TemplateStringsArray, ...values: RenderableTemplate<T>['values']): RenderableTemplate<T> => {
-    return { [RENDERABLE]: RENDERABLE_TEMPLATE, literals, template: null, values };
+const html = (literals: TemplateStringsArray, ...values: RenderableValues[]): RenderableTemplate => {
+    return {
+        [RENDERABLE]: RENDERABLE_HTML_FRAGMENT,
+        fragment: hydrate(cache.get(literals), values),
+        literals
+    };
 };
 
-html.reactive = <T>(array: ReactiveArray<T>, template: RenderableReactive<T>['template']): RenderableReactive<T> => {
-    return { [RENDERABLE]: RENDERABLE_REACTIVE, literals: null, template, values: array };
+html.reactive = <T>(array: ReactiveArray<T[]>, template: RenderableReactive['template']) => {
+    return {
+        [RENDERABLE]: RENDERABLE_HTML_REACTIVE_ARRAY,
+        array,
+        template
+    };
 };
 
 
 export default html;
-export { hydrate };

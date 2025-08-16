@@ -1,24 +1,18 @@
 import { effect } from '@esportsplus/reactivity';
-import { isArray, isFunction, isObject, isString } from '@esportsplus/utilities';
-import { ondisconnect } from './slot';
+import { isArray, isObject, isString } from '@esportsplus/utilities';
+import { ondisconnect } from './slot/cleanup';
+import { STATE_HYDRATING, STATE_NONE, STATE_WAITING } from './constants';
 import { Attributes, Element } from './types';
 import { className, raf, removeAttribute, setAttribute } from './utilities';
 import q from '@esportsplus/queue';
 import event from './event';
 
 
-const EFFECT_KEY = Symbol();
+const EFFECT = Symbol();
 
-const STORE_KEY = Symbol();
+const STORE = Symbol();
 
-const UPDATES_KEY = Symbol();
-
-
-const STATE_HYDRATING = 0;
-
-const STATE_NONE = 1;
-
-const STATE_WAITING = 2;
+const UPDATES = Symbol();
 
 
 type Context = {
@@ -64,19 +58,20 @@ function schedule() {
 }
 
 function set(context: Context, name: string, value: unknown, state: State) {
-    if (isArray(value)) {
-        for (let i = 0, n = value.length; i < n; i++) {
-            set(context, name, value[i], state);
-        }
+    if (value === false || value == null) {
+        value = '';
     }
-    else if (isFunction(value)) {
+
+    let type = typeof value;
+
+    if (type === 'function') {
         if (name.startsWith('on')) {
-            event(context.element, name as `on${string}`, value);
+            event(context.element, name as `on${string}`, value as Function);
         }
         else {
-            context.store[EFFECT_KEY] ??= 0;
+            context.store[EFFECT] ??= 0;
 
-            let id = (context.store[EFFECT_KEY] as number)++;
+            let id = (context.store[EFFECT] as number)++;
 
             ondisconnect(
                 context.element,
@@ -105,6 +100,13 @@ function set(context: Context, name: string, value: unknown, state: State) {
             );
 
             state = STATE_NONE;
+        }
+    }
+    else if (type === 'object') {
+        if (isArray(value)) {
+            for (let i = 0, n = value.length; i < n; i++) {
+                set(context, name, value[i], state);
+            }
         }
     }
     else {
@@ -232,26 +234,26 @@ function update(
 
 
 const spread = function (element: Element, value: Attributes | Attributes[]) {
-    let cache = (element[STORE_KEY] ??= { [UPDATES_KEY]: {} }) as Record<PropertyKey, unknown>,
+    let cache = (element[STORE] ??= { [UPDATES]: {} }) as Record<PropertyKey, unknown>,
         context = {
             element,
             store: cache,
-            updates: cache[UPDATES_KEY] as Record<PropertyKey, unknown>,
+            updates: cache[UPDATES] as Record<PropertyKey, unknown>,
             updating: false
         };
 
-    if (isArray(value)) {
+    if (isObject(value)) {
+        for (let name in value) {
+            set(context, name, value[name], STATE_HYDRATING);
+        }
+    }
+    else if (isArray(value)) {
         for (let i = 0, n = value.length; i < n; i++) {
             let v = value[i];
 
             for (let name in v) {
                 set(context, name, v[name], STATE_HYDRATING);
             }
-        }
-    }
-    else if (isObject(value)) {
-        for (let name in value) {
-            set(context, name, value[name], STATE_HYDRATING);
         }
     }
 };

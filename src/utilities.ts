@@ -2,7 +2,8 @@ import { micro as m, raf as r } from '@esportsplus/tasks';
 import { Element as E } from './types';
 
 
-let prototype,
+let getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor,
+    prototype,
     template = document.createElement('template'),
     t = document.createTextNode('');
 
@@ -18,15 +19,13 @@ const addEventListener = prototype.addEventListener;
 
 const removeEventListener = prototype.removeEventListener;
 
-const className = Object.getOwnPropertyDescriptor(prototype, 'className')!.set!;
+const className = getOwnPropertyDescriptor(prototype, 'className')!.set!;
 
-const innerHTML = Object.getOwnPropertyDescriptor(prototype, 'innerHTML')!.set!;
+const innerHTML = getOwnPropertyDescriptor(prototype, 'innerHTML')!.set!;
 
-const firstElementChild = Object.getOwnPropertyDescriptor(prototype, 'firstElementChild')!.get!;
+const firstElementChild = getOwnPropertyDescriptor(prototype, 'firstElementChild')!.get!;
 
-const nextElementSibling = Object.getOwnPropertyDescriptor(prototype, 'nextElementSibling')!.get!;
-
-const prepend = prototype.prepend;
+const nextElementSibling = getOwnPropertyDescriptor(prototype, 'nextElementSibling')!.get!;
 
 const removeAttribute = prototype.removeAttribute;
 
@@ -37,15 +36,17 @@ prototype = Node.prototype;
 
 const cloneNode = prototype.cloneNode;
 
-const firstChild = Object.getOwnPropertyDescriptor(prototype, 'firstChild')!.get!;
+const firstChild = getOwnPropertyDescriptor(prototype, 'firstChild')!.get!;
 
-const nextSibling = Object.getOwnPropertyDescriptor(prototype, 'nextSibling')!.get!;
+const lastChild = getOwnPropertyDescriptor(prototype, 'lastChild')!.get!;
 
-const nodeValue = Object.getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
+const nextSibling = getOwnPropertyDescriptor(prototype, 'nextSibling')!.get!;
 
-const parentElement = Object.getOwnPropertyDescriptor(prototype, 'parentElement')!.get!;
+const nodeValue = getOwnPropertyDescriptor(prototype, 'nodeValue')!.set!;
 
-const parentNode = Object.getOwnPropertyDescriptor(prototype, 'parentNode')!.get!;
+const parentElement = getOwnPropertyDescriptor(prototype, 'parentElement')!.get!;
+
+const previousSibling = getOwnPropertyDescriptor(prototype, 'previousSibling')!.get!;
 
 
 const fragment = (html: string) => {
@@ -78,9 +79,10 @@ export {
     className, cloneNode,
     firstChild, firstElementChild, fragment,
     innerHTML,
+    lastChild,
     microtask,
     nextElementSibling, nextSibling, nodeValue,
-    parentElement, parentNode, prepend,
+    parentElement, previousSibling,
     raf, removeAttribute, removeEventListener,
     setAttribute,
     text

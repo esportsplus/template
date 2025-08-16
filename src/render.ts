@@ -1,21 +1,17 @@
-import { isInstanceOf } from '@esportsplus/utilities';
 import { SLOT_HTML } from './constants';
-import slot, { Slot } from './slot';
 import { Renderable } from './types';
-import { firstChild, fragment, nodeValue, prepend } from './utilities';
+import { firstChild, fragment, nodeValue } from './utilities';
+import slot from './slot';
 
 
-let marker = firstChild.call( fragment(SLOT_HTML) ),
-    node;
+let anchor,
+    marker = firstChild.call( fragment(SLOT_HTML) );
 
 
-export default (renderable: Renderable, parent: HTMLElement | Slot) => {
-    if (isInstanceOf(parent, Slot)) {
-        return parent.render(renderable);
-    }
-
+export default (parent: HTMLElement, renderable: Renderable) => {
+    // parent.nodeValue = '';
     nodeValue.call(parent, '');
-    prepend.call(parent, node = marker.cloneNode());
+    parent.append(anchor = marker.cloneNode());
 
-    return slot(node, renderable);
+    return slot(anchor, renderable);
 };

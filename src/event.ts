@@ -1,8 +1,8 @@
 import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
-import { ondisconnect } from './slot';
 import { Element } from './types';
 import { addEventListener, parentElement, raf } from './utilities';
+import { ondisconnect } from './slot/cleanup';
 
 
 let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
@@ -91,15 +91,15 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
         addEventListener.call(window.document, event.slice(2), (e) => {
             let node = e.target as Element | null;
 
-            defineProperty(e, 'currentTarget', {
-                configurable: true,
-                get() {
-                    return node || window.document;
-                }
-            });
-
             while (node) {
                 if (key in node) {
+                    defineProperty(e, 'currentTarget', {
+                        configurable: true,
+                        get() {
+                            return node || window.document;
+                        }
+                    });
+
                     return (node[key] as Function).call(node, e);
                 }
 
