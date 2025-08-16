@@ -1,6 +1,7 @@
 import queue from '@esportsplus/queue';
 import { CLEANUP } from '~/constants';
-import { microtask, previousSibling } from '~/utilities';
+import { microtask } from '~/utilities/queue';
+import { previousSibling } from '~/utilities/node';
 import { SlotGroup } from '~/types';
 
 
@@ -51,7 +52,6 @@ const remove = (groups: SlotGroup[]) => {
         head = group.head;
         tail = group.tail || head;
 
-        // for (let node: Element | null = tail; node; node = node.previousSibling as Element | null) {
         for (let node = tail; node; node = previousSibling.call(node)) {
             if (CLEANUP in node) {
                 cleanup.add( node[CLEANUP] as VoidFunction[] );

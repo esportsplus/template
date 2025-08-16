@@ -1,6 +1,6 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
 import { RENDERABLE, RENDERABLE_HTML_FRAGMENT, RENDERABLE_HTML_REACTIVE_ARRAY } from './constants';
-import { firstChild } from './utilities';
+import { firstChild } from './utilities/node';
 import attributes from './attributes';
 import slot from './slot';
 import html from './html';
@@ -37,7 +37,7 @@ type Fragment = (DocumentFragment | Node) & Record<PropertyKey, unknown>;
 // - Importing from ^ causes 'cannot be named without a reference to...' error
 type Primitive = bigint | boolean | null | number | string | undefined;
 
-type Renderable = Fragment | RenderableReactive;
+type Renderable = Fragment | Primitive | RenderableReactive | RenderableTemplate;
 
 type RenderableReactive = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;

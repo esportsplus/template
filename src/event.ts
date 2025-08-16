@@ -1,7 +1,9 @@
 import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
 import { Element } from './types';
-import { addEventListener, parentElement, raf } from './utilities';
+import { addEventListener } from './utilities/element';
+import { parentElement } from './utilities/node';
+import { raf } from './utilities/queue';
 import { ondisconnect } from './slot/cleanup';
 
 
@@ -22,6 +24,66 @@ let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
 (['onmousemove', 'onmousewheel', 'onscroll', 'ontouchend', 'ontouchmove', 'ontouchstart', 'onwheel'] as `on${string}`[]).map(event => {
     controllers.set(event, null);
 });
+
+
+function register(element: Element, event: `on${string}`) {
+    let controller = controllers.get(event),
+        signal: AbortController['signal'] | undefined;
+
+    if (controller === null) {
+        let { abort, signal } = new AbortController();
+
+        controllers.set(
+            event,
+            controller = {
+                abort,
+                signal,
+                listeners: 0,
+            }
+        );
+    }
+
+    if (controller) {
+        controller.listeners++;
+
+        ondisconnect(element, () => {
+            if (--controller.listeners) {
+                return;
+            }
+
+            controller.abort();
+            controllers.set(event, null);
+        });
+        signal = controller.signal;
+    }
+
+    let key = keys[event] = Symbol();
+
+    addEventListener.call(window.document, event.slice(2), (e) => {
+        let node = e.target as Element | null;
+
+        while (node) {
+            if (key in node) {
+                defineProperty(e, 'currentTarget', {
+                    configurable: true,
+                    get() {
+                        return node || window.document;
+                    }
+                });
+
+                return (node[key] as Function).call(node, e);
+            }
+
+            node = parentElement.call(node);
+        }
+    }, {
+        capture: capture.has(event),
+        passive: passive.has(event),
+        signal
+    });
+
+    return key;
+}
 
 
 export default (element: Element, event: `on${string}`, listener: Function): void => {
@@ -53,64 +115,5 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
         return;
     }
 
-    let controller = controllers.get(event),
-        signal: AbortController['signal'] | undefined;
-
-    if (controller === null) {
-        let { abort, signal } = new AbortController();
-
-        controllers.set(
-            event,
-            controller = {
-                abort,
-                signal,
-                listeners: 0,
-            }
-        );
-    }
-
-    if (controller) {
-        controller.listeners++;
-
-        ondisconnect(element, () => {
-            if (--controller.listeners) {
-                return;
-            }
-
-            controller.abort();
-            controllers.set(event, null);
-        });
-        signal = controller.signal;
-    }
-
-    let key = keys[event];
-
-    if (!key) {
-        key = keys[event] = Symbol();
-
-        addEventListener.call(window.document, event.slice(2), (e) => {
-            let node = e.target as Element | null;
-
-            while (node) {
-                if (key in node) {
-                    defineProperty(e, 'currentTarget', {
-                        configurable: true,
-                        get() {
-                            return node || window.document;
-                        }
-                    });
-
-                    return (node[key] as Function).call(node, e);
-                }
-
-                node = parentElement.call(node);
-            }
-        }, {
-            capture: capture.has(event),
-            passive: passive.has(event),
-            signal
-        });
-    }
-
-    element[key] = listener;
+    element[ keys[event] || register(element, event) ] = listener;
 };

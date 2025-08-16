@@ -3,7 +3,9 @@ import {
     REGEX_SLOT_NODES, SLOT_HTML, SLOT_MARKER, SLOT_MARKER_LENGTH
 } from '~/constants';
 import { Template } from '~/types';
-import { firstChild, firstElementChild, fragment, nextElementSibling, nextSibling } from '~/utilities';
+import { firstElementChild, nextElementSibling } from '~/utilities/element';
+import { fragment } from '~/utilities/fragment';
+import { firstChild, nextSibling } from '~/utilities/node';
 import { spread } from '~/attributes';
 import s from '~/slot';
 
@@ -137,9 +139,9 @@ function set(literals: TemplateStringsArray, html: string, slots: Template['slot
 }
 
 
-const get = (literals: TemplateStringsArray) => {
+const parse = (literals: TemplateStringsArray) => {
     return cache.get(literals) || build(literals);
 };
 
 
-export default { get };
+export default { parse };

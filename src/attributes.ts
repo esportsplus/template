@@ -3,7 +3,8 @@ import { isArray, isObject, isString } from '@esportsplus/utilities';
 import { ondisconnect } from './slot/cleanup';
 import { STATE_HYDRATING, STATE_NONE, STATE_WAITING } from './constants';
 import { Attributes, Element } from './types';
-import { className, raf, removeAttribute, setAttribute } from './utilities';
+import { className, removeAttribute, setAttribute } from './utilities/element';
+import { raf } from './utilities/queue';
 import q from '@esportsplus/queue';
 import event from './event';
 

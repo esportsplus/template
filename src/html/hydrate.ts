@@ -1,5 +1,5 @@
 import { Fragment, RenderableValues, Template } from '~/types';
-import { cloneNode } from '~/utilities';
+import { cloneNode } from '~/utilities/node';
 
 
 export default ({ fragment, slots }: Template, values: RenderableValues[]): Fragment => {

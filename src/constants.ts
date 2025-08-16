@@ -1,4 +1,4 @@
-import { fragment } from './utilities';
+import { fragment } from './utilities/fragment';
 
 
 const CLEANUP = Symbol();

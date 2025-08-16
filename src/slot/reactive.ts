@@ -1,7 +1,8 @@
 import { root, ReactiveArray } from '@esportsplus/reactivity';
 import { EMPTY_FRAGMENT } from '~/constants';
 import { Fragment, RenderableReactive, SlotGroup } from '~/types';
-import { append, cloneNode, firstChild, lastChild } from '~/utilities';
+import { append } from '~/utilities/fragment';
+import { cloneNode, firstChild, lastChild } from '~/utilities/node';
 import { remove } from './cleanup';
 
 
@@ -100,14 +101,14 @@ class ReactiveArraySlot<T> {
 
     push(items: T[]) {
         let anchor = this.anchor(),
-            array = this.array;
+            array = this.array,
+            length = this.nodes.length;
+
+        this.nodes.length = length + items.length;
 
         for (let i = 0, n = items.length; i < n; i++) {
-            this.nodes.push(
-                this.template.call(array, items[i], i)
-            );
+            this.nodes[i + length] = this.template.call(array, items[i], i);
         }
-
         anchor.after(this.fragment);
     }
 
@@ -163,5 +164,14 @@ class ReactiveArraySlot<T> {
 
 
 export default (anchor: Element, renderable: RenderableReactive) => {
-    new ReactiveArraySlot(anchor, renderable.array, renderable.template);
+    let { array, template } = renderable,
+        slot = new ReactiveArraySlot(anchor, array, template);
+
+    if (array.length) {
+        root(() => {
+            slot.nodes = array.map(slot.template);
+        });
+    }
+
+    return slot.fragment;
 };
