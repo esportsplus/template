@@ -29,7 +29,7 @@ function build(literals: TemplateStringsArray) {
         levels = [{
             children: 0,
             elements: 0,
-            path: [] as NonNullable<Template['slots']>[number]['path']['parent']
+            path: [] as NonNullable<Template['slots']>[number]['path']
         }],
         parsed = html.split(SLOT_MARKER),
         slot = 0,
@@ -51,17 +51,18 @@ function build(literals: TemplateStringsArray) {
                     : methods(parent.children, [], firstChild, nextSibling);
 
             if (attr) {
-                let i = attr.indexOf(SLOT_MARKER),
-                    p = {
-                        absolute: path,
-                        parent: parent.path,
-                        relative: path.slice(parent.path.length)
-                    };
+                let i = attr.indexOf(SLOT_MARKER);
+                    // @see ./index.ts comments
+                    // p = {
+                    //     absolute: path,
+                    //     parent: parent.path,
+                    //     relative: path.slice(parent.path.length)
+                    // };
 
                 while (i !== -1) {
                     slots.push({
                         fn: spread,
-                        path: p,
+                        path,
                         slot
                     });
 
@@ -81,16 +82,18 @@ function build(literals: TemplateStringsArray) {
             parent.elements++;
         }
         else if (type === NODE_SLOT) {
-            let relative = methods(parent.children, [], firstChild, nextSibling);
+            // @see ./index.ts comments
+            // let relative = methods(parent.children, [], firstChild, nextSibling);
 
             buffer += parsed[slot] + SLOT_HTML;
             slots.push({
                 fn: s,
-                path: {
-                    absolute: [...parent.path, ...relative],
-                    parent: parent.path,
-                    relative
-                },
+                path: methods(parent.children, parent.path, firstChild, nextSibling),
+                // path: {
+                //     absolute: [...parent.path, ...relative],
+                //     parent: parent.path,
+                //     relative
+                // },
                 slot: slot++
             });
         }

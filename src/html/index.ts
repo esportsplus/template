@@ -5,42 +5,52 @@ import { cloneNode } from '~/utilities/node';
 import parser from './parser';
 
 
-const html = (literals: TemplateStringsArray, ...values: (RenderableValue | RenderableValue[])[]): DocumentFragment => {
-    let { fragment, slots } = parser.parse(literals);
-
-    fragment = cloneNode.call(fragment, true) as DocumentFragment;
+const html = (literals: TemplateStringsArray, ...values: (RenderableValue | RenderableValue[])[]) => {
+    let { fragment, slots } = parser.parse(literals),
+        clone = cloneNode.call(fragment, true);
 
     if (slots !== null) {
-        let node, nodePath, parent, parentPath;
+        let node, nodePath; // , parent, parentPath;
 
-        for (let i = 0, n = slots.length; i < n; i++) {
-            let { fn, path, slot } = slots[i],
-                pp = path.parent,
-                pr = path.relative;
+        // TODO: when a new slot is added it breaks pathfinding for the next slot
+        // for (let i = 0, n = slots.length; i < n; i++) {
+        for (let i = slots.length - 1; i >= 0; i--) {
+            let { fn, path, slot } = slots[i];
 
-            if (pp !== parentPath) {
-                if (pp === nodePath) {
-                    parent = node;
-                    parentPath = nodePath;
+            //     pp = path.parent,
+            //     pr = path.relative;
 
-                    nodePath = undefined;
-                }
-                else {
-                    parent = fragment;
-                    parentPath = pp;
+            // if (pp !== parentPath) {
+            //     if (pp === nodePath) {
+            //         parent = node;
+            //         parentPath = nodePath;
 
-                    for (let i = 0, n = pp.length; i < n; i++) {
-                        parent = pp[i].call(parent);
-                    }
-                }
-            }
+            //         nodePath = undefined;
+            //     }
+            //     else {
+            //         parent = clone;
+            //         parentPath = pp;
 
-            if (pr !== nodePath) {
-                node = parent;
-                nodePath = path.absolute;
+            //         for (let i = 0, n = pp.length; i < n; i++) {
+            //             parent = pp[i].call(parent);
+            //         }
+            //     }
+            // }
 
-                for (let i = 0, n = pr.length; i < n; i++) {
-                    node = pr[i].call(node);
+            // if (pr !== nodePath) {
+            //     node = parent;
+            //     nodePath = path.absolute;
+
+            //     for (let i = 0, n = pr.length; i < n; i++) {
+            //         node = pr[i].call(node);
+            //     }
+            // }
+
+            if (nodePath !== path) {
+                node = clone;
+
+                for (let i = 0, n = path.length; i < n; i++) {
+                    node = path[i].call(node);
                 }
             }
 
@@ -49,7 +59,7 @@ const html = (literals: TemplateStringsArray, ...values: (RenderableValue | Rend
         }
     }
 
-    return fragment;
+    return clone;
 };
 
 html.reactive = <T>(array: ReactiveArray<T[]>, template: RenderableReactive['template']): RenderableReactive => {

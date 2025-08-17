@@ -8,6 +8,9 @@ import q from '@esportsplus/queue';
 import event from './event';
 
 
+// TODO: Refactor
+
+
 const EFFECT = Symbol();
 
 const STORE = Symbol();
