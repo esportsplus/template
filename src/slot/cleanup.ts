@@ -20,8 +20,7 @@ function schedule() {
 
 function task() {
     try {
-        let fns,
-            fn,
+        let fns, fn,
             n = cleanup.length;
 
         while ((fns = cleanup.next()) && n--) {

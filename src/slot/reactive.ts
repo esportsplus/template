@@ -1,14 +1,14 @@
 import { root, ReactiveArray } from '@esportsplus/reactivity';
 import { EMPTY_FRAGMENT } from '~/constants';
-import { Fragment, RenderableReactive, SlotGroup } from '~/types';
+import { RenderableReactive, SlotGroup } from '~/types';
 import { append } from '~/utilities/fragment';
 import { cloneNode, firstChild, lastChild } from '~/utilities/node';
-import { remove } from './cleanup';
+import { ondisconnect, remove } from './cleanup';
 
 
 class ReactiveArraySlot<T> {
     array: ReactiveArray<T[]>;
-    fragment = cloneNode.call(EMPTY_FRAGMENT) as Fragment;
+    fragment: Node;
     marker: Element;
     nodes: SlotGroup[] = [];
     template: (
@@ -18,45 +18,45 @@ class ReactiveArraySlot<T> {
 
 
     constructor(anchor: Element, array: ReactiveArray<T[]>, template: RenderableReactive['template']) {
-        let fragment = this.fragment;
+        let fragment = this.fragment = cloneNode.call(EMPTY_FRAGMENT);
 
         this.array = array;
         this.marker = anchor;
         this.template = function (data, i) {
-            let frag = template.call(this, data, i).fragment,
+            let dispose: VoidFunction,
+                frag = root((d) => {
+                    dispose = d;
+                    return template.call(this, data, i);
+                }),
                 group = {
                     head: firstChild.call(frag),
                     tail: lastChild.call(frag)
                 };
 
             append.call(fragment, frag);
+            ondisconnect(group.head, dispose!);
 
             return group;
         };
 
-
-        let render = () => {
-                root(() => this.render());
-            };
-
         array.on('clear', () => this.clear());
-        array.on('reverse', render);
+        array.on('reverse', () => {
+            root(() => this.render());
+        });
         array.on('pop', () => this.pop());
         array.on('push', ({ items }) => {
             root(() => this.push(items));
         });
         array.on('shift', () => this.shift());
-        array.on('sort', render);
+        array.on('sort', () => {
+            root(() => this.render());
+        });
         array.on('splice', ({ deleteCount, items, start }) => {
             root(() => this.splice(start, deleteCount, ...items));
         });
         array.on('unshift', ({ items }) => {
             root(() => this.unshift(items));
         });
-
-        if (array.length) {
-            render();
-        }
     }
 
 

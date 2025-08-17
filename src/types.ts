@@ -1,5 +1,5 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_HTML_FRAGMENT, RENDERABLE_HTML_REACTIVE_ARRAY } from './constants';
+import { RENDERABLE, RENDERABLE_HTML_REACTIVE_ARRAY } from './constants';
 import { firstChild } from './utilities/node';
 import attributes from './attributes';
 import slot from './slot';
@@ -29,15 +29,11 @@ type EffectResponse<T> = T extends [] ? (Primitive | Renderable)[] : Primitive |
 
 type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 
-type Elements = Element[];
-
-type Fragment = (DocumentFragment | Node) & Record<PropertyKey, unknown>;
-
 // Copied from '@esportsplus/utilities'
 // - Importing from ^ causes 'cannot be named without a reference to...' error
 type Primitive = bigint | boolean | null | number | string | undefined;
 
-type Renderable = Fragment | Primitive | RenderableReactive | RenderableTemplate;
+type Renderable = DocumentFragment | Node | NodeList | Primitive | RenderableReactive | Renderable[];
 
 type RenderableReactive = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;
@@ -48,15 +44,7 @@ type RenderableReactive = Readonly<{
     ) => ReturnType<typeof html>;
 }>;
 
-type RenderableTemplate = {
-    [RENDERABLE]: typeof RENDERABLE_HTML_FRAGMENT;
-    fragment: Fragment;
-    literals: TemplateStringsArray;
-};
-
-type RenderableValue<T = unknown> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Fragment | Primitive | RenderableReactive;
-
-type RenderableValues = RenderableValue | RenderableValue[];
+type RenderableValue<T = unknown> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | RenderableReactive;
 
 type SlotGroup = {
     head: Element;
@@ -81,9 +69,8 @@ type Template = {
 
 export type {
     Attributes,
-    Effect, Element, Elements,
-    Fragment,
-    Renderable, RenderableReactive, RenderableTemplate, RenderableValue, RenderableValues,
+    Effect, Element,
+    Renderable, RenderableReactive, RenderableValue,
     SlotGroup,
     Template
 };

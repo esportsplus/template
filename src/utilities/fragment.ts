@@ -2,18 +2,17 @@ import { innerHTML } from './element';
 import { cloneNode } from './node';
 
 
-let prototype = DocumentFragment.prototype,
-    template = document.createElement('template');
+let scratchpad = document.createElement('template');
 
 
-const append = prototype.append;
+const append = DocumentFragment.prototype.append;
 
-const fragment = (html: string) => {
-    innerHTML.call(template, html);
+const fragment = (html: string): DocumentFragment => {
+    innerHTML.call(scratchpad, html);
 
-    let content = template.content;
+    let content = scratchpad.content;
 
-    template = cloneNode.call(template) as HTMLTemplateElement;
+    scratchpad = cloneNode.call(scratchpad) as HTMLTemplateElement;
 
     return content;
 };

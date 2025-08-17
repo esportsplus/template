@@ -5,8 +5,9 @@ import render from './render';
 
 export default (anchor: Element, value: unknown): void => {
     if (typeof value === 'function') {
-        return effect(anchor, value as Function);
+        effect(anchor, value as Function);
     }
-
-    anchor.after(render(anchor, value));
+    else {
+        anchor.after( render(anchor, value) );
+    }
 };

@@ -1,6 +1,5 @@
 import { effect } from '@esportsplus/reactivity';
 import { isArray, isObject, isString } from '@esportsplus/utilities';
-import { ondisconnect } from './slot/cleanup';
 import { STATE_HYDRATING, STATE_NONE, STATE_WAITING } from './constants';
 import { Attributes, Element } from './types';
 import { className, removeAttribute, setAttribute } from './utilities/element';
@@ -74,31 +73,28 @@ function set(context: Context, name: string, value: unknown, state: State) {
 
             let id = (context.store[EFFECT] as number)++;
 
-            ondisconnect(
-                context.element,
-                effect(() => {
-                    let v = (value as Function)(context.element);
+            effect(() => {
+                let v = (value as Function)(context.element);
 
-                    if (isArray(v)) {
-                        let last = v.length - 1;
+                if (isArray(v)) {
+                    let last = v.length - 1;
 
-                        for (let i = 0, n = v.length; i < n; i++) {
-                            update(
-                                context,
-                                id,
-                                name,
-                                v[i],
-                                state === STATE_HYDRATING
-                                    ? state
-                                    : i !== last ? STATE_WAITING : state
-                            );
-                        }
+                    for (let i = 0, n = v.length; i < n; i++) {
+                        update(
+                            context,
+                            id,
+                            name,
+                            v[i],
+                            state === STATE_HYDRATING
+                                ? state
+                                : i !== last ? STATE_WAITING : state
+                        );
                     }
-                    else {
-                        update(context, id, name, v, state);
-                    }
-                })
-            );
+                }
+                else {
+                    update(context, id, name, v, state);
+                }
+            });
 
             state = STATE_NONE;
         }

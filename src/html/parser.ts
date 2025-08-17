@@ -4,9 +4,9 @@ import {
 } from '~/constants';
 import { Template } from '~/types';
 import { firstElementChild, nextElementSibling } from '~/utilities/element';
-import { fragment } from '~/utilities/fragment';
 import { firstChild, nextSibling } from '~/utilities/node';
 import { spread } from '~/attributes';
+import { fragment } from '~/utilities/fragment';
 import s from '~/slot';
 
 
@@ -126,21 +126,27 @@ function methods(children: number, copy: (typeof firstChild)[], first: (typeof f
 }
 
 function set(literals: TemplateStringsArray, html: string, slots: Template['slots'] = null) {
-    let template = {
+    let value = {
             fragment: fragment(html),
             html,
             literals,
             slots
         };
 
-    cache.set(literals, template);
+    cache.set(literals, value);
 
-    return template;
+    return value;
 }
 
 
 const parse = (literals: TemplateStringsArray) => {
-    return cache.get(literals) || build(literals);
+    let result = cache.get(literals);
+
+    if (result === undefined) {
+        result = build(literals);
+    }
+
+    return result;
 };
 
 

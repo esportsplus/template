@@ -2,6 +2,8 @@ let getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor,
     prototype = Node.prototype;
 
 
+const appendChild = prototype.appendChild;
+
 const cloneNode = prototype.cloneNode;
 
 const firstChild = getOwnPropertyDescriptor(prototype, 'firstChild')!.get!;
@@ -18,6 +20,7 @@ const previousSibling = getOwnPropertyDescriptor(prototype, 'previousSibling')!.
 
 
 export {
+    appendChild,
     cloneNode,
     firstChild,
     lastChild,
