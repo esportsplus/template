@@ -18,14 +18,10 @@ type Attributes = {
     [key: `data-${string}`]: string | undefined;
     onconnect?: (element: Element) => void;
     ondisconnect?: (element: Element) => void;
-    // Rendered in fragment
-    // - Used to retrieve reference to the element
     onrender?: (element: Element) => void;
 } & Record<PropertyKey, unknown>;
 
-type Effect<T> = () => EffectResponse<T>;
-
-type EffectResponse<T> = T extends [] ? (Primitive | Renderable)[] : Primitive | Renderable;
+type Effect<T> = () => T extends [] ? Renderable[] : Renderable;
 
 type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 
@@ -33,7 +29,7 @@ type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 // - Importing from ^ causes 'cannot be named without a reference to...' error
 type Primitive = bigint | boolean | null | number | string | undefined;
 
-type Renderable = DocumentFragment | Node | NodeList | Primitive | RenderableReactive | Renderable[];
+type Renderable<T = unknown> = DocumentFragment | Effect<T> | Node | NodeList | Primitive | RenderableReactive | Renderable[];
 
 type RenderableReactive = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;
@@ -43,8 +39,6 @@ type RenderableReactive = Readonly<{
         ...args: Parameters< Parameters<ReactiveArray<unknown[]>['map']>[0] >
     ) => ReturnType<typeof html>;
 }>;
-
-type RenderableValue<T = unknown> = Attributes | Readonly<Attributes> | Readonly<Attributes[]> | Effect<T> | Primitive | RenderableReactive;
 
 type SlotGroup = {
     head: Element;
@@ -72,7 +66,7 @@ type Template = {
 export type {
     Attributes,
     Effect, Element,
-    Renderable, RenderableReactive, RenderableValue,
+    Renderable, RenderableReactive,
     SlotGroup,
     Template
 };

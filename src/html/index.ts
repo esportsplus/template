@@ -1,11 +1,14 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
 import { RENDERABLE, RENDERABLE_HTML_REACTIVE_ARRAY } from '~/constants';
-import { RenderableReactive, RenderableValue } from '~/types';
+import { Attributes, Renderable, RenderableReactive } from '~/types';
 import { cloneNode } from '~/utilities/node';
 import parser from './parser';
 
 
-const html = (literals: TemplateStringsArray, ...values: (RenderableValue | RenderableValue[])[]) => {
+type Values<T = unknown> = Attributes | Attributes[] | Readonly<Attributes> | Readonly<Attributes[]> | Renderable<T>;
+
+
+const html = (literals: TemplateStringsArray, ...values: (Values | Values[])[]) => {
     let { fragment, slots } = parser.parse(literals),
         clone = cloneNode.call(fragment, true);
 
