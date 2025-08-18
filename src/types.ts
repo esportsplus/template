@@ -36,7 +36,8 @@ type RenderableReactive<T> = Readonly<{
     array: ReactiveArray<T>;
     template: (
         this: ReactiveArray<T>,
-        ...args: Parameters< Parameters<ReactiveArray<T>['map']>[0] >
+        value: T,
+        i: number
     ) => ReturnType<typeof html>;
 }>;
 
