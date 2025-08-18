@@ -5,10 +5,10 @@ import { cloneNode } from '~/utilities/node';
 import parser from './parser';
 
 
-type Values<T = unknown> = Attributes | Attributes[] | Readonly<Attributes> | Readonly<Attributes[]> | Renderable<T>;
+type Values<T> = Attributes | Attributes[] | Readonly<Attributes> | Readonly<Attributes[]> | Renderable<T>;
 
 
-const html = (literals: TemplateStringsArray, ...values: (Values | Values[])[]) => {
+const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<T>[])[]) => {
     let { fragment, slots } = parser.parse(literals),
         clone = cloneNode.call(fragment, true);
 

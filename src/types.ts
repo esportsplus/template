@@ -6,7 +6,7 @@ import slot from './slot';
 import html from './html';
 
 
-type Attribute = Primitive | Effect<Primitive | Primitive[]>;
+type Attribute = Effect<Primitive | Primitive[]> | Primitive;
 
 type Attributes = {
     class?: Attribute | Attribute[];
@@ -21,7 +21,7 @@ type Attributes = {
     onrender?: (element: Element) => void;
 } & Record<PropertyKey, unknown>;
 
-type Effect<T> = () => T extends [] ? Renderable[] : Renderable;
+type Effect<T> = () => T extends [] ? Renderable<T>[] : Renderable<T>;
 
 type Element = HTMLElement & Attributes;
 
@@ -29,7 +29,7 @@ type Element = HTMLElement & Attributes;
 // - Importing from ^ causes 'cannot be named without a reference to...' error
 type Primitive = bigint | boolean | null | number | string | undefined;
 
-type Renderable<T = unknown> = DocumentFragment | Effect<T> | Node | NodeList | Primitive | RenderableReactive<T> | Renderable[];
+type Renderable<T> = DocumentFragment | Effect<T> | Node | NodeList | Primitive | RenderableReactive<T> | Renderable<T>[];
 
 type RenderableReactive<T> = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;
