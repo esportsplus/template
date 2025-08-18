@@ -21,7 +21,7 @@ export default function render(anchor: Element, input: unknown): Node {
     }
 
     if (RENDERABLE in input) {
-        return reactive(anchor, input as RenderableReactive);
+        return reactive(anchor, input as RenderableReactive<unknown>);
     }
 
     if (isArray(input)) {

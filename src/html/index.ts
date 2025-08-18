@@ -65,7 +65,7 @@ const html = (literals: TemplateStringsArray, ...values: (Values | Values[])[]) 
     return clone;
 };
 
-html.reactive = <T>(array: ReactiveArray<T[]>, template: RenderableReactive['template']): RenderableReactive => {
+html.reactive = <T>(array: ReactiveArray<T>, template: RenderableReactive<T>['template']): RenderableReactive<T> => {
     return {
         [RENDERABLE]: RENDERABLE_HTML_REACTIVE_ARRAY,
         array,

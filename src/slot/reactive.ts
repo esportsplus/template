@@ -7,17 +7,17 @@ import { ondisconnect, remove } from './cleanup';
 
 
 class ReactiveArraySlot<T> {
-    array: ReactiveArray<T[]>;
+    array: ReactiveArray<T>;
     fragment: Node;
     marker: Element;
     nodes: SlotGroup[] = [];
     template: (
-        this: ReactiveArray<T[]>,
-        ...args: Parameters< Parameters<ReactiveArray<T[]>['map']>[0] >
+        this: ReactiveArray<T>,
+        ...args: Parameters< Parameters<ReactiveArray<T>['map']>[0] >
     ) => SlotGroup;
 
 
-    constructor(anchor: Element, array: ReactiveArray<T[]>, template: RenderableReactive['template']) {
+    constructor(anchor: Element, array: ReactiveArray<T>, template: RenderableReactive<T>['template']) {
         let fragment = this.fragment = cloneNode.call(EMPTY_FRAGMENT);
 
         this.array = array;
@@ -163,7 +163,7 @@ class ReactiveArraySlot<T> {
 }
 
 
-export default (anchor: Element, renderable: RenderableReactive) => {
+export default <T>(anchor: Element, renderable: RenderableReactive<T>) => {
     let { array, template } = renderable,
         slot = new ReactiveArraySlot(anchor, array, template);
 

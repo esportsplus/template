@@ -29,14 +29,14 @@ type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
 // - Importing from ^ causes 'cannot be named without a reference to...' error
 type Primitive = bigint | boolean | null | number | string | undefined;
 
-type Renderable<T = unknown> = DocumentFragment | Effect<T> | Node | NodeList | Primitive | RenderableReactive | Renderable[];
+type Renderable<T = unknown> = DocumentFragment | Effect<T> | Node | NodeList | Primitive | RenderableReactive<T> | Renderable[];
 
-type RenderableReactive = Readonly<{
+type RenderableReactive<T> = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;
-    array: ReactiveArray<unknown[]>;
+    array: ReactiveArray<T>;
     template: (
-        this: ReactiveArray<unknown[]>,
-        ...args: Parameters< Parameters<ReactiveArray<unknown[]>['map']>[0] >
+        this: ReactiveArray<T>,
+        ...args: Parameters< Parameters<ReactiveArray<T>['map']>[0] >
     ) => ReturnType<typeof html>;
 }>;
 
