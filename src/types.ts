@@ -52,13 +52,7 @@ type Template = {
     literals: TemplateStringsArray;
     slots: {
         fn: typeof attributes.spread | typeof slot;
-        // @see ./html/index.ts comments
         path: typeof firstChild[];
-        // path: {
-        //     absolute: typeof firstChild[],
-        //     parent: typeof firstChild[],
-        //     relative: typeof firstChild[]
-        // };
         slot: number;
     }[] | null;
 };

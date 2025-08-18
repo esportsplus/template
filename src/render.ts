@@ -9,7 +9,7 @@ let anchor,
     marker = firstChild.call( fragment(SLOT_HTML) );
 
 
-export default (parent: HTMLElement, renderable: Renderable) => {
+export default <T>(parent: HTMLElement, renderable: Renderable<T>) => {
     nodeValue.call(parent, '');
     parent.append(anchor = marker.cloneNode());
 

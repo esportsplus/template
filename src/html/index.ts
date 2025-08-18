@@ -13,41 +13,10 @@ const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<
         clone = cloneNode.call(fragment, true);
 
     if (slots !== null) {
-        let node, nodePath; // , parent, parentPath;
+        let node, nodePath;
 
-        // TODO: when a new slot is added it breaks pathfinding for the next slot
-        // for (let i = 0, n = slots.length; i < n; i++) {
         for (let i = slots.length - 1; i >= 0; i--) {
             let { fn, path, slot } = slots[i];
-
-            //     pp = path.parent,
-            //     pr = path.relative;
-
-            // if (pp !== parentPath) {
-            //     if (pp === nodePath) {
-            //         parent = node;
-            //         parentPath = nodePath;
-
-            //         nodePath = undefined;
-            //     }
-            //     else {
-            //         parent = clone;
-            //         parentPath = pp;
-
-            //         for (let i = 0, n = pp.length; i < n; i++) {
-            //             parent = pp[i].call(parent);
-            //         }
-            //     }
-            // }
-
-            // if (pr !== nodePath) {
-            //     node = parent;
-            //     nodePath = path.absolute;
-
-            //     for (let i = 0, n = pr.length; i < n; i++) {
-            //         node = pr[i].call(node);
-            //     }
-            // }
 
             if (nodePath !== path) {
                 node = clone;
