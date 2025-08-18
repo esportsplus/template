@@ -23,7 +23,7 @@ type Attributes = {
 
 type Effect<T> = () => T extends [] ? Renderable[] : Renderable;
 
-type Element = HTMLElement & Attributes & Record<PropertyKey, unknown>;
+type Element = HTMLElement & Attributes;
 
 // Copied from '@esportsplus/utilities'
 // - Importing from ^ causes 'cannot be named without a reference to...' error
