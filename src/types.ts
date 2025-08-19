@@ -8,14 +8,14 @@ import html from './html';
 
 type Attribute = Effect<Primitive | Primitive[]> | Primitive;
 
-type Attributes = {
+type Attributes<T extends HTMLElement = Element> = {
     [key: `aria-${string}`]: string | number | boolean | undefined;
     [key: `data-${string}`]: string | undefined;
     class?: Attribute | Attribute[];
-    onconnect?: <T = HTMLElement>(element: T) => void;
-    ondisconnect?: <T = HTMLElement>(element: T) => void;
-    onrender?: <T = HTMLElement>(element: T) => void;
-    ontick?: <T = HTMLElement>(element: T) => void;
+    onconnect?: (element: T) => void;
+    ondisconnect?: (element: T) => void;
+    onrender?: (element: T) => void;
+    ontick?: (element: T) => void;
     style?: Attribute | Attribute[];
 } & {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: HTMLElement, event: GlobalEventHandlersEventMap[K]) => void;
@@ -23,7 +23,7 @@ type Attributes = {
 
 type Effect<T> = () => T extends [] ? Renderable<T>[] : Renderable<T>;
 
-type Element = HTMLElement & Attributes;
+type Element = HTMLElement & Attributes<any>;
 
 // Copied from '@esportsplus/utilities'
 // - Importing from ^ causes 'cannot be named without a reference to...' error

@@ -5,7 +5,7 @@ import { cloneNode } from '~/utilities/node';
 import parser from './parser';
 
 
-type Values<T> = Attributes | Renderable<T>;
+type Values<T> = Attributes<any> | Renderable<T>;
 
 
 const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<T>[])[]) => {
