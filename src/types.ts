@@ -16,9 +16,10 @@ type Attributes = {
 } & {
     [key: `aria-${string}`]: string | number | boolean | undefined;
     [key: `data-${string}`]: string | undefined;
-    onconnect?: (element: Element) => void;
-    ondisconnect?: (element: Element) => void;
-    onrender?: (element: Element) => void;
+    onconnect?: <T = Element>(element: T) => void;
+    ondisconnect?: <T = Element>(element: T) => void;
+    onrender?: <T = Element>(element: T) => void;
+    ontick?: <T = Element>(element: T) => void;
 } & Record<PropertyKey, unknown>;
 
 type Effect<T> = () => T extends [] ? Renderable<T>[] : Renderable<T>;
