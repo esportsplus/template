@@ -5,6 +5,7 @@ import { addEventListener } from '~/utilities/element';
 import { parentElement } from '~/utilities/node';
 import { ondisconnect } from '~/slot/cleanup';
 import onconnect from './onconnect';
+import onresize from './onresize';
 import ontick from './ontick';
 
 
@@ -95,6 +96,10 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
 
         case 'ondisconnect':
             ondisconnect(element, () => listener(element));
+            return;
+
+        case 'onresize':
+            onresize(element, listener);
             return;
 
         case 'ontick':

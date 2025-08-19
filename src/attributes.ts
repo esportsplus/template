@@ -169,7 +169,31 @@ function schedule(ctx: Context | null, element: Element, name: string, state: St
     raf.add(task);
 }
 
-function set(element: Element, name: string, value: unknown, state: State) {
+function task() {
+    let context,
+        n = queue.length;
+
+    while ((context = queue.next()) && n--) {
+        let { element, updates } = context;
+
+        for (let name in updates) {
+            apply(element, name, updates[name]);
+        }
+
+        context.updates = {};
+        context.updating = false;
+    }
+
+    if (queue.length) {
+        raf.add(task);
+    }
+    else {
+        scheduled = false;
+    }
+}
+
+
+const set = (element: Element, name: string, value: unknown, state: State = STATE_HYDRATING) => {
     let fn = name === 'class' || name === 'style' ? list : property,
         type = typeof value;
 
@@ -233,31 +257,7 @@ function set(element: Element, name: string, value: unknown, state: State) {
     }
 
     fn(null, element, null, name, value, state);
-}
-
-function task() {
-    let context,
-        n = queue.length;
-
-    while ((context = queue.next()) && n--) {
-        let { element, updates } = context;
-
-        for (let name in updates) {
-            apply(element, name, updates[name]);
-        }
-
-        context.updates = {};
-        context.updating = false;
-    }
-
-    if (queue.length) {
-        raf.add(task);
-    }
-    else {
-        scheduled = false;
-    }
-}
-
+};
 
 const spread = function (element: Element, value: Attributes | Attributes[]) {
     if (isObject(value)) {
@@ -268,7 +268,7 @@ const spread = function (element: Element, value: Attributes | Attributes[]) {
                 continue;
             }
 
-            set(element, name, v, STATE_HYDRATING);
+            set(element, name, v);
         }
     }
     else if (isArray(value)) {
@@ -279,5 +279,5 @@ const spread = function (element: Element, value: Attributes | Attributes[]) {
 };
 
 
-export default { spread };
-export { spread };
+export default { set, spread };
+export { set, spread };
