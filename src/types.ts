@@ -6,7 +6,7 @@ import slot from './slot';
 import html from './html';
 
 
-type Attribute = Effect<Primitive | Primitive[]> | (<T>(...args: T[]) => void) | Primitive;
+type Attribute = Effect<Primitive | Primitive[]> | ((...args: any[]) => void) | Primitive;
 
 type Attributes<T extends HTMLElement = Element> = {
     [key: `aria-${string}`]: string | number | boolean | undefined;
