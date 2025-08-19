@@ -20,5 +20,5 @@
     },
     "type": "module",
     "types": "./build/index.d.ts",
-    "version": "0.20.3"
+    "version": "0.20.4"
 }
