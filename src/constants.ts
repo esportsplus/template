@@ -42,6 +42,10 @@ const NODE_WHITELIST: Record<string, number> = {
 
 const REGEX_EMPTY_TEXT_NODES = /(>|})\s+(<|{)/g;
 
+const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=(?:\s*["'][^"']*["'])*)/g;
+
+const REGEX_SLOT_ATTRIBUTES = /<[\w-]+([^><]*{{\$}}[^><]*)>/g;
+
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{{\$}}/g;
 
 
@@ -53,8 +57,6 @@ const RENDERABLE_HTML_REACTIVE_ARRAY = 1;
 const SLOT_HTML = '<!--$-->';
 
 const SLOT_MARKER = '{{$}}';
-
-const SLOT_MARKER_LENGTH = SLOT_MARKER.length;
 
 
 const STATE_HYDRATING = 0;
@@ -68,8 +70,7 @@ export {
     CLEANUP,
     EMPTY_FRAGMENT,
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST,
-    REGEX_EMPTY_TEXT_NODES, REGEX_SLOT_NODES,
+    REGEX_EMPTY_TEXT_NODES, REGEX_EVENTS, REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES,
     RENDERABLE, RENDERABLE_HTML_REACTIVE_ARRAY,
-    SLOT_HTML, SLOT_MARKER, SLOT_MARKER_LENGTH,
-    STATE_HYDRATING, STATE_NONE, STATE_WAITING
+    SLOT_HTML, SLOT_MARKER, STATE_HYDRATING, STATE_NONE, STATE_WAITING
 };

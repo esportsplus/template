@@ -1,3 +1,4 @@
+import { onCleanup } from '@esportsplus/reactivity';
 import { Element } from '~/types';
 
 
@@ -24,6 +25,10 @@ function onresize() {
 
 export default (element: Element, listener: Function) => {
     listeners.set(element, listener);
+
+    onCleanup(() => {
+        listeners.delete(element);
+    });
 
     if (!registered) {
         window.addEventListener('resize', onresize);

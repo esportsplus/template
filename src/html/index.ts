@@ -1,11 +1,11 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
 import { RENDERABLE, RENDERABLE_HTML_REACTIVE_ARRAY } from '~/constants';
-import { Attributes, Renderable, RenderableReactive } from '~/types';
+import { Attribute, Attributes, Renderable, RenderableReactive } from '~/types';
 import { cloneNode } from '~/utilities/node';
 import parser from './parser';
 
 
-type Values<T> = Attributes<any> | Renderable<T>;
+type Values<T> = Attribute | Attributes<any> | Renderable<T>;
 
 
 const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<T>[])[]) => {
@@ -16,7 +16,7 @@ const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<
         let node, nodePath;
 
         for (let i = slots.length - 1; i >= 0; i--) {
-            let { fn, path, slot } = slots[i];
+            let { fn, path } = slots[i];
 
             if (nodePath !== path) {
                 node = clone;
@@ -27,7 +27,7 @@ const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<
             }
 
             // @ts-ignore
-            fn(node, values[slot]);
+            fn(node, values[i]);
         }
     }
 

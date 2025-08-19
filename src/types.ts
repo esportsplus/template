@@ -6,7 +6,7 @@ import slot from './slot';
 import html from './html';
 
 
-type Attribute = Effect<Primitive | Primitive[]> | Primitive;
+type Attribute = Effect<Primitive | Primitive[]> | (<T>(...args: T[]) => void) | Primitive;
 
 type Attributes<T extends HTMLElement = Element> = {
     [key: `aria-${string}`]: string | number | boolean | undefined;
@@ -15,10 +15,10 @@ type Attributes<T extends HTMLElement = Element> = {
     onconnect?: (element: T) => void;
     ondisconnect?: (element: T) => void;
     onrender?: (element: T) => void;
-    ontick?: (element: T) => void;
+    ontick?: (dispose: VoidFunction, element: T) => void;
     style?: Attribute | Attribute[];
 } & {
-    [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: HTMLElement, event: GlobalEventHandlersEventMap[K]) => void;
+    [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void;
 } & Record<PropertyKey, unknown>;
 
 type Effect<T> = () => T extends [] ? Renderable<T>[] : Renderable<T>;
@@ -51,15 +51,15 @@ type Template = {
     html: string;
     literals: TemplateStringsArray;
     slots: {
-        fn: typeof attributes.spread | typeof slot;
+        fn: typeof attributes.set | typeof attributes.spread | typeof slot;
+        name: string | null;
         path: typeof firstChild[];
-        slot: number;
     }[] | null;
 };
 
 
 export type {
-    Attributes,
+    Attribute, Attributes,
     Effect, Element,
     Renderable, RenderableReactive,
     SlotGroup,
