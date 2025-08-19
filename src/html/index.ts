@@ -3,6 +3,8 @@ import { RENDERABLE, RENDERABLE_HTML_REACTIVE_ARRAY } from '~/constants';
 import { Attribute, Attributes, Renderable, RenderableReactive } from '~/types';
 import { cloneNode } from '~/utilities/node';
 import parser from './parser';
+import attributes from '~/attributes';
+import slot from '~/slot';
 
 
 type Values<T> = Attribute | Attributes<any> | Renderable<T>;
@@ -13,21 +15,25 @@ const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<
         clone = cloneNode.call(fragment, true);
 
     if (slots !== null) {
-        let node, nodePath;
+        let e, p;
 
         for (let i = slots.length - 1; i >= 0; i--) {
-            let { fn, path } = slots[i];
+            let { fn, name, path } = slots[i];
 
-            if (nodePath !== path) {
-                node = clone;
+            if (p !== path) {
+                e = clone;
 
                 for (let i = 0, n = path.length; i < n; i++) {
-                    node = path[i].call(node);
+                    e = path[i].call(e);
                 }
             }
 
-            // @ts-ignore
-            fn(node, values[i]);
+            if (name === null) {
+                (fn as typeof attributes.spread | typeof slot)(e, values[i] as any);
+            }
+            else {
+                (fn as typeof attributes.set)(e, name, values[i]);
+            }
         }
     }
 
