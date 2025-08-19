@@ -1,10 +1,11 @@
 import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
-import { Element } from './types';
-import { addEventListener } from './utilities/element';
-import { parentElement } from './utilities/node';
-import { raf } from './utilities/queue';
-import { ondisconnect } from './slot/cleanup';
+import { Element } from '~/types';
+import { addEventListener } from '~/utilities/element';
+import { parentElement } from '~/utilities/node';
+import { ondisconnect } from '~/slot/cleanup';
+import onconnect from './onconnect';
+import ontick from './ontick';
 
 
 let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
@@ -87,33 +88,25 @@ function register(element: Element, event: `on${string}`) {
 
 
 export default (element: Element, event: `on${string}`, listener: Function): void => {
-    if (event === 'onconnect') {
-        let retry = 60,
-            task = () => {
-                retry--;
+    switch (event) {
+        case 'onconnect':
+            onconnect(element, listener);
+            return;
 
-                if (element.isConnected) {
-                    retry = 0;
-                    root(() => listener(element));
-                }
+        case 'ondisconnect':
+            ondisconnect(element, () => listener(element));
+            return;
 
-                if (retry) {
-                    raf.add(task);
-                }
-            };
+        case 'ontick':
+            ontick(element, listener);
+            return;
 
-        raf.add(task);
+        case 'onrender':
+            root(() => listener(element));
+            return;
 
-        return;
+        default:
+            element[ keys[event] || register(element, event) ] = listener;
+            return;
     }
-    else if (event === 'ondisconnect') {
-        ondisconnect(element, () => listener(element));
-        return;
-    }
-    else if (event === 'onrender') {
-        root(() => listener(element));
-        return;
-    }
-
-    element[ keys[event] || register(element, event) ] = listener;
 };
