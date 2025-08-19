@@ -9,17 +9,16 @@ import html from './html';
 type Attribute = Effect<Primitive | Primitive[]> | Primitive;
 
 type Attributes = {
-    class?: Attribute | Attribute[];
-    style?: Attribute | Attribute[];
-} & {
-    [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: Element, event: GlobalEventHandlersEventMap[K]) => void;
-} & {
     [key: `aria-${string}`]: string | number | boolean | undefined;
     [key: `data-${string}`]: string | undefined;
-    onconnect?: <T = Element>(element: T) => void;
-    ondisconnect?: <T = Element>(element: T) => void;
-    onrender?: <T = Element>(element: T) => void;
-    ontick?: <T = Element>(element: T) => void;
+    class?: Attribute | Attribute[];
+    onconnect?: <T = HTMLElement>(element: T) => void;
+    ondisconnect?: <T = HTMLElement>(element: T) => void;
+    onrender?: <T = HTMLElement>(element: T) => void;
+    ontick?: <T = HTMLElement>(element: T) => void;
+    style?: Attribute | Attribute[];
+} & {
+    [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: HTMLElement, event: GlobalEventHandlersEventMap[K]) => void;
 } & Record<PropertyKey, unknown>;
 
 type Effect<T> = () => T extends [] ? Renderable<T>[] : Renderable<T>;
