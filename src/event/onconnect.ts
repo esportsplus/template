@@ -11,7 +11,7 @@ export default (element: Element, listener: Function) => {
                 root(() => listener(element));
             }
 
-            if (retry) {
+            if (!retry) {
                 remove(fn);
             }
         },
