@@ -40,7 +40,7 @@ const NODE_WHITELIST: Record<string, number> = {
 };
 
 
-const REGEX_EMPTY_TEXT_NODES = /(>|}|)\s+(<|{|\s)/g;
+const REGEX_EMPTY_TEXT_NODES = /(>|}|\s)\s+(<|{|\s)/g;
 
 const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=(?:\s*["'][^"']*["'])*)/g;
 
