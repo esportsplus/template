@@ -18,23 +18,27 @@ function update(this: { group?: SlotGroup, textnode?: Node }, anchor: Element, v
         value = '';
     }
 
-    if (typeof value !== 'object') {
-        let textnode = this.textnode;
+    let textnode = this.textnode;
 
+    if (typeof value !== 'object') {
         if (textnode) {
             nodeValue.call(textnode, String(value));
+
+            if (!textnode.isConnected) {
+                anchor.after(textnode);
+            }
         }
         else {
-            textnode = this.textnode = text( String(value) );
-        }
-
-        if (!textnode.isConnected) {
-            anchor.after(textnode);
+            anchor.after( this.textnode = text( String(value) ) );
         }
     }
     else {
         let fragment = render(anchor, value),
             head = firstChild.call(fragment);
+
+        if (textnode && textnode.isConnected) {
+            remove([{ head: textnode as Element, tail: textnode as Element }]);
+        }
 
         if (head) {
             this.group = {
