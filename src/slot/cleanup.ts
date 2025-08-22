@@ -45,22 +45,26 @@ const ondisconnect = (element: Element, fn: VoidFunction) => {
 };
 
 const remove = (groups: SlotGroup[]) => {
-    let group, head, tail;
+    let group;
 
     while (group = groups.pop()) {
-        head = group.head;
-        tail = group.tail || head;
+        let head = group.head,
+            next,
+            tail = group.tail || head;
 
-        for (let node = tail; node; node = previousSibling.call(node)) {
-            if (CLEANUP in node) {
-                cleanup.add( node[CLEANUP] as VoidFunction[] );
+        while (tail) {
+            if (CLEANUP in tail) {
+                cleanup.add( tail[CLEANUP] as VoidFunction[] );
             }
 
-            node.remove();
+            next = previousSibling.call(tail);
+            tail.remove();
 
-            if (head === node) {
+            if (head === tail) {
                 break;
             }
+
+            tail = next;
         }
     }
 
