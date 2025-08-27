@@ -1,6 +1,6 @@
 import { effect } from '@esportsplus/reactivity';
 import { STATE_HYDRATING, STATE_NONE } from '~/constants';
-import { Element, SlotGroup } from '~/types';
+import { Element, Renderable, SlotGroup } from '~/types';
 import { firstChild, lastChild, nodeValue } from '~/utilities/node'
 import { raf } from '~/utilities/queue'
 import { remove } from './cleanup';
@@ -52,24 +52,40 @@ function update(this: { group?: SlotGroup, textnode?: Node }, anchor: Element, v
 }
 
 
-export default (anchor: Element, fn: Function) => {
+export default (anchor: Element, fn: (dispose?: VoidFunction) => Renderable<any>) => {
     let context = {
             group: undefined as SlotGroup | undefined,
             textnode: undefined as Node | undefined
         },
+        dispose = fn.length ? () => {
+            let { group, textnode } = context;
+
+            if (textnode) {
+                group = { head: anchor, tail: textnode as Element };
+            }
+            else if (group) {
+                group.head = anchor;
+            }
+
+            d();
+
+            if (group) {
+                remove([group]);
+            }
+        } : undefined,
         state = STATE_HYDRATING;
 
-    effect(() => {
-        let value = fn();
+    let d = effect(() => {
+            let value = fn(dispose);
 
-        if (state === STATE_HYDRATING) {
-            update.call(context, anchor, value);
-            state = STATE_NONE;
-        }
-        else if (state === STATE_NONE) {
-            raf.add(() => {
+            if (state === STATE_HYDRATING) {
                 update.call(context, anchor, value);
-            });
-        }
-    });
+                state = STATE_NONE;
+            }
+            else if (state === STATE_NONE) {
+                raf.add(() => {
+                    update.call(context, anchor, value);
+                });
+            }
+        });
 };
