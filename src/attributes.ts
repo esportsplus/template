@@ -54,72 +54,43 @@ function list(
     element: Element,
     id: null | number,
     name: string,
-    value: unknown,
-    state: State
+    state: State,
+    value: unknown
 ) {
     if (value == null || value === false || value === '') {
         value = '';
     }
 
-    let base = name + '.static',
-        delimiter = delimiters[name],
+    if (!value || typeof value !== 'string') {
+        return;
+    }
+
+    let delimiter = delimiters[name],
         store = (ctx ??= context(element)).store ??= {},
-        dynamic = store[name] as Attributes | undefined,
-        type = typeof value;
+        v = store[name];
 
-    if (dynamic === undefined) {
-        let value = (element.getAttribute(name) || '').trim();
-
-        store[base] = value;
-        store[name] = dynamic = {};
+    if (v === undefined) {
+        v = store[name] = (element.getAttribute(name) || '').trim();
     }
 
     if (id === null) {
-        if (value && type === 'string') {
-            store[base] += (store[base] ? delimiter : '') + value;
-        }
+        v = store[name] += (v ? delimiter : '') + value;
     }
     else {
-        let hot: Attributes = {};
+        let current = delimiter + value,
+            previous = store[id] as string | undefined;
 
-        if (value && type === 'string') {
-            let part: string,
-                parts = (value as string).split(delimiter);
-
-            for (let i = 0, n = parts.length; i < n; i++) {
-                part = parts[i].trim();
-
-                if (part === '') {
-                    continue;
-                }
-
-                dynamic[part] = null;
-                hot[part] = null;
-            }
+        if (previous === undefined) {
+            v = store[name] += current;
+        }
+        else if (previous !== current) {
+            v = store[name] = (store[name] as string).replace(previous, current);
         }
 
-        let cold = store[id] as Attributes | undefined;
-
-        if (cold !== undefined) {
-            for (let part in cold) {
-                if (part in hot) {
-                    continue;
-                }
-
-                delete dynamic[part];
-            }
-        }
-
-        store[id] = hot;
+        store[id] = current;
     }
 
-    value = store[base];
-
-    for (let key in dynamic) {
-        value += (value ? delimiter : '') + key;
-    }
-
-    schedule(ctx, element, name, state, value);
+    schedule(ctx, element, name, state, v);
 }
 
 function property(
@@ -127,8 +98,8 @@ function property(
     element: Element,
     id: null | number,
     name: string,
-    value: unknown,
-    state: State
+    state: State,
+    value: unknown
 ) {
     if (value == null || value === false || value === '') {
         value = '';
@@ -224,10 +195,10 @@ const set = (element: Element, name: string, value: unknown, state: State = STAT
                         element,
                         id,
                         name,
-                        v[i],
                         state === STATE_HYDRATING
                             ? state
-                            : i !== last ? STATE_WAITING : state
+                            : i !== last ? STATE_WAITING : state,
+                        v[i],
                     );
                 }
             }
@@ -239,7 +210,7 @@ const set = (element: Element, name: string, value: unknown, state: State = STAT
     }
 
     if (type !== 'object') {
-        fn(null, element, null, name, value, state);
+        fn(null, element, null, name, state, value);
         return;
     }
 
@@ -256,7 +227,7 @@ const set = (element: Element, name: string, value: unknown, state: State = STAT
         return;
     }
 
-    fn(null, element, null, name, value, state);
+    fn(null, element, null, name, state, value);
 };
 
 const spread = function (element: Element, value: Attributes | Attributes[]) {

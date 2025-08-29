@@ -5,7 +5,7 @@ import render from './render';
 
 export default (anchor: Element, value: unknown): void => {
     if (typeof value === 'function') {
-        effect(anchor, value as Function);
+        effect(anchor, value as Parameters<typeof effect>[1]);
     }
     else {
         anchor.after( render(anchor, value) );
