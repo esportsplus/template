@@ -244,10 +244,9 @@ const set = (element: Element, name: string, value: unknown) => {
     }
 
     if (type !== 'object') {
-        return fn(null, element, null, name, state, value);
+        // Skip isArray when possible
     }
-
-    if (isArray(value)) {
+    else if (isArray(value)) {
         for (let i = 0, n = value.length; i < n; i++) {
             let v = value[i];
 
