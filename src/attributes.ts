@@ -61,36 +61,65 @@ function list(
         value = '';
     }
 
-    if (id === null && (!value || typeof value !== 'string')) {
-        return;
+    let base = name + '.static',
+        delimiter = delimiters[name],
+        store = (ctx ??= context(element)).store ??= {},
+        dynamic = store[name] as Set<string> | undefined,
+        type = typeof value;
+
+    if (dynamic === undefined) {
+        let value = (element.getAttribute(name) || '').trim();
+
+        store[base] = value;
+        store[name] = dynamic = new Set();
     }
-
-    let delimiter = delimiters[name],
-        store = (ctx ??= context(element)).store ??= {};
-
-    if (store[name] === undefined) {
-        store[name] = (element.getAttribute(name) || '').trim();
-    }
-
-    let current = value ? (delimiter + value) : '';
 
     if (id === null) {
-        store[name] += current;
+        if (value && type === 'string') {
+            store[base] += (store[base] ? delimiter : '') + value;
+        }
     }
     else {
-        let previous = store[id] as string | undefined;
+        let hot: Attributes = {};
 
-        if (!previous) {
-            store[name] += current;
-        }
-        else if (previous !== current) {
-            store[name] = (store[name] as string).replace(previous, current);
+        if (value && type === 'string') {
+            let part: string,
+                parts = (value as string).split(delimiter);
+
+            for (let i = 0, n = parts.length; i < n; i++) {
+                part = parts[i].trim();
+
+                if (part === '') {
+                    continue;
+                }
+
+                dynamic.add(part);
+                hot[part] = null;
+            }
         }
 
-        store[id] = current;
+        let cold = store[id] as Attributes | undefined;
+
+        if (cold !== undefined) {
+            for (let part in cold) {
+                if (part in hot) {
+                    continue;
+                }
+
+                dynamic.delete(part);
+            }
+        }
+
+        store[id] = hot;
     }
 
-    schedule(ctx, element, name, state, store[name]);
+    value = store[base];
+
+    for (let key of dynamic) {
+        value += (value ? delimiter : '') + key;
+    }
+
+    schedule(ctx, element, name, state, value);
 }
 
 function property(
