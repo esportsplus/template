@@ -61,36 +61,36 @@ function list(
         value = '';
     }
 
-    if (!value || typeof value !== 'string') {
+    if (id === null && (!value || typeof value !== 'string')) {
         return;
     }
 
     let delimiter = delimiters[name],
-        store = (ctx ??= context(element)).store ??= {},
-        v = store[name];
+        store = (ctx ??= context(element)).store ??= {};
 
-    if (v === undefined) {
-        v = store[name] = (element.getAttribute(name) || '').trim();
+    if (store[name] === undefined) {
+        store[name] = (element.getAttribute(name) || '').trim();
     }
+
+    let current = value ? (delimiter + value) : '';
 
     if (id === null) {
-        v = store[name] += (v ? delimiter : '') + value;
+        store[name] += current;
     }
     else {
-        let current = delimiter + value,
-            previous = store[id] as string | undefined;
+        let previous = store[id] as string | undefined;
 
-        if (previous === undefined) {
-            v = store[name] += current;
+        if (!previous) {
+            store[name] += current;
         }
         else if (previous !== current) {
-            v = store[name] = (store[name] as string).replace(previous, current);
+            store[name] = (store[name] as string).replace(previous, current);
         }
 
         store[id] = current;
     }
 
-    schedule(ctx, element, name, state, v);
+    schedule(ctx, element, name, state, store[name]);
 }
 
 function property(
@@ -184,7 +184,7 @@ const set = (element: Element, name: string, value: unknown, state: State = STAT
             let v = (value as Function)(element);
 
             if (v == null || typeof v !== 'object') {
-                fn(ctx, element, id, name, v, state);
+                fn(ctx, element, id, name, state, v);
             }
             else if (isArray(v)) {
                 let last = v.length - 1;
