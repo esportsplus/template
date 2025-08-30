@@ -4,7 +4,7 @@ import { Element, RenderableReactive } from '~/types';
 import { cloneNode, lastChild } from '~/utilities/node';
 import { append } from '~/utilities/fragment';
 import text from '~/utilities/text';
-import reactive from './reactive';
+import array from './array';
 
 
 export default function render(anchor: Element, input: unknown): Node {
@@ -16,12 +16,12 @@ export default function render(anchor: Element, input: unknown): Node {
         return text(input as any);
     }
 
-    if ('nodeType' in input) {
-        return input as Node;
+    if (RENDERABLE in input) {
+        return array(anchor, input as RenderableReactive<unknown>);
     }
 
-    if (RENDERABLE in input) {
-        return reactive(anchor, input as RenderableReactive<unknown>);
+    if ('nodeType' in input) {
+        return input as Node;
     }
 
     if (isArray(input)) {

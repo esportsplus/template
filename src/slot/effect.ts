@@ -8,84 +8,96 @@ import text from '~/utilities/text';
 import render from './render';
 
 
-function update(this: { group?: SlotGroup, textnode?: Node }, anchor: Element, value: unknown) {
-    if (this.group) {
-        remove([this.group]);
-        this.group = undefined;
+class EffectSlot {
+    anchor: Element;
+    disposer: VoidFunction;
+    group: SlotGroup | null = null;
+    textnode: Node | null = null;
+
+
+    constructor(anchor: Element, fn: (dispose?: VoidFunction) => Renderable<any>) {
+        let dispose = fn.length ? () => this.dispose() : undefined,
+            state = STATE_HYDRATING;
+
+        this.anchor = anchor;
+        this.disposer = effect(() => {
+            let value = fn(dispose);
+
+            if (state === STATE_HYDRATING) {
+                state = STATE_NONE;
+                this.update(value);
+            }
+            else {
+                raf.add(() => {
+                    this.update(value);
+                });
+            }
+        });
     }
 
-    if (value == null || value === false) {
-        value = '';
-    }
 
-    let textnode = this.textnode;
+    dispose() {
+        let { anchor, group, textnode } = this;
 
-    if (typeof value !== 'object') {
         if (textnode) {
-            nodeValue.call(textnode, String(value));
+            group = { head: anchor, tail: textnode as Element };
+        }
+        else if (group) {
+            group.head = anchor;
+        }
 
-            if (!textnode.isConnected) {
-                anchor.after(textnode);
+        this.disposer();
+
+        if (group) {
+            remove(group);
+        }
+    }
+
+    update(value: unknown) {
+        if (this.group) {
+            remove(this.group);
+            this.group = null;
+        }
+
+        if (value == null || value === false) {
+            value = '';
+        }
+
+        let { anchor, textnode } = this;
+
+        if (typeof value !== 'object') {
+            if (textnode) {
+                nodeValue.call(textnode, String(value));
+
+                if (!textnode.isConnected) {
+                    anchor.after(textnode);
+                }
+            }
+            else {
+                anchor.after( this.textnode = text( String(value) ) );
             }
         }
         else {
-            anchor.after( this.textnode = text( String(value) ) );
-        }
-    }
-    else {
-        let fragment = render(anchor, value),
-            head = firstChild.call(fragment);
+            let fragment = render(anchor, value),
+                head = firstChild.call(fragment);
 
-        if (textnode && textnode.isConnected) {
-            remove([{ head: textnode as Element, tail: textnode as Element }]);
-        }
+            if (textnode?.isConnected) {
+                remove({ head: textnode as Element, tail: textnode as Element });
+            }
 
-        if (head) {
-            this.group = {
-                head,
-                tail: lastChild.call(fragment)
-            };
+            if (head) {
+                this.group = {
+                    head,
+                    tail: lastChild.call(fragment)
+                };
 
-            anchor.after(fragment);
+                anchor.after(fragment);
+            }
         }
     }
 }
 
 
 export default (anchor: Element, fn: (dispose?: VoidFunction) => Renderable<any>) => {
-    let context = {
-            group: undefined as SlotGroup | undefined,
-            textnode: undefined as Node | undefined
-        },
-        dispose = fn.length ? () => {
-            let { group, textnode } = context;
-
-            if (textnode) {
-                group = { head: anchor, tail: textnode as Element };
-            }
-            else if (group) {
-                group.head = anchor;
-            }
-
-            d();
-
-            if (group) {
-                remove([group]);
-            }
-        } : undefined,
-        state = STATE_HYDRATING;
-
-    let d = effect(() => {
-            let value = fn(dispose);
-
-            if (state === STATE_HYDRATING) {
-                update.call(context, anchor, value);
-                state = STATE_NONE;
-            }
-            else if (state === STATE_NONE) {
-                raf.add(() => {
-                    update.call(context, anchor, value);
-                });
-            }
-        });
+    new EffectSlot(anchor, fn);
 };

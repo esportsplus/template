@@ -98,16 +98,16 @@ export default (element: Element, event: `on${string}`, listener: Function): voi
             ondisconnect(element, () => listener(element));
             return;
 
+        case 'onrender':
+            root(() => listener(element));
+            return;
+
         case 'onresize':
             onresize(element, listener);
             return;
 
         case 'ontick':
             ontick(element, listener);
-            return;
-
-        case 'onrender':
-            root(() => listener(element));
             return;
 
         default:

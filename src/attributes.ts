@@ -119,7 +119,12 @@ function list(
         value += (value ? delimiter : '') + key;
     }
 
-    schedule(ctx, element, name, state, value);
+    if (state === STATE_HYDRATING) {
+        apply(element, name, value);
+    }
+    else {
+        schedule(ctx, element, name, state, value);
+    }
 }
 
 function property(
@@ -144,15 +149,15 @@ function property(
         ctx[name] = value as string;
     }
 
-    schedule(ctx, element, name, state, value);
+    if (state === STATE_HYDRATING) {
+        apply(element, name, value);
+    }
+    else {
+        schedule(ctx, element, name, state, value);
+    }
 }
 
 function schedule(ctx: Context | null, element: Element, name: string, state: State, value: unknown) {
-    if (state === STATE_HYDRATING) {
-        apply(element, name, value);
-        return;
-    }
-
     ctx ??= context(element);
     (ctx.updates ??= {})[name] = value;
 
@@ -193,14 +198,14 @@ function task() {
 }
 
 
-const set = (element: Element, name: string, value: unknown, state: State = STATE_HYDRATING) => {
+const set = (element: Element, name: string, value: unknown) => {
     let fn = name === 'class' || name === 'style' ? list : property,
+        state: State = STATE_HYDRATING,
         type = typeof value;
 
     if (type === 'function') {
         if (name.startsWith('on')) {
-            event(element, name as `on${string}`, value as Function);
-            return;
+            return event(element, name as `on${string}`, value as Function);
         }
 
         let ctx = context(element);
@@ -239,8 +244,7 @@ const set = (element: Element, name: string, value: unknown, state: State = STAT
     }
 
     if (type !== 'object') {
-        fn(null, element, null, name, state, value);
-        return;
+        return fn(null, element, null, name, state, value);
     }
 
     if (isArray(value)) {
@@ -251,7 +255,7 @@ const set = (element: Element, name: string, value: unknown, state: State = STAT
                 continue;
             }
 
-            set(element, name, v, state);
+            set(element, name, v);
         }
         return;
     }
@@ -261,7 +265,10 @@ const set = (element: Element, name: string, value: unknown, state: State = STAT
 
 const spread = function (element: Element, value: Attributes | Attributes[]) {
     if (isObject(value)) {
-        for (let name in value) {
+        let names = Object.keys(value),
+            name;
+
+        while (name = names.pop()) {
             let v = value[name];
 
             if (v == null || v === false || v === '') {

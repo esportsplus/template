@@ -9,14 +9,14 @@ import html from './html';
 type Attribute = Effect<Primitive | Primitive[]> | ((...args: any[]) => void) | Primitive;
 
 type Attributes<T extends HTMLElement = Element> = {
-    [key: `aria-${string}`]: string | number | boolean | undefined;
-    [key: `data-${string}`]: string | undefined;
     class?: Attribute | Attribute[];
     onconnect?: (element: T) => void;
     ondisconnect?: (element: T) => void;
     onrender?: (element: T) => void;
     ontick?: (dispose: VoidFunction, element: T) => void;
     style?: Attribute | Attribute[];
+    [key: `aria-${string}`]: string | number | boolean | undefined;
+    [key: `data-${string}`]: string | undefined;
 } & {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void;
 } & Record<PropertyKey, unknown>;
@@ -34,11 +34,7 @@ type Renderable<T> = DocumentFragment | Effect<T> | Node | NodeList | Primitive 
 type RenderableReactive<T> = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;
     array: ReactiveArray<T>;
-    template: (
-        this: ReactiveArray<T>,
-        value: T,
-        i: number
-    ) => ReturnType<typeof html>;
+    template: (value: T, i: number) => ReturnType<typeof html>;
 }>;
 
 type SlotGroup = {

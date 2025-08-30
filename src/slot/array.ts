@@ -6,15 +6,12 @@ import { cloneNode, firstChild, lastChild } from '~/utilities/node';
 import { ondisconnect, remove } from './cleanup';
 
 
-class ReactiveArraySlot<T> {
+class ArraySlot<T> {
     array: ReactiveArray<T>;
     fragment: Node;
     marker: Element;
     nodes: SlotGroup[] = [];
-    template: (
-        this: ReactiveArray<T>,
-        ...args: Parameters< Parameters<ReactiveArray<T>['map']>[0] >
-    ) => SlotGroup;
+    template: (...args: Parameters< RenderableReactive<T>['template'] >) => SlotGroup;
 
 
     constructor(anchor: Element, array: ReactiveArray<T>, template: RenderableReactive<T>['template']) {
@@ -26,7 +23,7 @@ class ReactiveArraySlot<T> {
             let dispose: VoidFunction,
                 frag = root((d) => {
                     dispose = d;
-                    return template.call(this, data, i);
+                    return template(data, i);
                 }),
                 group = {
                     head: firstChild.call(frag),
@@ -88,38 +85,31 @@ class ReactiveArraySlot<T> {
     }
 
     clear() {
-        remove(this.nodes);
+        remove(...this.nodes.splice(0));
     }
 
     pop() {
         let group = this.nodes.pop();
 
         if (group) {
-            remove([group]);
+            remove(group);
         }
     }
 
     push(items: T[]) {
-        let anchor = this.anchor(),
-            array = this.array,
-            length = this.nodes.length;
+        let anchor = this.anchor();
 
-        this.nodes.length = length + items.length;
+        this.nodes.push( ...items.map(this.template) );
 
-        for (let i = 0, n = items.length; i < n; i++) {
-            this.nodes[i + length] = this.template.call(array, items[i], i);
-        }
         anchor.after(this.fragment);
     }
 
     render() {
-        let nodes = this.nodes;
-
-        if (nodes.length) {
-            remove(nodes);
+        if (this.nodes.length) {
+            remove(...this.nodes.splice(0));
         }
 
-        nodes = this.array.map(this.template);
+        this.nodes = this.array.map(this.template);
         this.marker.after(this.fragment);
     }
 
@@ -127,37 +117,21 @@ class ReactiveArraySlot<T> {
         let group = this.nodes.shift();
 
         if (group) {
-            remove([group]);
+            remove(group);
         }
     }
 
     splice(start: number, stop: number = this.nodes.length, ...items: T[]) {
         if (!items.length) {
-            return remove(this.nodes.splice(start, stop));
+            return remove(...this.nodes.splice(start, stop));
         }
 
-        let array = this.array,
-            n = items.length,
-            nodes = new Array(n);
-
-        for (let i = 0; i < n; i++) {
-            nodes[i] = this.template.call(array, items[i], i);
-        }
-
-        remove(this.nodes.splice(start, stop, ...nodes));
+        remove( ...this.nodes.splice(start, stop, ...items.map(this.template)) );
         this.anchor(start - 1).after(this.fragment);
     }
 
     unshift(items: T[]) {
-        let array = this.array,
-            n = items.length,
-            nodes = new Array(n);
-
-        for (let i = 0; i < n; i++) {
-            nodes[i] = this.template.call(array, items[i], i);
-        }
-
-        this.nodes.unshift(...nodes);
+        this.nodes.unshift(...items.map(this.template));
         this.marker.after(this.fragment);
     }
 }
@@ -165,7 +139,7 @@ class ReactiveArraySlot<T> {
 
 export default <T>(anchor: Element, renderable: RenderableReactive<T>) => {
     let { array, template } = renderable,
-        slot = new ReactiveArraySlot(anchor, array, template);
+        slot = new ArraySlot(anchor, array, template);
 
     if (array.length) {
         root(() => {
