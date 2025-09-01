@@ -19,11 +19,11 @@ class ArraySlot<T> {
 
         this.array = array;
         this.marker = anchor;
-        this.template = function (data, i) {
+        this.template = function (data) {
             let dispose: VoidFunction,
                 frag = root((d) => {
                     dispose = d;
-                    return template(data, i);
+                    return template(data);
                 }),
                 group = {
                     head: firstChild.call(frag),
