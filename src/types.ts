@@ -34,7 +34,7 @@ type Renderable<T> = DocumentFragment | Effect<T> | Node | NodeList | Primitive 
 type RenderableReactive<T> = Readonly<{
     [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;
     array: ReactiveArray<T>;
-    template: (value: T) => ReturnType<typeof html>;
+    template: (value: T, i: number) => ReturnType<typeof html>;
 }>;
 
 type SlotGroup = {

@@ -19,11 +19,11 @@ class ArraySlot<T> {
 
         this.array = array;
         this.marker = anchor;
-        this.template = function (data) {
+        this.template = function (data, i) {
             let dispose: VoidFunction,
                 frag = root((d) => {
                     dispose = d;
-                    return template(data);
+                    return template(data, i);
                 }),
                 group = {
                     head: firstChild.call(frag),
@@ -138,8 +138,8 @@ class ArraySlot<T> {
 
 
 export default <T>(anchor: Element, renderable: RenderableReactive<T>) => {
-    let { array, template } = renderable,
-        slot = new ArraySlot(anchor, array, template);
+    let array = renderable.array,
+        slot = new ArraySlot(anchor, array, renderable.template);
 
     if (array.length) {
         root(() => {
