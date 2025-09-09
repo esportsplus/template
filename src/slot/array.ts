@@ -1,4 +1,4 @@
-import { root, ReactiveArray } from '@esportsplus/reactivity';
+import { read, root, set, signal, ReactiveArray } from '@esportsplus/reactivity';
 import { EMPTY_FRAGMENT } from '~/constants';
 import { RenderableReactive, SlotGroup } from '~/types';
 import { append } from '~/utilities/fragment';
@@ -12,6 +12,7 @@ class ArraySlot<T> {
     marker: Element;
     nodes: SlotGroup[] = [];
     template: (...args: Parameters< RenderableReactive<T>['template'] >) => SlotGroup;
+    trigger = signal(false);
 
 
     constructor(anchor: Element, array: ReactiveArray<T>, template: RenderableReactive<T>['template']) {
@@ -58,6 +59,7 @@ class ArraySlot<T> {
 
 
     get length() {
+        read(this.trigger);
         return this.nodes.length;
     }
 
@@ -71,6 +73,8 @@ class ArraySlot<T> {
         else {
             this.splice(n);
         }
+
+        set(this.trigger, !!this.trigger.value);
     }
 
 
@@ -86,6 +90,7 @@ class ArraySlot<T> {
 
     clear() {
         remove(...this.nodes.splice(0));
+        set(this.trigger, !!this.trigger.value);
     }
 
     pop() {
@@ -93,6 +98,7 @@ class ArraySlot<T> {
 
         if (group) {
             remove(group);
+            set(this.trigger, !!this.trigger.value);
         }
     }
 
@@ -102,6 +108,7 @@ class ArraySlot<T> {
         this.nodes.push( ...items.map(this.template) );
 
         anchor.after(this.fragment);
+        set(this.trigger, !!this.trigger.value);
     }
 
     render() {
@@ -118,21 +125,28 @@ class ArraySlot<T> {
 
         if (group) {
             remove(group);
+            set(this.trigger, !!this.trigger.value);
         }
     }
 
     splice(start: number, stop: number = this.nodes.length, ...items: T[]) {
         if (!items.length) {
-            return remove(...this.nodes.splice(start, stop));
+            remove(...this.nodes.splice(start, stop));
+            set(this.trigger, !!this.trigger.value);
+            return;
         }
 
         remove( ...this.nodes.splice(start, stop, ...items.map(this.template)) );
         this.anchor(start - 1).after(this.fragment);
+
+        set(this.trigger, !!this.trigger.value);
     }
 
     unshift(items: T[]) {
         this.nodes.unshift(...items.map(this.template));
         this.marker.after(this.fragment);
+
+        set(this.trigger, !!this.trigger.value);
     }
 }
 
