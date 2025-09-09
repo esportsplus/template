@@ -74,7 +74,7 @@ class ArraySlot<T> {
             this.splice(n);
         }
 
-        set(this.trigger, !!this.trigger.value);
+        set(this.trigger, !this.trigger.value);
     }
 
 
@@ -90,7 +90,7 @@ class ArraySlot<T> {
 
     clear() {
         remove(...this.nodes.splice(0));
-        set(this.trigger, !!this.trigger.value);
+        set(this.trigger, !this.trigger.value);
     }
 
     pop() {
@@ -98,7 +98,7 @@ class ArraySlot<T> {
 
         if (group) {
             remove(group);
-            set(this.trigger, !!this.trigger.value);
+            set(this.trigger, !this.trigger.value);
         }
     }
 
@@ -108,7 +108,7 @@ class ArraySlot<T> {
         this.nodes.push( ...items.map(this.template) );
 
         anchor.after(this.fragment);
-        set(this.trigger, !!this.trigger.value);
+        set(this.trigger, !this.trigger.value);
     }
 
     render() {
@@ -125,28 +125,28 @@ class ArraySlot<T> {
 
         if (group) {
             remove(group);
-            set(this.trigger, !!this.trigger.value);
+            set(this.trigger, !this.trigger.value);
         }
     }
 
     splice(start: number, stop: number = this.nodes.length, ...items: T[]) {
         if (!items.length) {
             remove(...this.nodes.splice(start, stop));
-            set(this.trigger, !!this.trigger.value);
+            set(this.trigger, !this.trigger.value);
             return;
         }
 
         remove( ...this.nodes.splice(start, stop, ...items.map(this.template)) );
         this.anchor(start - 1).after(this.fragment);
 
-        set(this.trigger, !!this.trigger.value);
+        set(this.trigger, !this.trigger.value);
     }
 
     unshift(items: T[]) {
         this.nodes.unshift(...items.map(this.template));
         this.marker.after(this.fragment);
 
-        set(this.trigger, !!this.trigger.value);
+        set(this.trigger, !this.trigger.value);
     }
 }
 
