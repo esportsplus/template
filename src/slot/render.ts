@@ -7,37 +7,37 @@ import text from '~/utilities/text';
 import array from './array';
 
 
-export default function render(anchor: Element, input: unknown): Node {
-    if (input == null || input === false || input === '') {
+export default function render(anchor: Element, value: unknown): Node {
+    if (value == null || value === false || value === '') {
         return EMPTY_FRAGMENT;
     }
 
-    if (typeof input !== 'object') {
-        return text(input as any);
+    if (typeof value !== 'object') {
+        return text(value as any);
     }
 
-    if (RENDERABLE in input) {
-        return array(anchor, input as RenderableReactive<unknown>);
+    if (RENDERABLE in value) {
+        return array(anchor, value as RenderableReactive<unknown>);
     }
 
-    if ('nodeType' in input) {
-        return input as Node;
+    if ('nodeType' in value) {
+        return value as Node;
     }
 
-    if (isArray(input)) {
+    if (isArray(value)) {
         let fragment = cloneNode.call(EMPTY_FRAGMENT);
 
-        for (let i = 0, n = (input as unknown[]).length; i < n; i++) {
-            append.call(fragment, render(anchor, (input as unknown[])[i]));
+        for (let i = 0, n = (value as unknown[]).length; i < n; i++) {
+            append.call(fragment, render(anchor, (value as unknown[])[i]));
             anchor = lastChild.call(fragment);
         }
 
         return fragment;
     }
 
-    if (input instanceof NodeList) {
+    if (value instanceof NodeList) {
         let fragment = cloneNode.call(EMPTY_FRAGMENT),
-            nodes = Array.from(input as NodeList);
+            nodes = Array.from(value as NodeList);
 
         for (let i = 0, n = nodes.length; i < n; i++) {
             append.call(fragment, nodes[i]);
@@ -46,5 +46,5 @@ export default function render(anchor: Element, input: unknown): Node {
         return fragment;
     }
 
-    return text(input as any);
+    return text(value as any);
 };

@@ -54,10 +54,6 @@ class EffectSlot {
     }
 
     update(value: unknown): void {
-        if (typeof value === 'function') {
-            return this.update( value() );
-        }
-
         let { anchor, group, textnode } = this;
 
         if (group) {
@@ -69,7 +65,10 @@ class EffectSlot {
             value = '';
         }
 
-        if (typeof value !== 'object') {
+        if (typeof value === 'function') {
+            this.update( value() );
+        }
+        else if (typeof value !== 'object') {
             if (textnode) {
                 nodeValue.call(textnode, String(value));
 
