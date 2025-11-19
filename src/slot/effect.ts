@@ -53,17 +53,21 @@ class EffectSlot {
         }
     }
 
-    update(value: unknown) {
-        if (this.group) {
-            remove(this.group);
+    update(value: unknown): void {
+        if (typeof value === 'function') {
+            return this.update( value() );
+        }
+
+        let { anchor, group, textnode } = this;
+
+        if (group) {
+            remove(group);
             this.group = null;
         }
 
         if (value == null || value === false) {
             value = '';
         }
-
-        let { anchor, textnode } = this;
 
         if (typeof value !== 'object') {
             if (textnode) {

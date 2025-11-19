@@ -64,8 +64,7 @@ function list(
     let base = name + '.static',
         delimiter = delimiters[name],
         store = (ctx ??= context(element)).store ??= {},
-        dynamic = store[name] as Set<string> | undefined,
-        type = typeof value;
+        dynamic = store[name] as Set<string> | undefined;
 
     if (dynamic === undefined) {
         let value = (element.getAttribute(name) || '').trim();
@@ -75,14 +74,14 @@ function list(
     }
 
     if (id === null) {
-        if (value && type === 'string') {
+        if (value && typeof value === 'string') {
             store[base] += (store[base] ? delimiter : '') + value;
         }
     }
     else {
         let hot: Attributes = {};
 
-        if (value && type === 'string') {
+        if (value && typeof value === 'string') {
             let part: string,
                 parts = (value as string).split(delimiter);
 
@@ -200,10 +199,9 @@ function task() {
 
 const set = (element: Element, name: string, value: unknown) => {
     let fn = name === 'class' || name === 'style' ? list : property,
-        state: State = STATE_HYDRATING,
-        type = typeof value;
+        state: State = STATE_HYDRATING;
 
-    if (type === 'function') {
+    if (typeof value === 'function') {
         if (name.startsWith('on')) {
             return event(element, name as `on${string}`, value as Function);
         }
@@ -243,7 +241,7 @@ const set = (element: Element, name: string, value: unknown) => {
         return;
     }
 
-    if (type !== 'object') {
+    if (typeof value !== 'object') {
         // Skip isArray when possible
     }
     else if (isArray(value)) {
