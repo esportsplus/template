@@ -1,11 +1,23 @@
 import { effect } from '@esportsplus/reactivity';
-import { STATE_HYDRATING, STATE_NONE } from '~/constants';
 import { Element, Renderable, SlotGroup } from '~/types';
 import { firstChild, lastChild, nodeValue } from '~/utilities/node'
 import { raf } from '~/utilities/queue'
 import { remove } from './cleanup';
 import text from '~/utilities/text';
 import render from './render';
+
+
+function read(value: unknown): unknown {
+    if (typeof value === 'function') {
+        return read( value() );
+    }
+
+    if (value == null || value === false) {
+        return '';
+    }
+
+    return value;
+}
 
 
 class EffectSlot {
@@ -16,15 +28,13 @@ class EffectSlot {
 
 
     constructor(anchor: Element, fn: (dispose?: VoidFunction) => Renderable<any>) {
-        let dispose = fn.length ? () => this.dispose() : undefined,
-            state = STATE_HYDRATING;
+        let dispose = fn.length ? () => this.dispose() : undefined;
 
         this.anchor = anchor;
         this.disposer = effect(() => {
-            let value = fn(dispose);
+            let value = read( fn(dispose) );
 
-            if (state === STATE_HYDRATING) {
-                state = STATE_NONE;
+            if (!this.disposer) {
                 this.update(value);
             }
             else {
@@ -61,14 +71,7 @@ class EffectSlot {
             this.group = null;
         }
 
-        if (value == null || value === false) {
-            value = '';
-        }
-
-        if (typeof value === 'function') {
-            this.update( value() );
-        }
-        else if (typeof value !== 'object') {
+        if (typeof value !== 'object') {
             if (textnode) {
                 nodeValue.call(textnode, String(value));
 
