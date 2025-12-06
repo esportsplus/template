@@ -36,11 +36,10 @@ export default function render(anchor: Element, value: unknown): Node {
     }
 
     if (value instanceof NodeList) {
-        let fragment = cloneNode.call(EMPTY_FRAGMENT),
-            nodes = Array.from(value as NodeList);
+        let fragment = cloneNode.call(EMPTY_FRAGMENT);
 
-        for (let i = 0, n = nodes.length; i < n; i++) {
-            append.call(fragment, nodes[i]);
+        for (let i = 0, n = value.length; i < n; i++) {
+            append.call(fragment, value[i]);
         }
 
         return fragment;
