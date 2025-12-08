@@ -12,8 +12,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@esportsplus/reactivity':
-        specifier: ^0.18.1
-        version: 0.18.1
+        specifier: ^0.19.0
+        version: 0.19.0
       '@esportsplus/tasks':
         specifier: ^0.4.0
         version: 0.4.0
@@ -36,8 +36,8 @@ packages:
   '@esportsplus/queue@0.1.0':
     resolution: {integrity: sha512-ycZRjkTD9dz29yVqSGJwDnAUm9f4y8icW7fKLxvvY4gmoPqfDMJXr6QdLqYvqLfVgNvlKKVhIUFLsefmrf9kvA==}
 
-  '@esportsplus/reactivity@0.18.1':
-    resolution: {integrity: sha512-pSBgn9r0v77xsvyRkOvTyyP0Fya6mkGqIYW7vwWx/unXI2vIJxf/VGU8Ke844VXdBkmlbLslnXzkOfFGDOknKQ==}
+  '@esportsplus/reactivity@0.19.0':
+    resolution: {integrity: sha512-tlkEJkbsV8f3GA1GWGpYPVaMSP0s6rrxD9sJGLN0UnBRBngrQ/4oPCzROAdZE2691bEdcE6U5z4fC3w0sk/SmQ==}
 
   '@esportsplus/tasks@0.4.0':
     resolution: {integrity: sha512-F74DAHtdO6n3LBBUxz4xNCdMnmLduSUFuKKgwv40d1yfy8sgooEcxuQBHmSi6K84H8Aw1+biw32JaIzJJ4uWSg==}
@@ -45,9 +45,6 @@ packages:
   '@esportsplus/typescript@0.9.2':
     resolution: {integrity: sha512-7CLlWVhCbkEW3EodOk+zE0xMAFeyVs+EjYr3/H5mY+im1O+o6ig5RpY3TNWabUkEBW14Jo8TBoHQAsPJH6CnuQ==}
     hasBin: true
-
-  '@esportsplus/utilities@0.22.3':
-    resolution: {integrity: sha512-1BIjAK4Qq5Ho6c+vn1BmDbFR4MGYqJ4WvSRUGisTwQmQ2tT2JLIov4bbJQKX18rk1zyATaPe3AYVGOsSxrG95w==}
 
   '@esportsplus/utilities@0.25.0':
     resolution: {integrity: sha512-B3s6HKZuqSZ6HxEuvph7oJD4GLGI3dHlio4WH+CnAQlGg6wrC84gSV5DTicT83A2bNMSfhdkZ9Ohl6K1PuKzuA==}
@@ -214,10 +211,10 @@ snapshots:
 
   '@esportsplus/queue@0.1.0': {}
 
-  '@esportsplus/reactivity@0.18.1':
+  '@esportsplus/reactivity@0.19.0':
     dependencies:
       '@esportsplus/custom-function': 0.0.13
-      '@esportsplus/utilities': 0.22.3
+      '@esportsplus/utilities': 0.25.0
 
   '@esportsplus/tasks@0.4.0':
     dependencies:
@@ -228,8 +225,6 @@ snapshots:
       '@esportsplus/cli-passthrough': 0.0.10
       tsc-alias: 1.8.16
       typescript: 5.8.3
-
-  '@esportsplus/utilities@0.22.3': {}
 
   '@esportsplus/utilities@0.25.0': {}
 
