@@ -2,7 +2,7 @@ import { root, ReactiveArray } from '@esportsplus/reactivity';
 import { EMPTY_FRAGMENT } from '~/constants';
 import { RenderableReactive, SlotGroup } from '~/types';
 import { append } from '~/utilities/fragment';
-import { cloneNode, firstChild, lastChild } from '~/utilities/node';
+import { cloneNode, firstChild, lastChild, nextSibling } from '~/utilities/node';
 import { ondisconnect, remove } from './cleanup';
 
 
@@ -19,11 +19,11 @@ class ArraySlot<T> {
 
         this.array = array;
         this.marker = anchor;
-        this.template = function (data, i) {
+        this.template = function (data) {
             let dispose: VoidFunction,
                 frag = root((d) => {
                     dispose = d;
-                    return template(data, i);
+                    return template(data);
                 }),
                 group = {
                     head: firstChild.call(frag),
@@ -38,7 +38,7 @@ class ArraySlot<T> {
 
         array.on('clear', () => this.clear());
         array.on('reverse', () => {
-            root(() => this.render());
+            root(() => this.sync());
         });
         array.on('pop', () => this.pop());
         array.on('push', ({ items }) => {
@@ -46,7 +46,7 @@ class ArraySlot<T> {
         });
         array.on('shift', () => this.shift());
         array.on('sort', () => {
-            root(() => this.render());
+            root(() => this.sync());
         });
         array.on('splice', ({ deleteCount, items, start }) => {
             root(() => this.splice(start, deleteCount, ...items));
@@ -130,6 +130,30 @@ class ArraySlot<T> {
 
         remove( ...this.nodes.splice(start, stop, ...items.map(this.template)) );
         this.anchor(start - 1).after(this.fragment);
+    }
+
+    sync() {
+        let nodes = this.nodes,
+            n = nodes.length;
+
+        if (!n) {
+            return;
+        }
+
+        for (let i = 0; i < n; i++) {
+            let group = nodes[i],
+                next: Node | null,
+                node: Node | null = group.head;
+
+            while (node) {
+                next = node === group.tail ? null : nextSibling.call(node);
+
+                append.call(this.fragment, node);
+                node = next;
+            }
+        }
+
+        this.marker.after(this.fragment);
     }
 
     unshift(items: T[]) {
