@@ -16,9 +16,11 @@ let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
     >(),
     keys: Record<string, symbol> = {},
     passive = new Set<`on${string}`>([
+        'onanimationend', 'onanimationiteration', 'onanimationstart',
         'onmousedown', 'onmouseenter', 'onmouseleave', 'onmousemove', 'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel',
+        'onpointerenter', 'onpointerleave', 'onpointermove', 'onpointerout', 'onpointerover',
         'onscroll',
-        'ontouchcancel', 'ontouchend', 'ontouchleave', 'ontouchmove', 'ontouchstart',
+        'ontouchcancel', 'ontouchend', 'ontouchleave', 'ontouchmove', 'ontouchstart', 'ontransitionend',
         'onwheel'
     ]);
 

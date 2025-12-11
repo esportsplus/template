@@ -72,15 +72,19 @@ class EffectSlot {
         }
 
         if (typeof value !== 'object') {
+            if (typeof value !== 'string') {
+                value = String(value);
+            }
+
             if (textnode) {
-                nodeValue.call(textnode, String(value));
+                nodeValue.call(textnode, value);
 
                 if (!textnode.isConnected) {
                     anchor.after(textnode);
                 }
             }
             else {
-                anchor.after( this.textnode = text( String(value) ) );
+                anchor.after( this.textnode = text(value as string) );
             }
         }
         else {
