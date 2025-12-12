@@ -30,21 +30,21 @@ class EffectSlot {
 
     constructor(anchor: Element, fn: (dispose?: VoidFunction) => Renderable<any>) {
         let dispose = fn.length ? () => this.dispose() : undefined,
-            slot = this;
+            value: unknown;
 
         this.anchor = anchor;
-        this.disposer = effect(function () {
-            let value = read( fn(dispose) );
+        this.disposer = effect(() => {
+            value = read( fn(dispose) );
 
-            if (!slot.disposer) {
-                slot.update(value);
+            if (!this.disposer) {
+                this.update(value);
             }
-            else if (!slot.scheduled) {
-                slot.scheduled = true;
+            else if (!this.scheduled) {
+                this.scheduled = true;
 
                 raf(() => {
-                    slot.scheduled = false;
-                    slot.update(this.value);
+                    this.scheduled = false;
+                    this.update(value);
                 });
             }
         });

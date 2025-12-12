@@ -79,7 +79,7 @@ function list(
         }
     }
     else {
-        let hot: Attributes = {};
+        let hot: Record<PropertyKey, true> = {};
 
         if (value && typeof value === 'string') {
             let part: string,
@@ -93,15 +93,15 @@ function list(
                 }
 
                 dynamic.add(part);
-                hot[part] = null;
+                hot[part] = true;
             }
         }
 
-        let cold = store[id] as Attributes | undefined;
+        let cold = store[id] as Record<PropertyKey, true> | undefined;
 
         if (cold !== undefined) {
             for (let part in cold) {
-                if (hot[part] === undefined) {
+                if (hot[part] === true) {
                     continue;
                 }
 
