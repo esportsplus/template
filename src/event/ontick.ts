@@ -1,5 +1,5 @@
 import { STATE_HYDRATING, STATE_NONE } from '~/constants';
-import { raf } from '~/utilities/queue';
+import raf from '~/utilities/raf';
 
 
 let tasks = Object.assign(new Set<VoidFunction>(), { running: false });
@@ -15,7 +15,7 @@ function tick() {
         task();
     }
 
-    raf.add(tick);
+    raf(tick);
 }
 
 
@@ -24,7 +24,7 @@ const add = (task: VoidFunction) => {
 
     if (!tasks.running) {
         tasks.running = true;
-        raf.add(tick);
+        raf(tick);
     }
 };
 

@@ -16,9 +16,9 @@ const remove = (...groups: SlotGroup[]) => {
             tail = group.tail || head;
 
         while (tail) {
-            if (CLEANUP in tail) {
-                fns = tail[CLEANUP] as VoidFunction[];
+            fns = tail[CLEANUP] as VoidFunction[] | undefined;
 
+            if (fns !== undefined) {
                 while (fn = fns.pop()) {
                     fn();
                 }

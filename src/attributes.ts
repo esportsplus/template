@@ -3,8 +3,8 @@ import { isArray, isObject } from '@esportsplus/utilities';
 import { STATE_HYDRATING, STATE_NONE, STATE_WAITING } from './constants';
 import { Attributes, Element } from './types';
 import { className, removeAttribute, setAttribute } from './utilities/element';
-import { raf } from './utilities/queue';
 import q from '@esportsplus/queue';
+import raf from './utilities/raf';
 import event from './event';
 
 
@@ -37,7 +37,7 @@ function apply(element: Element, name: string, value: unknown) {
     else if (name === 'class') {
         className.call(element, value as string);
     }
-    else if (name === 'style' || name.startsWith('data-') || 'ownerSVGElement' in element) {
+    else if (name === 'style' || (name[0] === 'd' && name.startsWith('data-')) || element['ownerSVGElement']) {
         setAttribute.call(element, name, value as string);
     }
     else {
@@ -101,7 +101,7 @@ function list(
 
         if (cold !== undefined) {
             for (let part in cold) {
-                if (part in hot) {
+                if (hot[part] === undefined) {
                     continue;
                 }
 
@@ -170,7 +170,7 @@ function schedule(ctx: Context | null, element: Element, name: string, state: St
     }
 
     scheduled = true;
-    raf.add(task);
+    raf(task);
 }
 
 function task() {
@@ -189,7 +189,7 @@ function task() {
     }
 
     if (queue.length) {
-        raf.add(task);
+        raf(task);
     }
     else {
         scheduled = false;
@@ -202,7 +202,7 @@ const set = (element: Element, name: string, value: unknown) => {
         state: State = STATE_HYDRATING;
 
     if (typeof value === 'function') {
-        if (name.startsWith('on')) {
+        if (name[0] === 'o' && name[1] === 'n') {
             return event(element, name as `on${string}`, value as Function);
         }
 

@@ -42,9 +42,12 @@ function build(literals: TemplateStringsArray) {
         let attribute = '',
             buffer = '',
             char = '',
+            match: RegExpExecArray | null,
             quote = '';
 
-        for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
+        REGEX_SLOT_ATTRIBUTES.lastIndex = 0;
+
+        while (match = REGEX_SLOT_ATTRIBUTES.exec(html)) {
             let found = match[1],
                 metadata = attributes[found];
 
@@ -105,7 +108,12 @@ function build(literals: TemplateStringsArray) {
         }
     }
 
-    for (let match of html.matchAll(REGEX_SLOT_NODES)) {
+    REGEX_SLOT_NODES.lastIndex = 0;
+
+    {
+        let match: RegExpExecArray | null;
+
+        while (match = REGEX_SLOT_NODES.exec(html)) {
         let parent = levels[level],
             type = match[1] === undefined ? NODE_SLOT : (NODE_WHITELIST[match[1].toLowerCase()] || NODE_ELEMENT);
 
@@ -171,7 +179,8 @@ function build(literals: TemplateStringsArray) {
             parent.children++;
         }
 
-        index = (match.index || 0) + match[0].length;
+            index = (match.index || 0) + match[0].length;
+        }
     }
 
     if (events) {
@@ -182,12 +191,17 @@ function build(literals: TemplateStringsArray) {
 }
 
 function methods(children: number, copy: (typeof firstChild)[], first: (typeof firstChild), next: (typeof firstChild)) {
-    let methods = copy.slice();
+    let length = copy.length,
+        methods: (typeof firstChild)[] = new Array(length + 1 + children);
 
-    methods.push(first);
+    for (let i = 0, n = length; i < n; i++) {
+        methods[i] = copy[i];
+    }
 
-    for (let start = 0; start < children; start++) {
-        methods.push(next);
+    methods[length] = first;
+
+    for (let i = 0, n = children; i < n; i++) {
+        methods[length + 1 + i] = next;
     }
 
     return methods;

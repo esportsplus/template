@@ -1,11 +1,11 @@
 import { Element } from '~/types';
-import effect from './effect';
+import { EffectSlot } from './effect';
 import render from './render';
 
 
 export default (anchor: Element, value: unknown): void => {
     if (typeof value === 'function') {
-        effect(anchor, value as Parameters<typeof effect>[1]);
+        new EffectSlot(anchor, value as ConstructorParameters<typeof EffectSlot>[1]);
     }
     else {
         anchor.after( render(anchor, value) );

@@ -1,13 +1,13 @@
 import { ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_HTML_REACTIVE_ARRAY } from '~/constants';
-import { Attribute, Attributes, Renderable, RenderableReactive } from '~/types';
+import { Attribute, Attributes, Renderable } from '~/types';
 import { cloneNode } from '~/utilities/node';
+import { ArraySlot } from '~/slot/array';
 import parser from './parser';
 import attributes from '~/attributes';
 import slot from '~/slot';
 
 
-type Values<T> = Attribute | Attributes<any> | Renderable<T>;
+type Values<T> = Attribute | Attributes<any> | ArraySlot<T> | Renderable<T>;
 
 
 const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<T>[])[]) => {
@@ -40,12 +40,8 @@ const html = <T>(literals: TemplateStringsArray, ...values: (Values<T> | Values<
     return clone;
 };
 
-html.reactive = <T>(array: ReactiveArray<T>, template: RenderableReactive<T>['template']): RenderableReactive<T> => {
-    return {
-        [RENDERABLE]: RENDERABLE_HTML_REACTIVE_ARRAY,
-        array,
-        template
-    };
+html.reactive = <T>(arr: ReactiveArray<T>, template: (value: T) => ReturnType<typeof html>) => {
+    return new ArraySlot(arr, template);
 };
 
 

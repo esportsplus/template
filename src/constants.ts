@@ -1,7 +1,10 @@
 import { fragment } from './utilities/fragment';
 
 
-const CLEANUP = Symbol();
+const ARRAY_SLOT = Symbol('template.array.slot');
+
+
+const CLEANUP = Symbol('template.cleanup');
 
 
 const EMPTY_FRAGMENT = fragment('');
@@ -49,11 +52,6 @@ const REGEX_SLOT_ATTRIBUTES = /<[\w-]+([^><]*{{\$}}[^><]*)>/g;
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{{\$}}/g;
 
 
-const RENDERABLE = Symbol();
-
-const RENDERABLE_HTML_REACTIVE_ARRAY = 1;
-
-
 const SLOT_HTML = '<!--$-->';
 
 const SLOT_MARKER = '{{$}}';
@@ -67,10 +65,10 @@ const STATE_WAITING = 2;
 
 
 export {
+    ARRAY_SLOT,
     CLEANUP,
     EMPTY_FRAGMENT,
     NODE_CLOSING, NODE_ELEMENT, NODE_SLOT, NODE_VOID, NODE_WHITELIST,
     REGEX_EMPTY_TEXT_NODES, REGEX_EVENTS, REGEX_SLOT_ATTRIBUTES, REGEX_SLOT_NODES,
-    RENDERABLE, RENDERABLE_HTML_REACTIVE_ARRAY,
-    SLOT_HTML, SLOT_MARKER, STATE_HYDRATING, STATE_NONE, STATE_WAITING
+    SLOT_HTML, STATE_HYDRATING, SLOT_MARKER, STATE_NONE, STATE_WAITING
 };

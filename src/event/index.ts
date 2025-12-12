@@ -64,10 +64,13 @@ function register(element: Element, event: `on${string}`) {
     let key = keys[event] = Symbol();
 
     addEventListener.call(window.document, event.slice(2), (e) => {
-        let node = e.target as Element | null;
+        let fn,
+            node = e.target as Element | null;
 
         while (node) {
-            if (key in node) {
+            fn = node[key];
+
+            if (typeof fn === 'function') {
                 defineProperty(e, 'currentTarget', {
                     configurable: true,
                     get() {
@@ -75,7 +78,7 @@ function register(element: Element, event: `on${string}`) {
                     }
                 });
 
-                return (node[key] as Function).call(node, e);
+                return fn.call(node, e);
             }
 
             node = parentElement.call(node);

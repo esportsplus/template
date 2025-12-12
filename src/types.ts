@@ -1,9 +1,7 @@
-import { ReactiveArray } from '@esportsplus/reactivity';
-import { RENDERABLE, RENDERABLE_HTML_REACTIVE_ARRAY } from './constants';
 import { firstChild } from './utilities/node';
+import { ArraySlot } from './slot/array';
 import attributes from './attributes';
 import slot from './slot';
-import html from './html';
 
 
 type Attribute = Effect<Primitive | Primitive[]> | ((...args: any[]) => void) | Primitive;
@@ -29,13 +27,7 @@ type Element = HTMLElement & Attributes<any>;
 // - Importing from ^ causes 'cannot be named without a reference to...' error
 type Primitive = bigint | boolean | null | number | string | undefined;
 
-type Renderable<T> = DocumentFragment | Effect<T> | Node | NodeList | Primitive | RenderableReactive<T> | Renderable<T>[];
-
-type RenderableReactive<T> = Readonly<{
-    [RENDERABLE]: typeof RENDERABLE_HTML_REACTIVE_ARRAY;
-    array: ReactiveArray<T>;
-    template: (value: T) => ReturnType<typeof html>;
-}>;
+type Renderable<T> = DocumentFragment | ArraySlot<T> | Effect<T> | Node | NodeList | Primitive | Renderable<T>[];
 
 type SlotGroup = {
     head: Element;
@@ -57,7 +49,7 @@ type Template = {
 export type {
     Attribute, Attributes,
     Effect, Element,
-    Renderable, RenderableReactive,
+    Renderable,
     SlotGroup,
     Template
 };

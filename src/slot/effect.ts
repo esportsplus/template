@@ -1,8 +1,8 @@
 import { effect } from '@esportsplus/reactivity';
 import { Element, Renderable, SlotGroup } from '~/types';
 import { firstChild, lastChild, nodeValue } from '~/utilities/node'
-import { raf } from '~/utilities/queue'
 import { remove } from './cleanup';
+import raf from '~/utilities/raf'
 import text from '~/utilities/text';
 import render from './render';
 
@@ -24,22 +24,27 @@ class EffectSlot {
     anchor: Element;
     disposer: VoidFunction;
     group: SlotGroup | null = null;
+    scheduled = false;
     textnode: Node | null = null;
 
 
     constructor(anchor: Element, fn: (dispose?: VoidFunction) => Renderable<any>) {
-        let dispose = fn.length ? () => this.dispose() : undefined;
+        let dispose = fn.length ? () => this.dispose() : undefined,
+            slot = this;
 
         this.anchor = anchor;
-        this.disposer = effect(() => {
+        this.disposer = effect(function () {
             let value = read( fn(dispose) );
 
-            if (!this.disposer) {
-                this.update(value);
+            if (!slot.disposer) {
+                slot.update(value);
             }
-            else {
-                raf.add(() => {
-                    this.update(value);
+            else if (!slot.scheduled) {
+                slot.scheduled = true;
+
+                raf(() => {
+                    slot.scheduled = false;
+                    slot.update(this.value);
                 });
             }
         });
@@ -108,6 +113,4 @@ class EffectSlot {
 }
 
 
-export default (anchor: Element, fn: (dispose?: VoidFunction) => Renderable<any>) => {
-    new EffectSlot(anchor, fn);
-};
+export { EffectSlot };

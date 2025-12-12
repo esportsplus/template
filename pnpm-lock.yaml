@@ -9,14 +9,11 @@ importers:
   .:
     dependencies:
       '@esportsplus/queue':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.2.0
+        version: 0.2.0
       '@esportsplus/reactivity':
-        specifier: ^0.19.0
-        version: 0.19.0
-      '@esportsplus/tasks':
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.21.0
+        version: 0.21.0
       '@esportsplus/utilities':
         specifier: ^0.25.0
         version: 0.25.0
@@ -33,14 +30,11 @@ packages:
   '@esportsplus/custom-function@0.0.13':
     resolution: {integrity: sha512-9xCZ0IbC3/EFxTNBQfvrxmurW5BDT5BK7cHC2Sbq99+gmsf/1Bg/FcTCz1pVvSNXHVm8+wvDAS14WckfL7PZZQ==}
 
-  '@esportsplus/queue@0.1.0':
-    resolution: {integrity: sha512-ycZRjkTD9dz29yVqSGJwDnAUm9f4y8icW7fKLxvvY4gmoPqfDMJXr6QdLqYvqLfVgNvlKKVhIUFLsefmrf9kvA==}
+  '@esportsplus/queue@0.2.0':
+    resolution: {integrity: sha512-YXutzJ9UwzNXnqdoFaPjmuv7QehComMQxoX7C0OM592akh3BNdmo7WboErlJMSkw90j5EDLsuc7ZTfBEbYpyVw==}
 
-  '@esportsplus/reactivity@0.19.0':
-    resolution: {integrity: sha512-tlkEJkbsV8f3GA1GWGpYPVaMSP0s6rrxD9sJGLN0UnBRBngrQ/4oPCzROAdZE2691bEdcE6U5z4fC3w0sk/SmQ==}
-
-  '@esportsplus/tasks@0.4.0':
-    resolution: {integrity: sha512-F74DAHtdO6n3LBBUxz4xNCdMnmLduSUFuKKgwv40d1yfy8sgooEcxuQBHmSi6K84H8Aw1+biw32JaIzJJ4uWSg==}
+  '@esportsplus/reactivity@0.21.0':
+    resolution: {integrity: sha512-CTkHZascWpuWG2Qc3Qk7BakPrWK2Q9bkB7v6YIP9sRxqGfSCW30Wgy4Fw2NB6z1Bq5fUVf5Y8Vq4b3YUEQp+ow==}
 
   '@esportsplus/typescript@0.9.2':
     resolution: {integrity: sha512-7CLlWVhCbkEW3EodOk+zE0xMAFeyVs+EjYr3/H5mY+im1O+o6ig5RpY3TNWabUkEBW14Jo8TBoHQAsPJH6CnuQ==}
@@ -209,16 +203,12 @@ snapshots:
 
   '@esportsplus/custom-function@0.0.13': {}
 
-  '@esportsplus/queue@0.1.0': {}
+  '@esportsplus/queue@0.2.0': {}
 
-  '@esportsplus/reactivity@0.19.0':
+  '@esportsplus/reactivity@0.21.0':
     dependencies:
       '@esportsplus/custom-function': 0.0.13
       '@esportsplus/utilities': 0.25.0
-
-  '@esportsplus/tasks@0.4.0':
-    dependencies:
-      '@esportsplus/queue': 0.1.0
 
   '@esportsplus/typescript@0.9.2':
     dependencies:

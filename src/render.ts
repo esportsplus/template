@@ -1,17 +1,14 @@
-import { SLOT_HTML } from './constants';
 import { Renderable } from './types';
-import { fragment } from './utilities/fragment';
-import { firstChild, nodeValue } from './utilities/node';
+import { nodeValue } from './utilities/node';
+import marker from './utilities/marker';
 import slot from './slot';
 
 
-let anchor,
-    marker = firstChild.call( fragment(SLOT_HTML) );
-
-
 export default <T>(parent: HTMLElement, renderable: Renderable<T>) => {
+    let anchor = marker.cloneNode();
+
     nodeValue.call(parent, '');
-    parent.append(anchor = marker.cloneNode());
+    parent.append(anchor);
 
     slot(anchor, renderable);
 };

@@ -1,9 +1,8 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/queue": "^0.1.0",
-        "@esportsplus/reactivity": "^0.19.0",
-        "@esportsplus/tasks": "^0.4.0",
+        "@esportsplus/queue": "^0.2.0",
+        "@esportsplus/reactivity": "^0.21.0",
         "@esportsplus/utilities": "^0.25.0"
     },
     "devDependencies": {
@@ -12,6 +11,10 @@
     "main": "./build/index.js",
     "name": "@esportsplus/template",
     "private": false,
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/esportsplus/template"
+    },
     "scripts": {
         "build": "tsc && tsc-alias",
         "-": "-",
