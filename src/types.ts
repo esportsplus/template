@@ -28,8 +28,6 @@ type Primitive = bigint | boolean | null | number | string | undefined;
 
 type Renderable<T> = DocumentFragment | ArraySlot<T> | Effect<T> | Node | NodeList | Primitive | Renderable<T>[];
 
-// #17: Start/End Node Boundary Tracking
-// Track boundaries explicitly for O(1) range operations
 type SlotGroup = {
     head: Element;
     tail: Element;

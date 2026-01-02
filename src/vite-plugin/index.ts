@@ -1,18 +1,22 @@
-// Phase 1-4: Vite Plugin for Compile-Time Template Optimization
+// Vite Plugin for Compile-Time Template Optimization
 //
-// Optimizations implemented:
-// - #1: Template pre-compilation (eliminates runtime regex parsing)
-// - #2: Ancestor-aware path traversal (caches intermediate nodes)
-// - #6: WeakMap cache elimination (static imports)
-// - #8: Static template bypass (direct clone for no-slot templates)
-// - #9: Nested template hoisting (pre-built at module scope)
-// - #10: html.reactive inlining → new ArraySlot
-// - Uses TypeScript Compiler API for reliable parsing
+// Uses:
+// - ts-parser.ts for finding html`` templates via TypeScript AST
+// - _parser.ts for parsing HTML and extracting slots
+// - codegen.ts for generating optimized runtime code
+//
+// Optimizations:
+// - Template pre-compilation (eliminates runtime parsing)
+// - Attribute handler specialization (class, style, data-*, events)
+// - Event routing (delegate, direct, lifecycle)
+// - Static value pre-joining
+// - Template deduplication
+// - html.reactive inlining → new ArraySlot
+
 
 import ts from 'typescript';
-import { parseTemplate, type ParsedTemplate } from './parser';
 import { addArraySlotImport, generateCode, generateReactiveInlining, needsArraySlotImport, setTypeChecker } from './codegen';
-import { findReactiveCalls } from './ts-parser';
+import { findHtmlTemplates, findReactiveCalls } from './ts-parser';
 import { getProgram, invalidateProgram } from './program';
 
 
@@ -31,19 +35,26 @@ type PluginOptions = {
 };
 
 
-let TRANSFORM_PATTERN = /\.[tj]sx?$/;
+const DEFAULT_EXCLUDE = [/node_modules/];
+
+const DEFAULT_INCLUDE = [/\.tsx?$/];
+
+const TRANSFORM_PATTERN = /\.[tj]sx?$/;
 
 
-function createFilter(include: RegExp[], exclude: RegExp[]) {
-    return (id: string) => {
-        // Check exclusions first
+const templatePlugin = (options: PluginOptions = {}): Plugin => {
+    let exclude = options.exclude || DEFAULT_EXCLUDE,
+        include = options.include || DEFAULT_INCLUDE,
+        root = options.root || process.cwd(),
+        typeCheckerEnabled = options.typeChecker !== false;
+
+    let filter = (id: string) => {
         for (let i = 0, n = exclude.length; i < n; i++) {
             if (exclude[i].test(id)) {
                 return false;
             }
         }
 
-        // Check inclusions
         for (let i = 0, n = include.length; i < n; i++) {
             if (include[i].test(id)) {
                 return true;
@@ -52,21 +63,6 @@ function createFilter(include: RegExp[], exclude: RegExp[]) {
 
         return include.length === 0;
     };
-}
-
-function mightNeedTransform(code: string): boolean {
-    return code.includes('html`') || code.includes('html.reactive');
-}
-
-
-const templatePlugin = (options: PluginOptions = {}): Plugin => {
-    let filter = createFilter(
-            options.include || [/\.tsx?$/],
-            options.exclude || [/node_modules/]
-        ),
-        root = options.root || process.cwd(),
-        templates = new Map<string, ParsedTemplate[]>(),
-        typeCheckerEnabled = options.typeChecker !== false;
 
     return {
         enforce: 'pre',
@@ -77,13 +73,12 @@ const templatePlugin = (options: PluginOptions = {}): Plugin => {
                 return null;
             }
 
-            // Skip if no html template literals or reactive calls
-            if (!mightNeedTransform(code)) {
+            if (!code.includes('html`') && !code.includes('html.reactive')) {
                 return null;
             }
 
             try {
-                // Get TypeChecker for deeper type analysis
+                // Get TypeChecker for type analysis
                 if (typeCheckerEnabled) {
                     try {
                         let program = getProgram(root),
@@ -92,7 +87,6 @@ const templatePlugin = (options: PluginOptions = {}): Plugin => {
                         setTypeChecker(checker);
                     }
                     catch {
-                        // TypeChecker unavailable, continue without it
                         setTypeChecker(undefined);
                     }
                 }
@@ -103,36 +97,44 @@ const templatePlugin = (options: PluginOptions = {}): Plugin => {
                 let changed = false,
                     result = code;
 
-                // Phase 2: Handle html.reactive inlining using TS parser
+                // Create source file for AST parsing
                 let sourceFile = ts.createSourceFile(
-                        id,
-                        code,
-                        ts.ScriptTarget.Latest,
-                        true
-                    ),
-                    reactiveCalls = findReactiveCalls(sourceFile);
+                    id,
+                    code,
+                    ts.ScriptTarget.Latest,
+                    true
+                );
+
+                // Handle html.reactive inlining
+                let reactiveCalls = findReactiveCalls(sourceFile);
 
                 if (reactiveCalls.length > 0) {
                     result = generateReactiveInlining(reactiveCalls, result, sourceFile);
                     changed = true;
 
-                    // Add ArraySlot import if needed
                     if (needsArraySlotImport(result)) {
                         result = addArraySlotImport(result);
                     }
+
+                    // Re-parse after modifications
+                    sourceFile = ts.createSourceFile(
+                        id,
+                        result,
+                        ts.ScriptTarget.Latest,
+                        true
+                    );
                 }
 
-                // Phase 1: Parse and transform html`` templates
-                let parsed = parseTemplate(result, id),
-                    codegenResult = generateCode(parsed, result);
+                // Find and transform html`` templates
+                let templates = findHtmlTemplates(sourceFile);
 
-                if (codegenResult.templates.length) {
-                    templates.set(id, codegenResult.templates);
-                }
+                if (templates.length > 0) {
+                    let codegenResult = generateCode(templates, result, sourceFile);
 
-                if (codegenResult.changed) {
-                    changed = true;
-                    result = codegenResult.code;
+                    if (codegenResult.changed) {
+                        changed = true;
+                        result = codegenResult.code;
+                    }
                 }
 
                 if (!changed) {
@@ -151,7 +153,6 @@ const templatePlugin = (options: PluginOptions = {}): Plugin => {
         },
 
         watchChange(id) {
-            // Invalidate TS program cache when files change
             if (TRANSFORM_PATTERN.test(id)) {
                 invalidateProgram();
             }

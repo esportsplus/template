@@ -1,7 +1,3 @@
-// Phase 1: TS-based Template Finder
-// Uses TypeScript Compiler API for reliable template literal detection
-// Eliminates edge cases from regex-based parsing
-
 import ts from 'typescript';
 
 
@@ -50,7 +46,8 @@ function extractTemplateInfo(node: ts.TaggedTemplateExpression): TemplateInfo {
     };
 }
 
-function findHtmlTemplates(sourceFile: ts.SourceFile): TemplateInfo[] {
+
+const findHtmlTemplates = (sourceFile: ts.SourceFile): TemplateInfo[] => {
     let templates: TemplateInfo[] = [];
 
     function visit(node: ts.Node): void {
@@ -71,7 +68,7 @@ function findHtmlTemplates(sourceFile: ts.SourceFile): TemplateInfo[] {
     return templates;
 }
 
-function findReactiveCalls(sourceFile: ts.SourceFile): ReactiveCallInfo[] {
+const findReactiveCalls = (sourceFile: ts.SourceFile): ReactiveCallInfo[] => {
     let calls: ReactiveCallInfo[] = [];
 
     function visit(node: ts.Node): void {
@@ -99,17 +96,12 @@ function findReactiveCalls(sourceFile: ts.SourceFile): ReactiveCallInfo[] {
     return calls;
 }
 
-// Get expression text from source
-function getExpressionText(expr: ts.Expression, sourceFile: ts.SourceFile): string {
-    return expr.getText(sourceFile);
-}
-
 // Get all expression texts from a template
-function getTemplateExpressions(info: TemplateInfo, sourceFile: ts.SourceFile): string[] {
+const getTemplateExpressions = (info: TemplateInfo, sourceFile: ts.SourceFile): string[] => {
     let exprs: string[] = [];
 
     for (let i = 0, n = info.expressions.length; i < n; i++) {
-        exprs.push(getExpressionText(info.expressions[i], sourceFile));
+        exprs.push(info.expressions[i].getText(sourceFile));
     }
 
     return exprs;

@@ -1,6 +1,3 @@
-// Phase 1: TS Program Management
-// Creates and caches TypeScript program for type-aware transforms
-
 import path from 'path';
 import ts from 'typescript';
 
@@ -38,7 +35,8 @@ function createProgram(root: string): ts.Program {
     });
 }
 
-function getProgram(root: string): ts.Program {
+
+const getProgram = (root: string): ts.Program => {
     if (!cachedProgram || cachedRoot !== root) {
         cachedProgram = createProgram(root);
         cachedRoot = root;
@@ -47,7 +45,7 @@ function getProgram(root: string): ts.Program {
     return cachedProgram;
 }
 
-function invalidateProgram(): void {
+const invalidateProgram = (): void => {
     cachedProgram = null;
     cachedRoot = null;
 }

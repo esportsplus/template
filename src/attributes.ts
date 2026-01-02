@@ -482,13 +482,12 @@ const setData = (element: Element, name: string, value: unknown) => {
 // Pre-parsed class binding - static parts provided at compile time
 const setClassPreparsed = (
     element: Element,
-    staticParts: string[],
+    staticClass: string,
     dynamicValue: unknown
 ) => {
     let ctx = context(element),
         state: State = STATE_HYDRATING,
-        store = ctx.store ??= {},
-        staticClass = staticParts.join(' ');
+        store = ctx.store ??= {};
 
     // Initialize static base
     store['class.static'] = staticClass;
@@ -518,13 +517,12 @@ const setClassPreparsed = (
 // Pre-parsed style binding - static parts provided at compile time
 const setStylePreparsed = (
     element: Element,
-    staticParts: string[],
+    staticStyle: string,
     dynamicValue: unknown
 ) => {
     let ctx = context(element),
         state: State = STATE_HYDRATING,
-        store = ctx.store ??= {},
-        staticStyle = staticParts.join(';');
+        store = ctx.store ??= {};
 
     // Initialize static base
     store['style.static'] = staticStyle;

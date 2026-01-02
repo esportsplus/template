@@ -1,7 +1,3 @@
-// HTML Stub with Type Compatibility
-// This stub maintains the same type signature as the runtime html() function
-// but throws if called at runtime (ensures all templates are compiled)
-
 import { ReactiveArray } from '@esportsplus/reactivity';
 import { Attribute, Attributes, Renderable } from '~/types';
 import { ArraySlot } from '~/slot/array';

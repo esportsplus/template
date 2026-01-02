@@ -1,23 +1,13 @@
 import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
 import { Element } from '~/types';
-import { ondisconnect } from '~/slot/cleanup';
+import { ondisconnect as disconnect } from '~/slot/cleanup';
 import onconnect from './onconnect';
 import onresize from './onresize';
 import ontick from './ontick';
 
 
 let controllers = new Map<string, (AbortController & { listeners: number }) | null>(),
-    // Events that should NOT use delegation
-    directAttach = new Set<string>([
-        'blur',
-        'error',
-        'focus', 'focusin', 'focusout',
-        'load',
-        'play', 'pause', 'ended', 'timeupdate',
-        'reset',
-        'scroll', 'submit'
-    ]),
     host = window.document,
     keys: Record<string, symbol> = {},
     passive = new Set<string>([
@@ -97,26 +87,30 @@ function register(element: Element, event: string) {
 }
 
 
-const add = (element: Element, event: string, listener: Function): void => {
-    if (directAttach.has(event)) {
-        let handler = (e: Event) => listener.call(element, e);
+const delegate = (element: Element, event: string, listener: Function): void => {
+    element[ keys[event] || register(element, event) ] = listener;
+};
 
-        element.addEventListener(event, handler, {
-            passive: passive.has(event)
-        });
+// DIRECT_ATTACH_EVENTS in ./constants.ts tells compiler to use this function
+const direct = (element: Element, event: string, listener: Function): void => {
+    let handler = (e: Event) => listener.call(element, e);
 
-        ondisconnect(element, () => {
-            element.removeEventListener(event, handler);
-        });
-    }
-    else {
-        element[ keys[event] || register(element, event) ] = listener;
-    }
+    element.addEventListener(event, handler, {
+        passive: passive.has(event)
+    });
+
+    ondisconnect(element, () => {
+        element.removeEventListener(event, handler);
+    });
+};
+
+const ondisconnect = (element: Element, listener: Function) => {
+    disconnect(element, () => listener(element));
 };
 
 const onrender = (element: Element, listener: Function) => {
-    root(() => listener(element))
+    root(() => listener(element));
 };
 
 
-export default { add, onconnect, ondisconnect, onrender, onresize, ontick };
+export default { delegate, direct, onconnect, ondisconnect, onrender, onresize, ontick };

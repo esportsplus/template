@@ -1,5 +1,5 @@
 import { Element, Renderable } from './types';
-import marker from './utilities/marker';
+import { marker } from './utilities';
 import slot from './slot';
 
 

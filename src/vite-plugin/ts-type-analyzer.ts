@@ -1,8 +1,3 @@
-// TS-based Type Analyzer
-// Uses TypeScript AST for accurate type inference
-// Replaces regex-based type detection
-// Supports TypeChecker for variable type inference when available
-
 import ts from 'typescript';
 
 
@@ -26,70 +21,63 @@ type SpreadAnalysis = {
 };
 
 
-// Check if expression is a function (arrow or function keyword)
-function isFunctionExpression(expr: ts.Expression): boolean {
-    return ts.isArrowFunction(expr) || ts.isFunctionExpression(expr);
-}
-
-// Check if expression is an array literal
-function isArrayLiteral(expr: ts.Expression): boolean {
-    return ts.isArrayLiteralExpression(expr);
-}
-
-// Check if expression is a nested html template
-function isHtmlTemplate(expr: ts.Expression): boolean {
-    return ts.isTaggedTemplateExpression(expr) &&
-           ts.isIdentifier(expr.tag) &&
-           expr.tag.text === 'html';
-}
-
-// Check if expression is html.reactive call
-function isHtmlReactiveCall(expr: ts.Expression): boolean {
-    return ts.isCallExpression(expr) &&
-           ts.isPropertyAccessExpression(expr.expression) &&
-           ts.isIdentifier(expr.expression.expression) &&
-           expr.expression.expression.text === 'html' &&
-           expr.expression.name.text === 'reactive';
-}
-
-// Check if a TypeChecker type represents a function
-function isTypeFunction(type: ts.Type, checker: ts.TypeChecker): boolean {
-    // Check for call signatures (functions have them)
-    let callSigs = type.getCallSignatures();
-
-    if (callSigs.length > 0) {
-        return true;
+// Analyze spread expression for compile-time unpacking
+function analyzeSpread(expr: ts.Expression): SpreadAnalysis {
+    // Unwrap parentheses
+    while (ts.isParenthesizedExpression(expr)) {
+        expr = expr.expression;
     }
 
-    // Check union types - if any member is a function, treat as function
-    if (type.isUnion()) {
-        for (let i = 0, n = type.types.length; i < n; i++) {
-            if (isTypeFunction(type.types[i], checker)) {
-                return true;
+    // Object literal - extract known keys at compile time
+    if (ts.isObjectLiteralExpression(expr)) {
+        let keys: string[] = [];
+
+        for (let i = 0, n = expr.properties.length; i < n; i++) {
+            let prop = expr.properties[i];
+
+            if (ts.isPropertyAssignment(prop)) {
+                if (ts.isIdentifier(prop.name)) {
+                    keys.push(prop.name.text);
+                }
+                else if (ts.isStringLiteral(prop.name)) {
+                    keys.push(prop.name.text);
+                }
             }
+            else if (ts.isShorthandPropertyAssignment(prop)) {
+                keys.push(prop.name.text);
+            }
+            else if (ts.isSpreadAssignment(prop)) {
+                // Has spread inside object - can't fully unpack
+                return { canUnpack: false, keys: [] };
+            }
+        }
+
+        return { canUnpack: true, keys };
+    }
+
+    // Variable or other expression - can't unpack without TypeChecker
+    return { canUnpack: false, keys: [] };
+}
+
+// Get the value expression for a specific key in an object literal
+function getObjectPropertyValue(expr: ts.ObjectLiteralExpression, key: string, sourceFile: ts.SourceFile): string | null {
+    for (let i = 0, n = expr.properties.length; i < n; i++) {
+        let prop = expr.properties[i];
+
+        if (ts.isPropertyAssignment(prop)) {
+            let name = ts.isIdentifier(prop.name) ? prop.name.text :
+                       ts.isStringLiteral(prop.name) ? prop.name.text : null;
+
+            if (name === key) {
+                return prop.initializer.getText(sourceFile);
+            }
+        }
+        else if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === key) {
+            return prop.name.text;
         }
     }
 
-    return false;
-}
-
-// Check if a TypeChecker type represents an array
-function isTypeArray(type: ts.Type, checker: ts.TypeChecker): boolean {
-    let typeStr = checker.typeToString(type);
-
-    // Check for array patterns
-    if (typeStr.endsWith('[]') || typeStr.startsWith('Array<') || typeStr.startsWith('ReactiveArray<')) {
-        return true;
-    }
-
-    // Check symbol for Array
-    let symbol = type.getSymbol();
-
-    if (symbol && (symbol.getName() === 'Array' || symbol.getName() === 'ReactiveArray')) {
-        return true;
-    }
-
-    return false;
+    return null;
 }
 
 // Infer slot type from expression AST
@@ -101,22 +89,32 @@ function inferSlotType(expr: ts.Expression, ctx?: AnalyzerContext): SlotType {
     }
 
     // Check for effect functions
-    if (isFunctionExpression(expr)) {
+    if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) {
         return 'effect';
     }
 
     // Check for html.reactive (ArraySlot)
-    if (isHtmlReactiveCall(expr)) {
+    if (
+        ts.isCallExpression(expr) &&
+        ts.isPropertyAccessExpression(expr.expression) &&
+        ts.isIdentifier(expr.expression.expression) &&
+        expr.expression.expression.text === 'html' &&
+        expr.expression.name.text === 'reactive'
+    ) {
         return 'array-slot';
     }
 
     // Check for nested html template
-    if (isHtmlTemplate(expr)) {
+    if (
+        ts.isTaggedTemplateExpression(expr) &&
+        ts.isIdentifier(expr.tag) &&
+        expr.tag.text === 'html'
+    ) {
         return 'document-fragment';
     }
 
     // Check for array literal
-    if (isArrayLiteral(expr)) {
+    if (ts.isArrayLiteralExpression(expr)) {
         return 'array-slot';
     }
 
@@ -222,63 +220,44 @@ function inferSlotType(expr: ts.Expression, ctx?: AnalyzerContext): SlotType {
     return 'unknown';
 }
 
-// Analyze spread expression for compile-time unpacking
-function analyzeSpread(expr: ts.Expression): SpreadAnalysis {
-    // Unwrap parentheses
-    while (ts.isParenthesizedExpression(expr)) {
-        expr = expr.expression;
+// Check if a TypeChecker type represents a function
+function isTypeFunction(type: ts.Type, checker: ts.TypeChecker): boolean {
+    // Check for call signatures (functions have them)
+    let callSigs = type.getCallSignatures();
+
+    if (callSigs.length > 0) {
+        return true;
     }
 
-    // Object literal - extract known keys at compile time
-    if (ts.isObjectLiteralExpression(expr)) {
-        let keys: string[] = [];
-
-        for (let i = 0, n = expr.properties.length; i < n; i++) {
-            let prop = expr.properties[i];
-
-            if (ts.isPropertyAssignment(prop)) {
-                if (ts.isIdentifier(prop.name)) {
-                    keys.push(prop.name.text);
-                }
-                else if (ts.isStringLiteral(prop.name)) {
-                    keys.push(prop.name.text);
-                }
-            }
-            else if (ts.isShorthandPropertyAssignment(prop)) {
-                keys.push(prop.name.text);
-            }
-            else if (ts.isSpreadAssignment(prop)) {
-                // Has spread inside object - can't fully unpack
-                return { canUnpack: false, keys: [] };
+    // Check union types - if any member is a function, treat as function
+    if (type.isUnion()) {
+        for (let i = 0, n = type.types.length; i < n; i++) {
+            if (isTypeFunction(type.types[i], checker)) {
+                return true;
             }
         }
-
-        return { canUnpack: true, keys };
     }
 
-    // Variable or other expression - can't unpack without TypeChecker
-    return { canUnpack: false, keys: [] };
+    return false;
 }
 
-// Get the value expression for a specific key in an object literal
-function getObjectPropertyValue(expr: ts.ObjectLiteralExpression, key: string, sourceFile: ts.SourceFile): string | null {
-    for (let i = 0, n = expr.properties.length; i < n; i++) {
-        let prop = expr.properties[i];
+// Check if a TypeChecker type represents an array
+function isTypeArray(type: ts.Type, checker: ts.TypeChecker): boolean {
+    let typeStr = checker.typeToString(type);
 
-        if (ts.isPropertyAssignment(prop)) {
-            let name = ts.isIdentifier(prop.name) ? prop.name.text :
-                       ts.isStringLiteral(prop.name) ? prop.name.text : null;
-
-            if (name === key) {
-                return prop.initializer.getText(sourceFile);
-            }
-        }
-        else if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === key) {
-            return prop.name.text;
-        }
+    // Check for array patterns
+    if (typeStr.endsWith('[]') || typeStr.startsWith('Array<') || typeStr.startsWith('ReactiveArray<')) {
+        return true;
     }
 
-    return null;
+    // Check symbol for Array
+    let symbol = type.getSymbol();
+
+    if (symbol && (symbol.getName() === 'Array' || symbol.getName() === 'ReactiveArray')) {
+        return true;
+    }
+
+    return false;
 }
 
 // Parse expression string to AST node
@@ -306,9 +285,10 @@ function parseExpression(code: string): ts.Expression | null {
     return null;
 }
 
+
 // Analyze expression string and return slot type
 // Accepts optional TypeChecker for deeper analysis
-function analyzeExpressionString(code: string, checker?: ts.TypeChecker): SlotType {
+const analyzeExpressionString = (code: string, checker?: ts.TypeChecker): SlotType => {
     let expr = parseExpression(code);
 
     if (!expr) {
@@ -320,13 +300,10 @@ function analyzeExpressionString(code: string, checker?: ts.TypeChecker): SlotTy
     // cannot resolve external references. For full TypeChecker support,
     // use analyzeExpressionWithChecker with actual source file node.
     return inferSlotType(expr, checker ? { checker } : undefined);
-}
+};
 
 // Generate unpacked spread bindings from expression string
-function generateUnpackedSpreadBindings(
-    exprCode: string,
-    elementVar: string
-): string[] {
+const generateUnpackedSpreadBindings = (exprCode: string, elementVar: string): string[] => {
     let expr = parseExpression(exprCode);
 
     if (!expr) {
