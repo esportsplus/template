@@ -1,4 +1,4 @@
-import { SLOT_HTML } from '~/constants';
+import { SLOT_HTML } from './shared-constants';
 
 
 let clonableTemplate = document.createElement('template'),

@@ -78,32 +78,37 @@ const templatePlugin = (options: PluginOptions = {}): Plugin => {
             }
 
             try {
-                // Get TypeChecker for type analysis
+                let changed = false,
+                    result = code,
+                    sourceFile: ts.SourceFile;
+
+                // Get TypeChecker and sourceFile from program for type analysis
+                // TypeChecker can only resolve types for nodes in its own program's AST
                 if (typeCheckerEnabled) {
                     try {
                         let program = getProgram(root),
-                            checker = program.getTypeChecker();
+                            checker = program.getTypeChecker(),
+                            programSourceFile = program.getSourceFile(id);
 
-                        setTypeChecker(checker);
+                        if (programSourceFile) {
+                            sourceFile = programSourceFile;
+                            setTypeChecker(checker);
+                        }
+                        else {
+                            // File not in program - fall back to standalone parsing
+                            sourceFile = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true);
+                            setTypeChecker(undefined);
+                        }
                     }
                     catch {
+                        sourceFile = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true);
                         setTypeChecker(undefined);
                     }
                 }
                 else {
+                    sourceFile = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true);
                     setTypeChecker(undefined);
                 }
-
-                let changed = false,
-                    result = code;
-
-                // Create source file for AST parsing
-                let sourceFile = ts.createSourceFile(
-                    id,
-                    code,
-                    ts.ScriptTarget.Latest,
-                    true
-                );
 
                 // Handle html.reactive inlining
                 let reactiveCalls = findReactiveCalls(sourceFile);
@@ -116,13 +121,9 @@ const templatePlugin = (options: PluginOptions = {}): Plugin => {
                         result = addArraySlotImport(result);
                     }
 
-                    // Re-parse after modifications
-                    sourceFile = ts.createSourceFile(
-                        id,
-                        result,
-                        ts.ScriptTarget.Latest,
-                        true
-                    );
+                    // Re-parse after modifications - TypeChecker no longer valid for new AST
+                    sourceFile = ts.createSourceFile(id, result, ts.ScriptTarget.Latest, true);
+                    setTypeChecker(undefined);
                 }
 
                 // Find and transform html`` templates

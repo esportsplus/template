@@ -1,4 +1,5 @@
 import { fragment } from './utilities';
+import { SLOT_HTML } from './shared-constants';
 
 
 const ARRAY_SLOT = Symbol('template.array.slot');
@@ -8,9 +9,6 @@ const CLEANUP = Symbol('template.cleanup');
 
 
 const EMPTY_FRAGMENT = fragment('');
-
-
-const SLOT_HTML = '<!--$-->';
 
 
 const STATE_HYDRATING = 0;

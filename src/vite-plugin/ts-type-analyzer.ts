@@ -4,7 +4,6 @@ import ts from 'typescript';
 
 type AnalyzerContext = {
     checker?: ts.TypeChecker;
-    sourceFile?: ts.SourceFile;
 };
 
 type SlotType =
@@ -190,7 +189,7 @@ function inferSlotType(expr: ts.Expression, ctx?: AnalyzerContext): SlotType {
     }
 
     // TypeChecker-based inference for identifiers and property access
-    if (ctx?.checker && ctx.sourceFile) {
+    if (ctx?.checker) {
         let checker = ctx.checker;
 
         // For identifiers (variable references)
@@ -322,11 +321,11 @@ function generateAttributeBinding(
     }
 
     if (name === 'class') {
-        return `__setClassPreparsed(${elementVar}, ${staticValue}, ${expr});`;
+        return `__setClassPreparsed(${elementVar}, '${staticValue}', ${expr});`;
     }
 
     if (name === 'style') {
-        return `__setStylePreparsed(${elementVar}, ${staticValue}, ${expr});`;
+        return `__setStylePreparsed(${elementVar}, '${staticValue}', ${expr});`;
     }
 
     if (name.startsWith('data-')) {

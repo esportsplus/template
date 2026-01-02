@@ -112,12 +112,68 @@ function getOrCreateTemplateId(html: string): string {
     return id;
 }
 
+// Check if expression is a nested html tagged template
+function isNestedHtmlTemplate(expr: ts.Expression): expr is ts.TaggedTemplateExpression {
+    return ts.isTaggedTemplateExpression(expr) &&
+           ts.isIdentifier(expr.tag) &&
+           expr.tag.text === 'html';
+}
+
+// Recursively generate code for a nested html template
+function generateNestedTemplateCode(
+    node: ts.TaggedTemplateExpression,
+    sourceFile: ts.SourceFile
+): string {
+    let expressions: ts.Expression[] = [],
+        exprTexts: string[] = [],
+        literals: string[] = [],
+        printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }),
+        template = node.template;
+
+    if (ts.isNoSubstitutionTemplateLiteral(template)) {
+        literals.push(template.text);
+    }
+    else if (ts.isTemplateExpression(template)) {
+        literals.push(template.head.text);
+
+        for (let i = 0, n = template.templateSpans.length; i < n; i++) {
+            let span = template.templateSpans[i],
+                expr = span.expression;
+
+            expressions.push(expr);
+            literals.push(span.literal.text);
+
+            // For nested templates in expressions, recursively generate
+            if (isNestedHtmlTemplate(expr)) {
+                exprTexts.push(generateNestedTemplateCode(expr, sourceFile));
+            }
+            else {
+                exprTexts.push(printer.printNode(ts.EmitHint.Expression, expr, sourceFile));
+            }
+        }
+    }
+
+    return generateTemplateCode(
+        parser.parse(literals) as ParseResult,
+        exprTexts,
+        expressions,
+        sourceFile,
+        false // nested templates are always wrapped in IIFE
+    );
+}
+
 // Generate node slot binding code
 // Uses original ts.Expression for accurate type analysis
-function generateNodeBinding(anchor: string, exprText: string, exprNode?: ts.Expression): string {
+function generateNodeBinding(anchor: string, exprText: string, exprNode: ts.Expression | undefined, sourceFile: ts.SourceFile): string {
     if (!exprNode) {
         needsSlot = true;
         return `__slot(${anchor}, ${exprText});`;
+    }
+
+    // Handle nested html templates by recursively generating their code
+    if (isNestedHtmlTemplate(exprNode)) {
+        let nestedCode = generateNestedTemplateCode(exprNode, sourceFile);
+        return `${anchor}.parentNode.insertBefore(${nestedCode}, ${anchor});`;
     }
 
     let slotType = analyzeExpression(exprNode, currentChecker);
@@ -199,8 +255,9 @@ function generateTemplateCode(
     sourceFile: ts.SourceFile,
     isArrowBody: boolean
 ): string {
+    // Static template (no slots) - hoist factory and call it
     if (!slots || slots.length === 0) {
-        return `__fragment(${html})`;
+        return `${getOrCreateTemplateId(html)}()`;
     }
 
     let code: string[] = [],
@@ -295,7 +352,7 @@ function generateTemplateCode(
         }
         else {
             code.push(
-                generateNodeBinding(elementVar, exprTexts[index] || 'undefined', exprNodes[index])
+                generateNodeBinding(elementVar, exprTexts[index] || 'undefined', exprNodes[index], sourceFile)
             );
             index++;
         }
@@ -313,6 +370,90 @@ function generateTemplateCode(
     return code.join('\n');
 }
 
+
+// Check if template is nested inside another template's expression
+function isNestedTemplate(template: TemplateInfo, allTemplates: TemplateInfo[]): boolean {
+    for (let i = 0, n = allTemplates.length; i < n; i++) {
+        let other = allTemplates[i];
+
+        if (other === template) {
+            continue;
+        }
+
+        // Check if this template is inside any of other's expressions
+        for (let j = 0, m = other.expressions.length; j < m; j++) {
+            let expr = other.expressions[j],
+                exprEnd = expr.end,
+                exprStart = expr.getStart();
+
+            if (template.start >= exprStart && template.end <= exprEnd) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+// Rewrite expression, replacing nested html templates with generated code
+function rewriteExpression(expr: ts.Expression, sourceFile: ts.SourceFile): string {
+    let printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
+
+    // Direct nested template
+    if (isNestedHtmlTemplate(expr)) {
+        return generateNestedTemplateCode(expr, sourceFile);
+    }
+
+    // Check if expression contains any nested html templates
+    let hasNestedTemplate = false;
+
+    function checkForNestedTemplates(node: ts.Node): void {
+        if (isNestedHtmlTemplate(node as ts.Expression)) {
+            hasNestedTemplate = true;
+        }
+
+        if (!hasNestedTemplate) {
+            ts.forEachChild(node, checkForNestedTemplates);
+        }
+    }
+
+    checkForNestedTemplates(expr);
+
+    if (!hasNestedTemplate) {
+        return printer.printNode(ts.EmitHint.Expression, expr, sourceFile);
+    }
+
+    // Has nested templates - rewrite by replacing them in the source text
+    let exprText = expr.getText(sourceFile),
+        exprStart = expr.getStart(),
+        replacements: { start: number; end: number; code: string }[] = [];
+
+    function collectNestedTemplates(node: ts.Node): void {
+        if (isNestedHtmlTemplate(node as ts.Expression)) {
+            replacements.push({
+                code: generateNestedTemplateCode(node as ts.TaggedTemplateExpression, sourceFile),
+                end: node.end - exprStart,
+                start: node.getStart() - exprStart
+            });
+        }
+        else {
+            ts.forEachChild(node, collectNestedTemplates);
+        }
+    }
+
+    collectNestedTemplates(expr);
+
+    // Sort by position descending and apply replacements
+    replacements.sort((a, b) => b.start - a.start);
+
+    for (let i = 0, n = replacements.length; i < n; i++) {
+        let r = replacements[i];
+
+        exprText = exprText.slice(0, r.start) + r.code + exprText.slice(r.end);
+    }
+
+    return exprText;
+}
 
 function generateCode(
     templates: TemplateInfo[],
@@ -333,13 +474,21 @@ function generateCode(
     needsSlot = false;
     templateCounter = 0;
 
+    // Filter out nested templates - they'll be processed inline
+    let rootTemplates = templates.filter(t => !isNestedTemplate(t, templates));
+
+    if (rootTemplates.length === 0) {
+        return {
+            changed: false,
+            code: originalCode
+        };
+    }
+
     let changed = false,
-        code = originalCode,
-        printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
+        code = originalCode;
 
     // Sort templates by position (end to start) for correct replacement
-    // ts-parser returns depth-sorted, but we need position-sorted for string manipulation
-    let sorted = templates.slice().sort((a, b) => b.start - a.start);
+    let sorted = rootTemplates.slice().sort((a, b) => b.start - a.start);
 
     // Process templates from end to start (no offset tracking needed)
     for (let i = 0, n = sorted.length; i < n; i++) {
@@ -347,11 +496,8 @@ function generateCode(
             template = sorted[i];
 
         for (let j = 0, m = template.expressions.length; j < m; j++) {
-            exprTexts.push(printer.printNode(
-                ts.EmitHint.Expression,
-                template.expressions[j],
-                sourceFile
-            ));
+            // Rewrite expressions to handle nested templates
+            exprTexts.push(rewriteExpression(template.expressions[j], sourceFile));
         }
 
         let tmpl = generateTemplateCode(
@@ -372,7 +518,7 @@ function generateCode(
             imports = generateImports();
 
         for (let [id, html] of hoistedFactories) {
-            factories.push(`const ${id} = __fragment(${html});`);
+            factories.push(`const ${id} = __fragment(\`${html}\`);`);
         }
 
         code = imports + '\n\n' + factories.join('\n') + '\n\n' + code;
