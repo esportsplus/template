@@ -1,3 +1,4 @@
+import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../event/constants';
 import ts from 'typescript';
 
 
@@ -22,8 +23,8 @@ type SpreadAnalysis = {
 
 
 // Analyze spread expression for compile-time unpacking
-function analyzeSpread(expr: ts.Expression): SpreadAnalysis {
-    // Unwrap parentheses
+// Uses TypeChecker for typed variables when available
+function analyzeSpread(expr: ts.Expression, checker?: ts.TypeChecker): SpreadAnalysis {
     while (ts.isParenthesizedExpression(expr)) {
         expr = expr.expression;
     }
@@ -36,18 +37,15 @@ function analyzeSpread(expr: ts.Expression): SpreadAnalysis {
             let prop = expr.properties[i];
 
             if (ts.isPropertyAssignment(prop)) {
-                if (ts.isIdentifier(prop.name)) {
-                    keys.push(prop.name.text);
-                }
-                else if (ts.isStringLiteral(prop.name)) {
+                if (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) {
                     keys.push(prop.name.text);
                 }
             }
             else if (ts.isShorthandPropertyAssignment(prop)) {
                 keys.push(prop.name.text);
             }
+            // Has spread inside object - can't fully unpack
             else if (ts.isSpreadAssignment(prop)) {
-                // Has spread inside object - can't fully unpack
                 return { canUnpack: false, keys: [] };
             }
         }
@@ -55,8 +53,41 @@ function analyzeSpread(expr: ts.Expression): SpreadAnalysis {
         return { canUnpack: true, keys };
     }
 
-    // Variable or other expression - can't unpack without TypeChecker
+    // TypeChecker-based unpacking for typed variables
+    if (checker && (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr))) {
+        try {
+            let keys = extractTypePropertyKeys(checker.getTypeAtLocation(expr));
+
+            if (keys.length > 0) {
+                return { canUnpack: true, keys };
+            }
+        }
+        // TypeChecker failed
+        catch {
+        }
+    }
+
     return { canUnpack: false, keys: [] };
+}
+
+// Extract property keys from a TypeChecker type
+function extractTypePropertyKeys(type: ts.Type): string[] {
+    let keys: string[] = [],
+        props = type.getProperties();
+
+    for (let i = 0, n = props.length; i < n; i++) {
+        let prop = props[i],
+            name = prop.getName();
+
+        // Skip index signatures and internal properties
+        if (name.startsWith('__') || name.startsWith('[')) {
+            continue;
+        }
+
+        keys.push(name);
+    }
+
+    return keys;
 }
 
 // Get the value expression for a specific key in an object literal
@@ -175,9 +206,8 @@ function inferSlotType(expr: ts.Expression, ctx?: AnalyzerContext): SlotType {
                     return 'array-slot';
                 }
             }
-            catch {
-                // TypeChecker failed, fall through to unknown
-            }
+            // TypeChecker failed, fall through to unknown
+            catch { }
         }
 
         // For property access (obj.prop)
@@ -193,9 +223,8 @@ function inferSlotType(expr: ts.Expression, ctx?: AnalyzerContext): SlotType {
                     return 'array-slot';
                 }
             }
-            catch {
-                // TypeChecker failed, fall through to unknown
-            }
+            // TypeChecker failed, fall through to unknown
+            catch { }
         }
 
         // For call expressions - check return type
@@ -211,9 +240,8 @@ function inferSlotType(expr: ts.Expression, ctx?: AnalyzerContext): SlotType {
                     return 'array-slot';
                 }
             }
-            catch {
-                // TypeChecker failed, fall through to unknown
-            }
+            // TypeChecker failed, fall through to unknown
+            catch { }
         }
     }
 
@@ -260,103 +288,97 @@ function isTypeArray(type: ts.Type, checker: ts.TypeChecker): boolean {
     return false;
 }
 
-// Parse expression string to AST node
-function parseExpression(code: string): ts.Expression | null {
-    let sourceFile = ts.createSourceFile(
-        'expr.ts',
-        `(${code})`,
-        ts.ScriptTarget.Latest,
-        true
-    );
-
-    let statement = sourceFile.statements[0];
-
-    if (ts.isExpressionStatement(statement)) {
-        let expr = statement.expression;
-
-        // Unwrap parentheses we added
-        if (ts.isParenthesizedExpression(expr)) {
-            return expr.expression;
-        }
-
-        return expr;
-    }
-
-    return null;
-}
-
-
-// Analyze expression string and return slot type
-// Accepts optional TypeChecker for deeper analysis
-const analyzeExpressionString = (code: string, checker?: ts.TypeChecker): SlotType => {
-    let expr = parseExpression(code);
-
-    if (!expr) {
-        return 'unknown';
-    }
-
-    // When TypeChecker available, we can resolve variable types
-    // Note: The parsed expression is from a synthetic file, so TypeChecker
-    // cannot resolve external references. For full TypeChecker support,
-    // use analyzeExpressionWithChecker with actual source file node.
+// Analyze expression AST node directly
+// Uses TypeChecker with original AST nodes for full type resolution
+const analyzeExpression = (expr: ts.Expression, checker?: ts.TypeChecker): SlotType => {
     return inferSlotType(expr, checker ? { checker } : undefined);
 };
 
-// Generate unpacked spread bindings from expression string
-const generateUnpackedSpreadBindings = (exprCode: string, elementVar: string): string[] => {
-    let expr = parseExpression(exprCode);
+// Generate attribute binding code
+// Handles: class, style, data-*, events (with routing), spread, generic properties
+function generateAttributeBinding(
+    elementVar: string,
+    name: string,
+    expr: string,
+    staticValue: string
+): string {
+    if (name.startsWith('on') && name.length > 2) {
+        let event = name.slice(2).toLowerCase(),
+            key = name.toLowerCase();
 
-    if (!expr) {
-        return [`    __spread(${elementVar}, ${exprCode});`];
+        if (LIFECYCLE_EVENTS.has(key)) {
+            return `__event.${key}(${elementVar}, ${expr});`;
+        }
+
+        if (DIRECT_ATTACH_EVENTS.has(key)) {
+            return `__event.direct(${elementVar}, '${event}', ${expr});`;
+        }
+
+        return `__event.delegate(${elementVar}, '${event}', ${expr});`;
     }
 
+    if (name === 'spread') {
+        return `__spread(${elementVar}, ${expr});`;
+    }
+
+    if (name === 'class') {
+        return `__setClassPreparsed(${elementVar}, ${staticValue}, ${expr});`;
+    }
+
+    if (name === 'style') {
+        return `__setStylePreparsed(${elementVar}, ${staticValue}, ${expr});`;
+    }
+
+    if (name.startsWith('data-')) {
+        return `__setData(${elementVar}, '${name}', ${expr});`;
+    }
+
+    return `__setProperty(${elementVar}, '${name}', ${expr});`;
+}
+
+// Generate unpacked spread bindings from AST node - preferred method
+const generateSpreadBindings = (
+    expr: ts.Expression,
+    exprCode: string,
+    elementVar: string,
+    sourceFile: ts.SourceFile,
+    checker?: ts.TypeChecker
+): string[] => {
     // Unwrap parentheses
     while (ts.isParenthesizedExpression(expr)) {
         expr = expr.expression;
     }
 
-    if (!ts.isObjectLiteralExpression(expr)) {
-        return [`    __spread(${elementVar}, ${exprCode});`];
-    }
-
-    let analysis = analyzeSpread(expr);
+    let analysis = analyzeSpread(expr, checker);
 
     if (!analysis.canUnpack) {
-        return [`    __spread(${elementVar}, ${exprCode});`];
+        return [`__spread(${elementVar}, ${exprCode});`];
     }
 
-    let lines: string[] = [],
-        sourceFile = ts.createSourceFile('expr.ts', `(${exprCode})`, ts.ScriptTarget.Latest, true);
+    let lines: string[] = [];
 
-    for (let i = 0, n = analysis.keys.length; i < n; i++) {
-        let key = analysis.keys[i],
-            value = getObjectPropertyValue(expr, key, sourceFile);
+    // Object literal - extract values from AST
+    if (ts.isObjectLiteralExpression(expr)) {
+        for (let i = 0, n = analysis.keys.length; i < n; i++) {
+            let key = analysis.keys[i],
+                value = getObjectPropertyValue(expr, key, sourceFile);
 
-        if (value !== null) {
-            // #4: Use specialized handlers based on attribute name
-            if (key.startsWith('on') && key.length > 2) {
-                let eventName = key.slice(2).toLowerCase();
+            if (value !== null) {
+                lines.push(generateAttributeBinding(elementVar, key, value, ''));
+            }
+        }
+    }
+    // Typed variable - access properties
+    else {
+        for (let i = 0, n = analysis.keys.length; i < n; i++) {
+            let key = analysis.keys[i];
 
-                lines.push(`    __event(${elementVar}, '${eventName}', ${value});`);
-            }
-            else if (key === 'class') {
-                lines.push(`    __setClass(${elementVar}, ${value});`);
-            }
-            else if (key === 'style') {
-                lines.push(`    __setStyle(${elementVar}, ${value});`);
-            }
-            else if (key[0] === 'd' && key.startsWith('data-')) {
-                lines.push(`    __setData(${elementVar}, '${key}', ${value});`);
-            }
-            else {
-                lines.push(`    __setProperty(${elementVar}, '${key}', ${value});`);
-            }
+            lines.push(generateAttributeBinding(elementVar, key, `${exprCode}.${key}`, ''));
         }
     }
 
     return lines;
-}
+};
 
-
-export { analyzeExpressionString, generateUnpackedSpreadBindings };
+export { analyzeExpression, generateAttributeBinding, generateSpreadBindings };
 export type { SlotType };

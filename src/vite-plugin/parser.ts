@@ -1,4 +1,4 @@
-import { SLOT_HTML } from '~/constants';
+import { SLOT_HTML } from '../constants';
 
 
 const ATTRIBUTE_DELIMITERS: Record<string, string> = {

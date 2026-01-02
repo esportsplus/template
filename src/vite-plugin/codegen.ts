@@ -1,8 +1,7 @@
-import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '~/event/constants';
 import type { ReactiveCallInfo, TemplateInfo } from './ts-parser';
 import ts from 'typescript';
 import parser from './parser';
-import { analyzeExpressionString } from './ts-type-analyzer';
+import { analyzeExpression, generateAttributeBinding, generateSpreadBindings } from './ts-type-analyzer';
 
 
 type AttributeSlot = {
@@ -33,7 +32,9 @@ type ParseResult = {
 let currentChecker: ts.TypeChecker | undefined,
     hoistedFactories = new Map<string, string>(),
     htmlToTemplateId = new Map<string, string>(),
+    needsArraySlot = false,
     needsEffectSlot = false,
+    needsSlot = false,
     templateCounter = 0;
 
 
@@ -111,68 +112,59 @@ function getOrCreateTemplateId(html: string): string {
     return id;
 }
 
-// Generate attribute binding code
-// Handles: class, style, data-*, events (with routing), spread, generic properties
-function generateAttributeBinding(
-    elementVar: string,
-    name: string,
-    expr: string,
-    value: string
-): string {
-    if (name.startsWith('on') && name.length > 2) {
-        let event = name.slice(2).toLowerCase(),
-            key = name.toLowerCase();
-
-        if (LIFECYCLE_EVENTS.has(key)) {
-            return `__event.${event}(${elementVar}, ${expr});`;
-        }
-
-        if (DIRECT_ATTACH_EVENTS.has(key)) {
-            return `__event.direct(${elementVar}, '${event}', ${expr});`;
-        }
-
-        return `__event.delegate(${elementVar}, '${event}', ${expr});`;
-    }
-
-    if (name === 'spread') {
-        return `__spread(${elementVar}, ${expr});`;
-    }
-
-    if (name === 'class') {
-        return `__setClassPreparsed(${elementVar}, ${value || ''}, ${expr});`;
-    }
-
-    if (name === 'style') {
-        return `__setStylePreparsed(${elementVar}, ${value || ''}, ${expr});`;
-    }
-
-    if (name.startsWith('data-')) {
-        return `__setData(${elementVar}, '${name}', ${expr});`;
-    }
-
-    return `__setProperty(${elementVar}, '${name}', ${expr});`;
-}
-
 // Generate node slot binding code
-function generateNodeBinding(anchor: string, expr: string): string {
-    if (analyzeExpressionString(expr, currentChecker) === 'effect') {
-        needsEffectSlot = true;
-        return `new EffectSlot(${anchor}, ${expr});`;
+// Uses original ts.Expression for accurate type analysis
+function generateNodeBinding(anchor: string, exprText: string, exprNode?: ts.Expression): string {
+    if (!exprNode) {
+        needsSlot = true;
+        return `__slot(${anchor}, ${exprText});`;
     }
 
-    return `__slot(${anchor}, ${expr});`;
+    let slotType = analyzeExpression(exprNode, currentChecker);
+
+    switch (slotType) {
+        case 'effect':
+            needsEffectSlot = true;
+            return `new EffectSlot(${anchor}, ${exprText});`;
+
+        case 'array-slot':
+            needsArraySlot = true;
+            return `new ArraySlot(${anchor}, ${exprText});`;
+
+        case 'static':
+            // Static value - direct textContent assignment
+            return `${anchor}.textContent = ${exprText};`;
+
+        case 'document-fragment':
+            // Nested html template - append directly
+            return `${anchor}.parentNode.insertBefore(${exprText}, ${anchor});`;
+
+        default:
+            // 'primitive', 'node', 'unknown' - use runtime slot
+            needsSlot = true;
+            return `__slot(${anchor}, ${exprText});`;
+    }
 }
 
 function generateImports(): string {
+    let slotImports: string[] = [];
+
+    if (needsArraySlot) {
+        slotImports.push(`import { ArraySlot } from '~/slot/array';`);
+    }
+
+    if (needsEffectSlot) {
+        slotImports.push(`import { EffectSlot } from '~/slot/effect';`);
+    }
+
+    if (needsSlot) {
+        slotImports.push(`import slot from '~/slot';`);
+    }
+
     return `
         import a from '~/attributes';
         import event from '~/event';
-
-        ${
-            needsEffectSlot
-                ? `import { EffectSlot } from '~/slot/effect';`
-                : `import slot from '~/slot';`
-        }
+        ${slotImports.join('\n')}
 
         let _template = document.createElement('template');
 
@@ -191,28 +183,22 @@ function generateImports(): string {
         };
 
         const __event = event;
-        const __setClass = a.setClass;
         const __setClassPreparsed = a.setClassPreparsed;
         const __setData = a.setData;
         const __setProperty = a.setProperty;
-        const __setStyle = a.setStyle;
         const __setStylePreparsed = a.setStylePreparsed;
         const __spread = a.spread;
-
-        ${
-            needsEffectSlot
-                ? ''
-                : `const __slot = slot;`
-        }
+        ${needsSlot ? `const __slot = slot;` : ''}
     `;
 }
 
 function generateTemplateCode(
     { html, slots }: ParseResult,
-    expressions: string[],
+    exprTexts: string[],
+    exprNodes: ts.Expression[],
+    sourceFile: ts.SourceFile,
     isArrowBody: boolean
 ): string {
-
     if (!slots || slots.length === 0) {
         return `__fragment(${html})`;
     }
@@ -223,53 +209,95 @@ function generateTemplateCode(
         varCounter = 0;
 
     declarations.push(`_root = ${getOrCreateTemplateId(html)}()`);
+    nodes.set('', '_root');
 
     for (let i = 0, n = slots.length; i < n; i++) {
-        let path = slots[i].path,
-            key = path.join('.');
+        let path = slots[i].path;
 
-        if (!nodes.has(key) && path.length > 0) {
-            let name = `_e${varCounter++}`;
-
-            declarations.push(`${name} = ${`_root${path.length ? '.' : ''}${path.join('.')}`}`);
-            nodes.set(key, name);
+        if (path.length === 0) {
+            continue;
         }
+
+        let key = path.join('.');
+
+        if (nodes.has(key)) {
+            continue;
+        }
+
+        // Find longest cached ancestor
+        let ancestorVar = '_root',
+            startIdx = 0;
+
+        for (let j = path.length - 1; j >= 0; j--) {
+            let prefix = path.slice(0, j).join('.');
+
+            if (nodes.has(prefix)) {
+                ancestorVar = nodes.get(prefix)!;
+                startIdx = j;
+                break;
+            }
+        }
+
+        // Build path from ancestor
+        let name = `_e${varCounter++}`,
+            suffix = path.slice(startIdx).join('.');
+
+        declarations.push(`${name} = ${ancestorVar}.${suffix}`);
+        nodes.set(key, name);
     }
 
-    // Start function body
-    if (isArrowBody) {
-        code.push(`{`);
-    }
-    else {
-        code.push(`(() => {`);
-    }
-
-    code.push(`    let ${declarations.join(',\n        ')};`);
+    code.push(
+        isArrowBody
+            ? '{'
+            : `(() => {`,
+        `let ${declarations.join(',\n')};`
+    );
 
     let index = 0;
 
     for (let i = 0, n = slots.length; i < n; i++) {
         let slot = slots[i],
-            elementVar = slot.path.length === 0 ? '_root' : (nodes.get(slot.path.join('.')) || '_root');
+            elementVar = slot.path.length === 0
+                ? '_root'
+                : ( nodes.get(slot.path.join('.')) || '_root' );
 
         if (slot.type === 'attributes') {
             for (let j = 0, m = slot.attributes.names.length; j < m; j++) {
                 let name = slot.attributes.names[j];
 
-                code.push(
-                    generateAttributeBinding(
-                        elementVar,
-                        name,
-                        expressions[index++] || 'undefined',
-                        slot.attributes.statics[name] || ''
-                    )
-                );
+                if (name === 'spread') {
+                    // Use TypeChecker-aware spread unpacking
+                    let bindings = generateSpreadBindings(
+                            exprNodes[index],
+                            exprTexts[index] || 'undefined',
+                            elementVar,
+                            sourceFile,
+                            currentChecker
+                        );
+
+                    for (let k = 0, o = bindings.length; k < o; k++) {
+                        code.push(bindings[k]);
+                    }
+
+                    index++;
+                }
+                else {
+                    code.push(
+                        generateAttributeBinding(
+                            elementVar,
+                            name,
+                            exprTexts[index++] || 'undefined',
+                            slot.attributes.statics[name] || ''
+                        )
+                    );
+                }
             }
         }
         else {
             code.push(
-                generateNodeBinding(elementVar, expressions[index++] || 'undefined')
+                generateNodeBinding(elementVar, exprTexts[index] || 'undefined', exprNodes[index])
             );
+            index++;
         }
     }
 
@@ -300,37 +328,41 @@ function generateCode(
 
     hoistedFactories.clear();
     htmlToTemplateId.clear();
+    needsArraySlot = false;
     needsEffectSlot = false;
+    needsSlot = false;
     templateCounter = 0;
 
     let changed = false,
         code = originalCode,
-        offset = 0,
         printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
 
-    // Process templates in order
-    for (let i = 0, n = templates.length; i < n; i++) {
-        let expressions: string[] = [],
-            template = templates[i];
+    // Sort templates by position (end to start) for correct replacement
+    // ts-parser returns depth-sorted, but we need position-sorted for string manipulation
+    let sorted = templates.slice().sort((a, b) => b.start - a.start);
+
+    // Process templates from end to start (no offset tracking needed)
+    for (let i = 0, n = sorted.length; i < n; i++) {
+        let exprTexts: string[] = [],
+            template = sorted[i];
 
         for (let j = 0, m = template.expressions.length; j < m; j++) {
-            expressions.push(printer.printNode(
+            exprTexts.push(printer.printNode(
                 ts.EmitHint.Expression,
                 template.expressions[j],
                 sourceFile
             ));
         }
 
-        let end = template.end + offset,
-            start = template.start + offset,
-            tmpl = generateTemplateCode(
-                parser.parse(template.literals) as ParseResult,
-                expressions,
-                code.slice(0, start).trimEnd().endsWith('=>')
-            );
+        let tmpl = generateTemplateCode(
+            parser.parse(template.literals) as ParseResult,
+            exprTexts,
+            template.expressions,
+            sourceFile,
+            code.slice(0, template.start).trimEnd().endsWith('=>')
+        );
 
-        code = code.slice(0, start) + tmpl + code.slice(end);
-        offset += tmpl.length - (end - start);
+        code = code.slice(0, template.start) + tmpl + code.slice(template.end);
         changed = true;
     }
 

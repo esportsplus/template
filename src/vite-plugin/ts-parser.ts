@@ -10,6 +10,7 @@ interface ReactiveCallInfo {
 }
 
 interface TemplateInfo {
+    depth: number;
     end: number;
     expressions: ts.Expression[];
     literals: string[];
@@ -18,7 +19,7 @@ interface TemplateInfo {
 }
 
 
-function extractTemplateInfo(node: ts.TaggedTemplateExpression): TemplateInfo {
+function extractTemplateInfo(node: ts.TaggedTemplateExpression, depth: number): TemplateInfo {
     let expressions: ts.Expression[] = [],
         literals: string[] = [],
         template = node.template;
@@ -38,6 +39,7 @@ function extractTemplateInfo(node: ts.TaggedTemplateExpression): TemplateInfo {
     }
 
     return {
+        depth,
         end: node.end,
         expressions,
         literals,
@@ -50,20 +52,42 @@ function extractTemplateInfo(node: ts.TaggedTemplateExpression): TemplateInfo {
 const findHtmlTemplates = (sourceFile: ts.SourceFile): TemplateInfo[] => {
     let templates: TemplateInfo[] = [];
 
-    function visit(node: ts.Node): void {
+    function visit(node: ts.Node, depth: number): void {
+        // Track nesting: arrow functions, function expressions, method declarations increase depth
+        let nextDepth = depth;
+
+        if (
+            ts.isArrowFunction(node) ||
+            ts.isFunctionExpression(node) ||
+            ts.isFunctionDeclaration(node) ||
+            ts.isMethodDeclaration(node)
+        ) {
+            nextDepth = depth + 1;
+        }
+
         if (ts.isTaggedTemplateExpression(node)) {
             let tag = node.tag;
 
             // Match `html` tag
             if (ts.isIdentifier(tag) && tag.text === 'html') {
-                templates.push(extractTemplateInfo(node));
+                templates.push(extractTemplateInfo(node, depth));
             }
         }
 
-        ts.forEachChild(node, visit);
+        ts.forEachChild(node, child => visit(child, nextDepth));
     }
 
-    visit(sourceFile);
+    visit(sourceFile, 0);
+
+    // Sort by depth descending (deepest first) for proper hoisting order
+    // Secondary sort by position for stable ordering
+    templates.sort((a, b) => {
+        if (a.depth !== b.depth) {
+            return b.depth - a.depth;
+        }
+
+        return a.start - b.start;
+    });
 
     return templates;
 }

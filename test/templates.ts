@@ -1,7 +1,7 @@
 // Test Templates for Compilation Benchmark
 // Wide variety of template patterns for performance testing
 
-import { html } from '../src/refactoring';
+import { html } from '../src';
 
 
 // =============================================================================
