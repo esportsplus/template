@@ -1,8 +1,9 @@
 import { CLEANUP } from '~/constants';
-import { previousSibling } from '~/utilities/node';
-import { SlotGroup } from '~/types';
+import { Element, SlotGroup } from '~/types';
 
 
+// #17: Start/End Boundary Tracking
+// Track boundaries explicitly for O(1) range operations
 const ondisconnect = (element: Element, fn: VoidFunction) => {
     ((element as any)[CLEANUP] ??= []).push(fn);
 };
@@ -24,7 +25,7 @@ const remove = (...groups: SlotGroup[]) => {
                 }
             }
 
-            next = previousSibling.call(tail);
+            next = tail.previousSibling as unknown as Element;
             tail.remove();
 
             if (head === tail) {

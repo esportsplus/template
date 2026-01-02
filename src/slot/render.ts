@@ -1,10 +1,8 @@
 import { isArray } from '@esportsplus/utilities';
 import { ARRAY_SLOT, EMPTY_FRAGMENT } from '~/constants';
 import { Element } from '~/types';
-import { cloneNode, lastChild } from '~/utilities/node';
-import { append } from '~/utilities/fragment';
+import { append, clone, text } from '~/utilities';
 import { ArraySlot } from './array';
-import text from '~/utilities/text';
 
 
 export default function render(anchor: Element, value: unknown): Node {
@@ -36,18 +34,18 @@ export default function render(anchor: Element, value: unknown): Node {
     }
 
     if (isArray(value)) {
-        let fragment = cloneNode.call(EMPTY_FRAGMENT);
+        let fragment = clone(EMPTY_FRAGMENT);
 
         for (let i = 0; i < n; i++) {
             append.call(fragment, render(anchor, value[i]));
-            anchor = lastChild.call(fragment);
+            anchor = fragment.lastChild as Element;
         }
 
         return fragment;
     }
 
     if (value instanceof NodeList) {
-        let fragment = cloneNode.call(EMPTY_FRAGMENT);
+        let fragment = EMPTY_FRAGMENT.cloneNode();
 
         for (let i = 0; i < n; i++) {
             append.call(fragment, value[i]);

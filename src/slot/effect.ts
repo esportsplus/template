@@ -1,9 +1,7 @@
 import { effect } from '@esportsplus/reactivity';
 import { Element, Renderable, SlotGroup } from '~/types';
-import { firstChild, lastChild, nodeValue } from '~/utilities/node'
 import { remove } from './cleanup';
-import raf from '~/utilities/raf'
-import text from '~/utilities/text';
+import { raf, text } from '~/utilities'
 import render from './render';
 
 
@@ -82,7 +80,7 @@ class EffectSlot {
             }
 
             if (textnode) {
-                nodeValue.call(textnode, value);
+                textnode.nodeValue = value as string;
 
                 if (!textnode.isConnected) {
                     anchor.after(textnode);
@@ -94,7 +92,7 @@ class EffectSlot {
         }
         else {
             let fragment = render(anchor, value),
-                head = firstChild.call(fragment);
+                head = fragment.firstChild;
 
             if (textnode?.isConnected) {
                 remove({ head: textnode as Element, tail: textnode as Element });
@@ -102,8 +100,8 @@ class EffectSlot {
 
             if (head) {
                 this.group = {
-                    head,
-                    tail: lastChild.call(fragment)
+                    head: head as Element,
+                    tail: fragment.lastChild as Element
                 };
 
                 anchor.after(fragment);

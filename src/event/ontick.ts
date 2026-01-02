@@ -1,5 +1,5 @@
 import { STATE_HYDRATING, STATE_NONE } from '~/constants';
-import raf from '~/utilities/raf';
+import { raf } from '~/utilities';
 
 
 let tasks = Object.assign(new Set<VoidFunction>(), { running: false });
@@ -34,10 +34,7 @@ const remove = (task: VoidFunction) => {
 
 
 export default (element: Element, listener: Function) => {
-    let dispose = () => {
-            remove(fn);
-        },
-        fn = () => {
+    let fn = () => {
             if (state === STATE_HYDRATING) {
                 if (element.isConnected) {
                     state = STATE_NONE;
@@ -52,7 +49,7 @@ export default (element: Element, listener: Function) => {
                 return;
             }
 
-            listener(dispose, element);
+            listener(() => remove(fn), element);
         },
         retry = 60,
         state = STATE_HYDRATING;

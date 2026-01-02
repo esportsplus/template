@@ -1,36 +1,41 @@
 import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
 import { Element } from '~/types';
-import { addEventListener } from '~/utilities/element';
-import { parentElement } from '~/utilities/node';
 import { ondisconnect } from '~/slot/cleanup';
 import onconnect from './onconnect';
 import onresize from './onresize';
 import ontick from './ontick';
 
 
-let capture = new Set<`on${string}`>(['onblur', 'onfocus', 'onscroll']),
-    controllers = new Map<
-        `on${string}`,
-        (AbortController & { listeners: number }) | null
-    >(),
+let controllers = new Map<string, (AbortController & { listeners: number }) | null>(),
+    // Events that should NOT use delegation
+    directAttach = new Set<string>([
+        'blur',
+        'error',
+        'focus', 'focusin', 'focusout',
+        'load',
+        'play', 'pause', 'ended', 'timeupdate',
+        'reset',
+        'scroll', 'submit'
+    ]),
+    host = window.document,
     keys: Record<string, symbol> = {},
-    passive = new Set<`on${string}`>([
-        'onanimationend', 'onanimationiteration', 'onanimationstart',
-        'onmousedown', 'onmouseenter', 'onmouseleave', 'onmousemove', 'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel',
-        'onpointerenter', 'onpointerleave', 'onpointermove', 'onpointerout', 'onpointerover',
-        'onscroll',
-        'ontouchcancel', 'ontouchend', 'ontouchleave', 'ontouchmove', 'ontouchstart', 'ontransitionend',
-        'onwheel'
+    passive = new Set<string>([
+        'animationend', 'animationiteration', 'animationstart',
+        'mousedown', 'mouseenter', 'mouseleave', 'mousemove', 'mouseout', 'mouseover', 'mouseup', 'mousewheel',
+        'pointerenter', 'pointerleave', 'pointermove', 'pointerout', 'pointerover',
+        'scroll',
+        'touchcancel', 'touchend', 'touchleave', 'touchmove', 'touchstart', 'transitionend',
+        'wheel'
     ]);
 
 
-(['onmousemove', 'onmousewheel', 'onscroll', 'ontouchend', 'ontouchmove', 'ontouchstart', 'onwheel'] as `on${string}`[]).map(event => {
+(['mousemove', 'mousewheel', 'scroll', 'touchend', 'touchmove', 'touchstart', 'wheel'] as string[]).map(event => {
     controllers.set(event, null);
 });
 
 
-function register(element: Element, event: `on${string}`) {
+function register(element: Element, event: string) {
     let controller = controllers.get(event),
         signal: AbortController['signal'] | undefined;
 
@@ -63,7 +68,7 @@ function register(element: Element, event: `on${string}`) {
 
     let key = keys[event] = Symbol();
 
-    addEventListener.call(window.document, event.slice(2), (e) => {
+    host.addEventListener(event.slice(2), (e) => {
         let fn,
             node = e.target as Element | null;
 
@@ -81,10 +86,9 @@ function register(element: Element, event: `on${string}`) {
                 return fn.call(node, e);
             }
 
-            node = parentElement.call(node);
+            node = node.parentElement as Element | null;
         }
     }, {
-        capture: capture.has(event),
         passive: passive.has(event),
         signal
     });
@@ -93,30 +97,26 @@ function register(element: Element, event: `on${string}`) {
 }
 
 
-export default (element: Element, event: `on${string}`, listener: Function): void => {
-    switch (event) {
-        case 'onconnect':
-            onconnect(element, listener);
-            return;
+const add = (element: Element, event: string, listener: Function): void => {
+    if (directAttach.has(event)) {
+        let handler = (e: Event) => listener.call(element, e);
 
-        case 'ondisconnect':
-            ondisconnect(element, () => listener(element));
-            return;
+        element.addEventListener(event, handler, {
+            passive: passive.has(event)
+        });
 
-        case 'onrender':
-            root(() => listener(element));
-            return;
-
-        case 'onresize':
-            onresize(element, listener);
-            return;
-
-        case 'ontick':
-            ontick(element, listener);
-            return;
-
-        default:
-            element[ keys[event] || register(element, event) ] = listener;
-            return;
+        ondisconnect(element, () => {
+            element.removeEventListener(event, handler);
+        });
+    }
+    else {
+        element[ keys[event] || register(element, event) ] = listener;
     }
 };
+
+const onrender = (element: Element, listener: Function) => {
+    root(() => listener(element))
+};
+
+
+export default { add, onconnect, ondisconnect, onrender, onresize, ontick };
