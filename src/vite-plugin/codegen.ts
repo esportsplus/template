@@ -1,4 +1,6 @@
 import type { ReactiveCallInfo, TemplateInfo } from './ts-parser';
+import { applyReplacementsReverse } from '~/library/transformer-utils';
+import type { Replacement } from '~/library/transformer-utils';
 import ts from 'typescript';
 import parser from './parser';
 import { analyzeExpression, generateAttributeBinding, generateSpreadBindings } from './ts-type-analyzer';
@@ -424,15 +426,15 @@ function rewriteExpression(expr: ts.Expression, sourceFile: ts.SourceFile): stri
     }
 
     // Has nested templates - rewrite by replacing them in the source text
-    let exprText = expr.getText(sourceFile),
-        exprStart = expr.getStart(),
-        replacements: { start: number; end: number; code: string }[] = [];
+    let exprStart = expr.getStart(),
+        exprText = expr.getText(sourceFile),
+        replacements: Replacement[] = [];
 
     function collectNestedTemplates(node: ts.Node): void {
         if (isNestedHtmlTemplate(node as ts.Expression)) {
             replacements.push({
-                code: generateNestedTemplateCode(node as ts.TaggedTemplateExpression, sourceFile),
                 end: node.end - exprStart,
+                newText: generateNestedTemplateCode(node as ts.TaggedTemplateExpression, sourceFile),
                 start: node.getStart() - exprStart
             });
         }
@@ -443,16 +445,7 @@ function rewriteExpression(expr: ts.Expression, sourceFile: ts.SourceFile): stri
 
     collectNestedTemplates(expr);
 
-    // Sort by position descending and apply replacements
-    replacements.sort((a, b) => b.start - a.start);
-
-    for (let i = 0, n = replacements.length; i < n; i++) {
-        let r = replacements[i];
-
-        exprText = exprText.slice(0, r.start) + r.code + exprText.slice(r.end);
-    }
-
-    return exprText;
+    return applyReplacementsReverse(exprText, replacements);
 }
 
 function generateCode(
@@ -484,33 +477,31 @@ function generateCode(
         };
     }
 
-    let changed = false,
-        code = originalCode;
+    let replacements: Replacement[] = [];
 
-    // Sort templates by position (end to start) for correct replacement
-    let sorted = rootTemplates.slice().sort((a, b) => b.start - a.start);
-
-    // Process templates from end to start (no offset tracking needed)
-    for (let i = 0, n = sorted.length; i < n; i++) {
+    for (let i = 0, n = rootTemplates.length; i < n; i++) {
         let exprTexts: string[] = [],
-            template = sorted[i];
+            template = rootTemplates[i];
 
         for (let j = 0, m = template.expressions.length; j < m; j++) {
-            // Rewrite expressions to handle nested templates
             exprTexts.push(rewriteExpression(template.expressions[j], sourceFile));
         }
 
-        let tmpl = generateTemplateCode(
-            parser.parse(template.literals) as ParseResult,
-            exprTexts,
-            template.expressions,
-            sourceFile,
-            code.slice(0, template.start).trimEnd().endsWith('=>')
-        );
-
-        code = code.slice(0, template.start) + tmpl + code.slice(template.end);
-        changed = true;
+        replacements.push({
+            end: template.end,
+            newText: generateTemplateCode(
+                parser.parse(template.literals) as ParseResult,
+                exprTexts,
+                template.expressions,
+                sourceFile,
+                originalCode.slice(0, template.start).trimEnd().endsWith('=>')
+            ),
+            start: template.start
+        });
     }
+
+    let code = applyReplacementsReverse(originalCode, replacements),
+        changed = replacements.length > 0;
 
     // Add hoisted factories and imports
     if (changed && hoistedFactories.size > 0) {

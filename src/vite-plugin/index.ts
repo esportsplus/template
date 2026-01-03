@@ -14,10 +14,11 @@
 // - html.reactive inlining → new ArraySlot
 
 
+import { mightNeedTransform } from '~/library/transformer-utils';
 import ts from 'typescript';
 import { addArraySlotImport, generateCode, generateReactiveInlining, needsArraySlotImport, setTypeChecker } from './codegen';
-import { findHtmlTemplates, findReactiveCalls } from './ts-parser';
 import { getProgram, invalidateProgram } from './program';
+import { findHtmlTemplates, findReactiveCalls } from './ts-parser';
 
 
 type Plugin = {
@@ -73,7 +74,7 @@ const templatePlugin = (options: PluginOptions = {}): Plugin => {
                 return null;
             }
 
-            if (!code.includes('html`') && !code.includes('html.reactive')) {
+            if (!mightNeedTransform(code, { patterns: ['html`', 'html.reactive'] })) {
                 return null;
             }
 
