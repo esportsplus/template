@@ -26,11 +26,11 @@
         }
     },
     "main": "./build/index.js",
-    "name": "@esportsplus/frontend",
+    "name": "@esportsplus/template",
     "private": false,
     "repository": {
         "type": "git",
-        "url": "https://github.com/esportsplus/frontend"
+        "url": "https://github.com/esportsplus/template"
     },
     "scripts": {
         "build": "tsc",
