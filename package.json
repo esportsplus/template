@@ -34,12 +34,19 @@
     },
     "scripts": {
         "build": "tsc",
-        "build:test": "vite build --config test/vite.config.ts",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
         "-": "-",
         "prepare": "pnpm build",
         "prepublishOnly": "pnpm build"
     },
     "type": "module",
     "types": "./build/index.d.ts",
-    "version": "0.16.0"
+    "version": "0.16.0",
+    "devDependencies": {
+        "@vitest/coverage-v8": "^4.0.17",
+        "jsdom": "^27.4.0",
+        "vitest": "^4.0.17"
+    }
 }
