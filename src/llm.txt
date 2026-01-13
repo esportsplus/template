@@ -1,0 +1,403 @@
+# Template Library - LLM Context Guide
+
+This document provides comprehensive context for LLMs to understand, maintain, and refactor this template compilation and rendering library.
+
+## Overview
+
+A compile-time template system that transforms `html` tagged template literals into optimized DOM construction code. The system consists of:
+
+1. **Compiler** (`compiler/`) - TypeScript transformer that runs at build time
+2. **Runtime** (`*.ts` in root) - Minimal runtime for DOM manipulation, slots, and events
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        BUILD TIME                               │
+├─────────────────────────────────────────────────────────────────┤
+│  Source: html`<div>${expr}</div>`                               │
+│                    ↓                                            │
+│  ts-parser.ts    → Find html`` tags in AST                      │
+│                    ↓                                            │
+│  parser.ts       → Parse HTML, extract slots, generate paths    │
+│                    ↓                                            │
+│  ts-analyzer.ts  → Analyze expression types (Effect, Static..)  │
+│                    ↓                                            │
+│  codegen.ts      → Generate optimized JS code                   │
+│                    ↓                                            │
+│  Output: template_xxx().firstChild.nextSibling...               │
+├─────────────────────────────────────────────────────────────────┤
+│                        RUNTIME                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  utilities.ts    → template(), clone(), fragment()              │
+│  attributes.ts   → setList(), setProperty(), reactive bindings  │
+│  slot/           → ArraySlot, EffectSlot, static rendering      │
+│  event/          → Event delegation, lifecycle hooks            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Compiler Pipeline
+
+### Entry Point: `compiler/index.ts`
+
+The transform function:
+1. Finds all `html` tagged templates via `findHtmlTemplates()`
+2. Finds all `html.reactive()` calls via `findReactiveCalls()`
+3. Generates replacement code via `generateCode()`
+4. Outputs import statements and template factory definitions
+
+### HTML Parser: `compiler/parser.ts`
+
+**Purpose**: Parse HTML string, identify dynamic slots, generate DOM traversal paths.
+
+**Key Data Structures**:
+
+```typescript
+type NodePath = ('firstChild' | 'firstElementChild' | 'nextElementSibling' | 'nextSibling')[];
+
+// Level tracking for nested elements
+type Level = {
+    children: number;      // Text/comment node count (for firstChild/nextSibling)
+    elements: number;      // Element count (for firstElementChild/nextElementSibling)
+    path: NodePath;        // Path to reach this level from root
+};
+```
+
+**Slot Marker**: `{{$}}` represents dynamic expression positions in the template.
+
+**Node Types**:
+- `NODE_ELEMENT` (3) - Regular HTML elements
+- `NODE_VOID` (5) - Self-closing elements (img, input, br, etc.)
+- `NODE_SLOT` (4) - Dynamic content position (`{{$}}`)
+- `NODE_CLOSING` (1) - Closing tags (`</div>`)
+- `NODE_COMMENT` (2) - Comments
+
+**Path Generation Algorithm**:
+
+```typescript
+// At root level (empty parent.path):
+//   Use firstChild/nextSibling with parent.children count
+// At nested levels (non-empty parent.path):
+//   Use firstElementChild/nextElementSibling with parent.elements count
+
+path = parent.path.length
+    ? methods(parent.elements, parent.path, 'firstElementChild', 'nextElementSibling')
+    : methods(parent.children, [], 'firstChild', 'nextSibling');
+```
+
+**Critical Bug Fix (Line 217)**:
+
+Self-closing tags like `<path/>`, `<circle/>` in SVG must decrement level:
+
+```typescript
+// IMPORTANT: Check for self-closing syntax before NODE_CLOSING
+if (match[0].at(-2) === '/' || type === NODE_CLOSING) {
+    level--;
+}
+```
+
+Without this fix, self-closing tags increment `level` but never decrement, causing all subsequent paths to be offset incorrectly.
+
+### Code Generator: `compiler/codegen.ts`
+
+**Purpose**: Transform parsed template data into executable JavaScript.
+
+**Key Functions**:
+
+- `generateTemplateCode()` - Main code generation
+- `generateAttributeBinding()` - Attribute/event binding code
+- `generateNodeBinding()` - Slot content binding code
+
+**Path Optimization**:
+
+The codegen optimizes traversal by finding common ancestors:
+
+```typescript
+// If element A has path [a, b, c, d]
+// And element B has path [a, b, c, d, e, f]
+// Then B can be declared as: A.e!.f
+```
+
+This optimization relies on correct paths from the parser. If paths share an incorrect prefix due to level tracking bugs, the generated code will fail at runtime.
+
+**Output Structure**:
+
+```javascript
+(() => {
+    let root_xxx = template_xxx(),
+        element_yyy = root_xxx.firstChild!.firstElementChild as Element,
+        element_zzz = element_yyy.nextElementSibling!.firstChild as Element;
+
+    // Attribute bindings
+    namespace.delegate(element_yyy, 'click', handler);
+    namespace.setList(element_yyy, 'class', value, attributes_xxx);
+
+    // Slot bindings
+    namespace.slot(element_zzz, content);
+
+    return root_xxx;
+})()
+```
+
+### Type Analyzer: `compiler/ts-analyzer.ts`
+
+Analyzes expressions to determine optimal runtime binding:
+
+| Expression Type | Result | Runtime Behavior |
+|----------------|--------|------------------|
+| Arrow/Function | `Effect` | Creates `EffectSlot` with reactivity |
+| `html.reactive()` | `ArraySlot` | Creates `ArraySlot` for lists |
+| Nested `html` tag | `DocumentFragment` | Direct insertion |
+| Literal values | `Static` | Direct text assignment |
+| Unknown | `Unknown` | Runtime `slot()` dispatch |
+
+## Runtime Components
+
+### Template Factory: `utilities.ts`
+
+```typescript
+const template = (html: string) => {
+    let cached: DocumentFragment | undefined;
+    return () => {
+        if (!cached) {
+            element.innerHTML = html;
+            cached = element.content;
+        }
+        return clone(cached, true);
+    };
+};
+```
+
+Caches parsed HTML, returns cloned fragments on each call.
+
+### Slot System: `slot/`
+
+**Three slot types**:
+
+1. **Static Slot** (`slot/index.ts`)
+   - One-time content insertion
+   - No reactivity overhead
+
+2. **EffectSlot** (`slot/effect.ts`)
+   - Wraps reactive function in `effect()`
+   - Updates content on dependency changes
+   - Batches updates via `requestAnimationFrame`
+
+3. **ArraySlot** (`slot/array.ts`)
+   - Handles reactive arrays with fine-grained updates
+   - Listens to array mutation events (push, pop, splice, etc.)
+   - Maintains DOM node groups per array item
+
+**SlotGroup Structure**:
+
+```typescript
+type SlotGroup = {
+    head: Element;  // First node of rendered content
+    tail: Element;  // Last node of rendered content
+};
+```
+
+Used to track multi-node slot content for efficient removal/replacement.
+
+### Attribute System: `attributes.ts`
+
+**Attribute Types**:
+
+1. **List Attributes** (class, style)
+   - Merge static + dynamic values
+   - Track changes per-slot to minimize updates
+   - Use delimiters: class=' ', style=';'
+
+2. **Property Attributes**
+   - Direct property assignment
+   - Uses `element.removeAttribute()` for null/false/empty
+
+3. **Reactive Attributes**
+   - Wrapped in `effect()` for automatic updates
+   - Batched via RAF queue
+
+**Update Batching**:
+
+```typescript
+let queue = q<Context>(64);  // Circular buffer
+let scheduled = false;
+
+function schedule(ctx, element, name, state, value) {
+    (ctx.updates ??= {})[name] = value;
+    if (!ctx.updating) {
+        queue.add(ctx);
+    }
+    if (!scheduled) {
+        scheduled = true;
+        raf(task);  // Apply all updates in next frame
+    }
+}
+```
+
+### Event System: `event/`
+
+**Event Delegation**:
+
+Most events use document-level delegation:
+
+```typescript
+// Registration creates a symbol key for each event type
+const delegate = (element, event, listener) => {
+    element[ keys[event] || register(element, event) ] = listener;
+};
+
+// Document listener bubbles up, checking for handler
+host.addEventListener(event, (e) => {
+    let node = e.target;
+    while (node) {
+        if (typeof node[key] === 'function') {
+            return node[key].call(node, e);
+        }
+        node = node.parentElement;
+    }
+});
+```
+
+**Direct Attachment Events**:
+
+Events that don't bubble properly use `addEventListener` directly:
+- `blur`, `focus`, `focusin`, `focusout`
+- `load`, `error`
+- Media events: `play`, `pause`, `ended`, `timeupdate`
+- `scroll`, `submit`, `reset`
+
+**Lifecycle Events**:
+
+Custom events handled specially:
+- `onconnect` - Called when element enters DOM
+- `ondisconnect` - Called when element leaves DOM
+- `onrender` - Called after initial render
+- `onresize` - ResizeObserver-based
+- `ontick` - RAF-based animation loop
+
+### Cleanup System: `slot/cleanup.ts`
+
+Nodes store cleanup functions via symbol key:
+
+```typescript
+const ondisconnect = (element, fn) => {
+    ((element as any)[CLEANUP] ??= []).push(fn);
+};
+
+const remove = (...groups) => {
+    // Walk backwards through node range
+    // Call all cleanup functions
+    // Remove nodes from DOM
+};
+```
+
+## Constants Reference
+
+### `constants.ts` (Runtime)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `CLEANUP` | Symbol | Key for cleanup function array on nodes |
+| `STORE` | Symbol | Key for attribute context on nodes |
+| `ARRAY_SLOT` | Symbol | Marker for ArraySlot instances |
+| `SLOT_HTML` | `'<!--$-->'` | Comment marker for slot positions |
+| `STATE_HYDRATING` | 0 | Initial render, apply immediately |
+| `STATE_NONE` | 1 | Normal update, batch via RAF |
+| `STATE_WAITING` | 2 | Array item, wait for batch |
+
+### `compiler/constants.ts`
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `ENTRYPOINT` | 'html' | Tag function name to transform |
+| `ENTRYPOINT_REACTIVITY` | 'reactive' | Method for array slots |
+| `NAMESPACE` | uid('template') | Runtime import namespace |
+
+## Refactoring Guidelines
+
+### Safe Changes
+
+1. **Adding void elements to `NODE_WHITELIST`**
+   - Add tag name with `NODE_VOID` value
+   - No other changes needed
+
+2. **Adding lifecycle events**
+   - Add to `LIFECYCLE_EVENTS` set in `constants.ts`
+   - Implement handler in `event/on<name>.ts`
+   - Export from `event/index.ts`
+
+3. **Adding direct-attach events**
+   - Add to `DIRECT_ATTACH_EVENTS` set
+   - Uses existing `on()` function
+
+### Dangerous Changes
+
+1. **Modifying `parser.ts` level tracking**
+   - Level must increment for `NODE_ELEMENT` only
+   - Level must decrement for `NODE_CLOSING` AND self-closing tags
+   - Off-by-one errors cause path corruption across all templates
+
+2. **Modifying `codegen.ts` path optimization**
+   - Ancestor matching relies on exact path prefixes
+   - Incorrect matches cause runtime null reference errors
+
+3. **Modifying slot rendering order**
+   - Slots must be processed in document order
+   - Expression indices must match slot order
+
+### Testing Recommendations
+
+After modifying parser/codegen:
+1. Test templates with SVG containing self-closing tags (`<path/>`, `<circle/>`)
+2. Test deeply nested structures (3+ levels)
+3. Test multiple sibling elements with event handlers
+4. Test templates with mixed slot types (attributes + content)
+
+### Common Failure Modes
+
+1. **"Cannot read property 'nextElementSibling' of null"**
+   - Cause: Path goes deeper than actual DOM structure
+   - Debug: Check level tracking in parser for self-closing tags
+
+2. **Wrong element receives event handler**
+   - Cause: Path offset, element N gets binding for element N+1
+   - Debug: Check `parent.elements` count at each level
+
+3. **Slot content appears in wrong position**
+   - Cause: `parent.children` count incorrect
+   - Debug: Check text node handling between elements
+
+## File Dependency Graph
+
+```
+index.ts (runtime entry)
+├── constants.ts
+├── attributes.ts ← constants, types, utilities, event
+├── html.ts ← types, slot (stub, replaced at compile)
+├── render.ts ← types, utilities, slot
+├── svg.ts (same as html.ts)
+├── utilities.ts ← constants
+├── types.ts ← slot/array
+├── slot/
+│   ├── index.ts ← types, effect, render
+│   ├── array.ts ← reactivity, constants, types, utilities, cleanup, html
+│   ├── effect.ts ← reactivity, types, utilities, cleanup, render
+│   ├── cleanup.ts ← constants, types
+│   └── render.ts ← utilities, constants, types, array
+└── event/
+    ├── index.ts ← reactivity, utilities, constants, slot, types, onconnect/resize/tick
+    ├── onconnect.ts ← types
+    ├── onresize.ts ← types, cleanup
+    └── ontick.ts ← types, cleanup, utilities
+
+compiler/
+├── index.ts ← ts, ast, constants, codegen, ts-parser
+├── constants.ts ← typescript/compiler
+├── parser.ts ← constants (from ..)
+├── codegen.ts ← typescript, utilities, ts-parser, ts-analyzer, constants, parser
+├── ts-parser.ts ← typescript, typescript/compiler, constants
+├── ts-analyzer.ts ← typescript, constants
+└── plugins/
+    ├── vite.ts ← typescript/compiler, constants, reactivity/compiler, ..
+    └── tsc.ts (similar)
+```

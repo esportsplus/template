@@ -1,0 +1,45 @@
+{
+    "author": "ICJR",
+    "dependencies": {
+        "@esportsplus/pipeline": "^1.2.2",
+        "@esportsplus/queue": "^0.2.0",
+        "@esportsplus/reactivity": "^0.29.19",
+        "@esportsplus/typescript": "^0.28.2",
+        "@esportsplus/utilities": "^0.27.2"
+    },
+    "exports": {
+        "./compiler": {
+            "types": "./build/compiler/index.d.ts",
+            "default": "./build/compiler/index.js"
+        },
+        "./compiler/tsc": {
+            "types": "./build/compiler/plugins/tsc.d.ts",
+            "default": "./build/compiler/plugins/tsc.js"
+        },
+        "./compiler/vite": {
+            "types": "./build/compiler/plugins/vite.d.ts",
+            "default": "./build/compiler/plugins/vite.js"
+        },
+        ".": {
+            "types": "./build/index.d.ts",
+            "default": "./build/index.js"
+        }
+    },
+    "main": "./build/index.js",
+    "name": "@esportsplus/frontend",
+    "private": false,
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/esportsplus/frontend"
+    },
+    "scripts": {
+        "build": "tsc",
+        "build:test": "vite build --config test/vite.config.ts",
+        "-": "-",
+        "prepare": "pnpm build",
+        "prepublishOnly": "pnpm build"
+    },
+    "type": "module",
+    "types": "./build/index.d.ts",
+    "version": "0.2.0"
+}
