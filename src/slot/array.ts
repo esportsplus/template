@@ -10,6 +10,7 @@ type ArraySlotOp<T> =
     | { items: T[]; op: 'concat' }
     | { deleteCount: number; items: T[]; op: 'splice'; start: number }
     | { items: T[]; op: 'push' }
+    | { index: number; item: T; op: 'set' }
     | { items: T[]; op: 'unshift' }
     | { op: 'clear' }
     | { op: 'pop' }
@@ -77,6 +78,9 @@ class ArraySlot<T> {
         });
         array.on('reverse', () => {
             this.schedule({ op: 'reverse' });
+        });
+        array.on('set', ({ index, item }) => {
+            this.schedule({ op: 'set', item, index });
         });
         array.on('shift', () => {
             this.schedule({ op: 'shift' });
@@ -157,6 +161,9 @@ class ArraySlot<T> {
                         case 'reverse':
                             this.nodes.reverse();
                             this.sync();
+                            break;
+                        case 'set':
+                            this.splice(op.index, op.index + 1, [op.item]);
                             break;
                         case 'shift':
                             this.shift();
