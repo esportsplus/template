@@ -15,11 +15,11 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
       '@esportsplus/reactivity':
-        specifier: ^0.29.21
-        version: 0.29.21
+        specifier: ^0.29.22
+        version: 0.29.22
       '@esportsplus/typescript':
-        specifier: ^0.28.3
-        version: 0.28.3
+        specifier: ^0.28.4
+        version: 0.28.4
       '@esportsplus/utilities':
         specifier: ^0.27.2
         version: 0.27.2
@@ -266,11 +266,11 @@ packages:
   '@esportsplus/queue@0.2.0':
     resolution: {integrity: sha512-YXutzJ9UwzNXnqdoFaPjmuv7QehComMQxoX7C0OM592akh3BNdmo7WboErlJMSkw90j5EDLsuc7ZTfBEbYpyVw==}
 
-  '@esportsplus/reactivity@0.29.21':
-    resolution: {integrity: sha512-DHdUWwueC9a5NJ9dk6SplXUAQDmMjSKL5R/PXMNbc2PEP0WJXrDlDdyHDrPliodLyTBZCykTeq8aTWwI5Uu45Q==}
+  '@esportsplus/reactivity@0.29.22':
+    resolution: {integrity: sha512-VYVLZcO8f+5VsJ8FwxnAU2ZDwN4VBJGe3mGv+AAyXgGvkMZFQ6tVs8z/DYT7P926lfMtiY4Mp9VsDDp2unznmg==}
 
-  '@esportsplus/typescript@0.28.3':
-    resolution: {integrity: sha512-XNvxsnFVPHrXPyFxsU728z9FMi1u9Ywea0+WaxtWhWh2CkPvQSKQab/GuiPQCaJPL4F4IdheS4UIddiPoJfiFg==}
+  '@esportsplus/typescript@0.28.4':
+    resolution: {integrity: sha512-9trn+0Lixf+3dpJFJCVuKgwJxQLdMugs5UHLE1GD94GFTwtuw+cmh5XYlOaldje3EdKk/bnQStUn/+VKda6+tQ==}
     hasBin: true
 
   '@esportsplus/utilities@0.27.2':
@@ -1120,11 +1120,11 @@ snapshots:
 
   '@esportsplus/queue@0.2.0': {}
 
-  '@esportsplus/reactivity@0.29.21':
+  '@esportsplus/reactivity@0.29.22':
     dependencies:
       '@esportsplus/utilities': 0.27.2
 
-  '@esportsplus/typescript@0.28.3':
+  '@esportsplus/typescript@0.28.4':
     dependencies:
       '@esportsplus/cli-passthrough': 0.0.12
       '@esportsplus/utilities': 0.27.2

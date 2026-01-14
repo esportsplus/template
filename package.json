@@ -3,8 +3,8 @@
     "dependencies": {
         "@esportsplus/pipeline": "^1.2.2",
         "@esportsplus/queue": "^0.2.0",
-        "@esportsplus/reactivity": "^0.29.21",
-        "@esportsplus/typescript": "^0.28.3",
+        "@esportsplus/reactivity": "^0.29.22",
+        "@esportsplus/typescript": "^0.28.4",
         "@esportsplus/utilities": "^0.27.2"
     },
     "devDependencies": {
