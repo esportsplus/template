@@ -135,7 +135,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
             return `new ${NAMESPACE}.EffectSlot(${anchor}, ${exprText});`;
 
         case TYPES.Static:
-            return `${anchor}.textContent = ${exprText};`;
+            return `${anchor}.after(${NAMESPACE}.text(${exprText}));`;
 
         default:
             return `${NAMESPACE}.slot(${anchor}, ${exprText});`;
