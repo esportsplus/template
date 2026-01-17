@@ -77,7 +77,7 @@ function list(
             let part: string | undefined,
                 parts = (value as string).split(delimiter);
 
-            while (part = parts.pop()) {
+            while ((part = parts.pop()) !== undefined) {
                 part = part.trim();
 
                 if (part === '') {
@@ -240,7 +240,10 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown, attr
 
     store[name] ??= new Set<string>();
     store[name + '.static'] ??= '';
-    store[name + '.static'] += `${attributes[name] && store[name + '.static'] ? ATTRIBUTE_DELIMITERS[name] : ''}${attributes[name]}`;
+
+    if (attributes[name]) {
+        store[name + '.static'] += (store[name + '.static'] ? ATTRIBUTE_DELIMITERS[name] : '') + attributes[name];
+    }
 
     if (typeof value === 'function') {
         reactive(element, name, STATE_HYDRATING, value);
