@@ -12,6 +12,7 @@ const DIRECT_ATTACH_EVENTS = new Set<string>([
     'onerror',
     'onfocus', 'onfocusin', 'onfocusout',
     'onload',
+    'onmouseenter', 'onmouseleave',
     'onplay', 'onpause', 'onended', 'ontimeupdate',
     'onreset',
     'onscroll', 'onsubmit'
