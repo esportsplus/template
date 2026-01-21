@@ -114,7 +114,7 @@ const parse = (literals: string[]) => {
                 if (char === ' ') {
                     if (attribute && attribute in ATTRIBUTE_DELIMITERS) {
                         s[attribute] ??= '';
-                        s[attribute] += `${buffer && s[attribute] ? ATTRIBUTE_DELIMITERS[attribute] : ''}${buffer}`;
+                        s[attribute] += char + buffer;
                     }
 
                     buffer = '';
@@ -133,7 +133,7 @@ const parse = (literals: string[]) => {
                     else if (quote === char) {
                         if (attribute && attribute in ATTRIBUTE_DELIMITERS) {
                             s[attribute] ??= '';
-                            s[attribute] += `${buffer && s[attribute] ? ATTRIBUTE_DELIMITERS[attribute] : ''}${buffer}`;
+                            s[attribute] += ` ${buffer}`;
                         }
 
                         attribute = '';
@@ -230,7 +230,8 @@ const parse = (literals: string[]) => {
 
     buffer = buffer
         .replace(REGEX_EVENTS, '')
-        .replace(REGEX_EMPTY_ATTRIBUTES, '');
+        .replace(REGEX_EMPTY_ATTRIBUTES, '')
+        .replace(REGEX_CLEANUP_WHITESPACE, ' ');
 
     return {
         html: buffer,
