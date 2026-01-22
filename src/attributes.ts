@@ -259,7 +259,7 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown, attr
                 continue;
             }
 
-            list(ctx, element, null, name, STATE_HYDRATING, v);
+            setList(element, name, v, attributes);
         }
     }
 };
