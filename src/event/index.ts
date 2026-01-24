@@ -13,7 +13,7 @@ let controllers = new Map<string, (AbortController & { listeners: number }) | nu
     keys: Record<string, symbol> = {},
     passive = new Set<string>([
         'animationend', 'animationiteration', 'animationstart',
-        'mousedown', 'mouseenter', 'mouseleave', 'mousemove', 'mouseout', 'mouseover', 'mouseup', 'mousewheel',
+        'mousedown', 'mouseenter', 'mouseleave', 'mousemove', 'mouseout', 'mouseover', 'mouseup',
         'pointerenter', 'pointerleave', 'pointermove', 'pointerout', 'pointerover',
         'scroll',
         'touchcancel', 'touchend', 'touchleave', 'touchmove', 'touchstart', 'transitionend',
@@ -21,7 +21,7 @@ let controllers = new Map<string, (AbortController & { listeners: number }) | nu
     ]);
 
 
-(['mousemove', 'mousewheel', 'scroll', 'touchend', 'touchmove', 'touchstart', 'wheel'] as string[]).map(event => {
+(['mousemove', 'scroll', 'touchend', 'touchmove', 'touchstart', 'wheel'] as string[]).map(event => {
     controllers.set(event, null);
 });
 
