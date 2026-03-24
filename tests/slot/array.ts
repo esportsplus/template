@@ -687,6 +687,207 @@ describe('slot/ArraySlot', () => {
         });
     });
 
+    describe('moveBefore API', () => {
+        it('sort uses moveBefore when available on parent', async () => {
+            let arr = reactive(['c', 'a', 'b'] as string[]),
+                moveBeforeCalls: [Node, Node | null][] = [],
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            // Polyfill moveBefore on the parent
+            (container as any).moveBefore = function (node: Node, ref: Node | null) {
+                moveBeforeCalls.push([node, ref]);
+                container.insertBefore(node, ref);
+            };
+
+            arr.sort();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('c');
+            expect(moveBeforeCalls.length).toBeGreaterThan(0);
+
+            delete (container as any).moveBefore;
+        });
+
+        it('sort falls back to insertBefore without moveBefore', async () => {
+            let arr = reactive(['c', 'a', 'b'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            // Ensure no moveBefore
+            expect('moveBefore' in container).toBe(false);
+
+            arr.sort();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('c');
+        });
+
+        it('reverse uses moveBefore when available via sync', async () => {
+            let arr = reactive(['a', 'b', 'c'] as string[]),
+                moveBeforeCalls: [Node, Node | null][] = [],
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            (container as any).moveBefore = function (node: Node, ref: Node | null) {
+                moveBeforeCalls.push([node, ref]);
+                container.insertBefore(node, ref);
+            };
+
+            arr.reverse();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('c');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('a');
+            expect(moveBeforeCalls.length).toBeGreaterThan(0);
+
+            delete (container as any).moveBefore;
+        });
+
+        it('reverse falls back to fragment approach without moveBefore', async () => {
+            let arr = reactive(['a', 'b', 'c'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            expect('moveBefore' in container).toBe(false);
+
+            arr.reverse();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('c');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('a');
+        });
+
+        it('moveBefore receives correct arguments during sort', async () => {
+            let arr = reactive(['b', 'a'] as string[]),
+                moveBeforeCalls: [string, string | null][] = [],
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    span.setAttribute('data-id', s);
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            (container as any).moveBefore = function (node: Node, ref: Node | null) {
+                let nodeId = (node as HTMLElement).getAttribute?.('data-id') || '?',
+                    refId = ref ? ((ref as HTMLElement).getAttribute?.('data-id') || '?') : null;
+
+                moveBeforeCalls.push([nodeId, refId]);
+                container.insertBefore(node, ref);
+            };
+
+            arr.sort();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('b');
+
+            // 'a' should be moved before 'b'
+            expect(moveBeforeCalls.some(([n]) => n === 'a')).toBe(true);
+
+            delete (container as any).moveBefore;
+        });
+
+        it('sort with moveBefore preserves node order for already-sorted LIS', async () => {
+            let arr = reactive(['a', 'b', 'c'] as string[]),
+                moveBeforeCalls: [Node, Node | null][] = [],
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            (container as any).moveBefore = function (node: Node, ref: Node | null) {
+                moveBeforeCalls.push([node, ref]);
+                container.insertBefore(node, ref);
+            };
+
+            arr.sort();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('c');
+
+            // Already sorted — LIS covers all nodes, no moves needed
+            expect(moveBeforeCalls.length).toBe(0);
+
+            delete (container as any).moveBefore;
+        });
+    });
+
     describe('disconnect cleanup', () => {
         it('cleans up nodes when cleared', async () => {
             let cleanupCount = 0,

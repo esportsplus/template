@@ -264,7 +264,8 @@ class ArraySlot<T> {
             return;
         }
 
-        let ref: Node | null = end;
+        let ref: Node | null = end,
+            useMoveBefore = 'moveBefore' in parent;
 
         for (let i = n - 1; i >= 0; i--) {
             let group = sorted[i];
@@ -279,7 +280,13 @@ class ArraySlot<T> {
             while (node) {
                 let prev: Node | null = node === group.head ? null : node.previousSibling;
 
-                parent.insertBefore(node, ref);
+                if (useMoveBefore) {
+                    (parent as any).moveBefore(node, ref);
+                }
+                else {
+                    parent.insertBefore(node, ref);
+                }
+
                 ref = node;
                 node = prev;
             }
@@ -301,6 +308,27 @@ class ArraySlot<T> {
             n = nodes.length;
 
         if (!n) {
+            return;
+        }
+
+        let parent = this.marker.parentNode;
+
+        if (parent && 'moveBefore' in parent) {
+            let ref: Node | null = nodes[0].tail.nextSibling;
+
+            for (let i = n - 1; i >= 0; i--) {
+                let group = nodes[i],
+                    node: Node | null = group.tail;
+
+                while (node) {
+                    let prev: Node | null = node === group.head ? null : node.previousSibling;
+
+                    (parent as any).moveBefore(node, ref);
+                    ref = node;
+                    node = prev;
+                }
+            }
+
             return;
         }
 
