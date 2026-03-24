@@ -37,6 +37,7 @@
         "url": "https://github.com/esportsplus/template"
     },
     "scripts": {
+        "bench:run": "vitest bench --config vitest.bench.config.ts",
         "build": "tsc",
         "test": "vitest run",
         "test:watch": "vitest",

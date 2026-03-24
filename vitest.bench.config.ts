@@ -9,13 +9,10 @@ export default defineConfig({
         }
     },
     test: {
-        coverage: {
-            include: ['src/**/*.ts'],
-            provider: 'v8',
-            reporter: ['text', 'html']
+        benchmark: {
+            include: ['bench/**/*.ts']
         },
         environment: 'jsdom',
-        globals: true,
-        include: ['tests/**/*.ts']
+        globals: true
     }
 });

@@ -472,4 +472,278 @@ describe('slot/ArraySlot', () => {
             expect(spans[3].textContent).toBe('e');
         });
     });
+
+    describe('rapid successive operations', () => {
+        it('batches push+push+pop in same frame', async () => {
+            let arr = reactive(['a'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.push('b');
+            arr.push('c');
+            arr.pop();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(2);
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('b');
+        });
+
+        it('batches unshift+pop+push in same frame', async () => {
+            let arr = reactive(['b'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.unshift('a');
+            arr.pop();
+            arr.push('c');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(2);
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('c');
+        });
+    });
+
+    describe('empty array edge cases', () => {
+        it('pop on empty array does not throw', async () => {
+            let arr = reactive([] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.pop();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(0);
+        });
+
+        it('shift on empty array does not throw', async () => {
+            let arr = reactive([] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.shift();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(0);
+        });
+
+        it('splice beyond bounds does not throw', async () => {
+            let arr = reactive(['a'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.splice(10, 5);
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(1);
+            expect(spans[0].textContent).toBe('a');
+        });
+    });
+
+    describe('large array operations', () => {
+        it('pushes 50+ items and renders all correctly', async () => {
+            let arr = reactive([] as number[]),
+                slot = new ArraySlot(arr, (n) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = String(n);
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            let items: number[] = [];
+
+            for (let i = 0; i < 60; i++) {
+                items.push(i);
+            }
+
+            arr.push(...items);
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(60);
+            expect(spans[0].textContent).toBe('0');
+            expect(spans[59].textContent).toBe('59');
+        });
+    });
+
+    describe('set operation', () => {
+        it('replaces a single item by index via splice', async () => {
+            let arr = reactive(['a', 'b', 'c'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.splice(1, 1, 'x');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(3);
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('x');
+            expect(spans[2].textContent).toBe('c');
+        });
+
+        it('replaces first item by index via splice', async () => {
+            let arr = reactive(['a', 'b'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.splice(0, 1, 'z');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(2);
+            expect(spans[0].textContent).toBe('z');
+            expect(spans[1].textContent).toBe('b');
+        });
+    });
+
+    describe('disconnect cleanup', () => {
+        it('cleans up nodes when cleared', async () => {
+            let cleanupCount = 0,
+                arr = reactive(['a', 'b', 'c'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(3);
+
+            // Clear removes all items and their DOM nodes
+            arr.splice(0, arr.length);
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(0);
+        });
+
+        it('removes nodes from DOM on pop', async () => {
+            let arr = reactive(['a', 'b'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    span.setAttribute('data-value', s);
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            let removed = container.querySelector('span[data-value="b"]');
+
+            expect(removed).not.toBeNull();
+
+            arr.pop();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            removed = container.querySelector('span[data-value="b"]');
+
+            expect(removed).toBeNull();
+            expect(container.querySelectorAll('span').length).toBe(1);
+        });
+    });
 });

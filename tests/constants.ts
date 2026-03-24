@@ -77,6 +77,11 @@ describe('constants', () => {
             expect(DIRECT_ATTACH_EVENTS.has('onload')).toBe(true);
         });
 
+        it('contains mouse enter/leave events', () => {
+            expect(DIRECT_ATTACH_EVENTS.has('onmouseenter')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('onmouseleave')).toBe(true);
+        });
+
         it('contains scroll event', () => {
             expect(DIRECT_ATTACH_EVENTS.has('onscroll')).toBe(true);
         });
@@ -84,7 +89,6 @@ describe('constants', () => {
         it('does not contain delegatable events', () => {
             expect(DIRECT_ATTACH_EVENTS.has('onclick')).toBe(false);
             expect(DIRECT_ATTACH_EVENTS.has('onkeydown')).toBe(false);
-            expect(DIRECT_ATTACH_EVENTS.has('onmouseenter')).toBe(false);
         });
     });
 
