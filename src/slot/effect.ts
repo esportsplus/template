@@ -20,37 +20,50 @@ function read(value: unknown): unknown {
 
 class EffectSlot {
     anchor: Element;
-    disposer: VoidFunction;
+    disposer: VoidFunction | null;
     group: SlotGroup | null = null;
     scheduled = false;
     textnode: Node | null = null;
 
 
-    constructor(anchor: Element, fn: (dispose?: VoidFunction) => Renderable<any>) {
-        let dispose = fn.length ? () => this.dispose() : undefined,
-            value: unknown;
-
+    constructor(anchor: Element, fn: ((...args: any[]) => any)) {
         this.anchor = anchor;
-        this.disposer = effect(() => {
-            value = read( fn(dispose) );
+        this.disposer = null;
 
-            if (!this.disposer) {
-                this.update(value);
-            }
-            else if (!this.scheduled) {
-                this.scheduled = true;
+        if (fn.constructor.name === 'AsyncFunction') {
+            (fn as (fallback: (content: Renderable<any>) => void) => Promise<Renderable<any>>)(
+                (content) => this.update(content)
+            ).then((value) => this.update(value), () => {});
+        }
+        else {
+            let dispose = fn.length ? () => this.dispose() : undefined,
+                value: unknown;
 
-                raf(() => {
-                    this.scheduled = false;
+            this.disposer = effect(() => {
+                value = read( fn(dispose) );
+
+                if (!this.disposer) {
                     this.update(value);
-                });
-            }
-        });
+                }
+                else if (!this.scheduled) {
+                    this.scheduled = true;
+
+                    raf(() => {
+                        this.scheduled = false;
+                        this.update(value);
+                    });
+                }
+            });
+        }
     }
 
 
     dispose() {
-        let { anchor, group, textnode } = this;
+        let { anchor, disposer, group, textnode } = this;
+
+        if (!disposer) {
+            return;
+        }
 
         if (textnode) {
             group = { head: anchor, tail: textnode as Element };
@@ -59,7 +72,7 @@ class EffectSlot {
             group.head = anchor;
         }
 
-        this.disposer();
+        disposer();
 
         if (group) {
             remove(group);
@@ -68,6 +81,8 @@ class EffectSlot {
 
     update(value: unknown): void {
         let { anchor, group, textnode } = this;
+
+        value = read(value);
 
         if (group) {
             remove(group);
@@ -92,7 +107,17 @@ class EffectSlot {
         }
         else {
             let fragment = render(anchor, value),
+                head: Node | null,
+                tail: Node | null;
+
+            if (fragment.nodeType === 11) {
                 head = fragment.firstChild;
+                tail = fragment.lastChild;
+            }
+            else {
+                head = fragment;
+                tail = fragment;
+            }
 
             if (textnode?.isConnected) {
                 remove({ head: textnode as Element, tail: textnode as Element });
@@ -101,7 +126,7 @@ class EffectSlot {
             if (head) {
                 this.group = {
                     head: head as Element,
-                    tail: fragment.lastChild as Element
+                    tail: tail as Element
                 };
 
                 anchor.after(fragment);

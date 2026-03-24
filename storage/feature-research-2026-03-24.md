@@ -19,49 +19,7 @@
 
 ---
 
-## Removed Features
-
-- **Directive System** — Already supported. Compile-time transforms handle `classMap`, `styleMap`, conditionals, and keyed iteration natively.
-- **Portals** — Already supported. `render(anyElement, content)` renders into any DOM target.
-
----
-
 ## Feature Findings
-
-### F2: Enter/Exit Animation Primitives
-
-**What:** Built-in support for animating elements entering and leaving the DOM. Separate from View Transitions — this covers individual element lifecycle animations.
-
-**How frameworks implement:**
-- Svelte: `transition:fade`, `in:fly`, `out:slide` directives with built-in easing
-- Vue: `<Transition>` component with CSS class hooks (`v-enter-from`, `v-enter-active`, `v-leave-to`)
-- SolidJS: `<Transition>` + `onEnter`/`onExit` callbacks
-- FLIP technique: First-Last-Invert-Play for layout animations
-
-**Why useful:**
-- Enter animations: fade in, slide in, scale up when element added
-- Exit animations: fade out, slide out when element removed (requires delaying removal)
-- List reorder animations: FLIP calculates position delta, animates transform
-- Without framework support, exit animations require manual `setTimeout` + class toggling
-
-**Key challenge:** Exit animations require the library to **delay node removal** until the animation completes. This needs integration with the cleanup system.
-
-**Proposed API:**
-```typescript
-// Attribute-based (compile-time detected)
-html`<div ontransition=${(el, phase) => { /* 'enter' | 'exit' | 'move' */ }}>...</div>`;
-
-// Or: explicit animation hooks
-onenter?: (element: Element, done: VoidFunction) => void;
-onexit?: (element: Element, done: VoidFunction) => void;
-```
-
-**Applicability:** High — the library's `ondisconnect` hook is the right place to intercept removal. Compile-time can detect animation attributes and emit deferred removal code.
-
-**Complexity:** Medium (exit animations need deferred removal; FLIP needs position tracking)
-**Priority:** Medium-High
-
----
 
 ### F3: Suspense / Async Content Boundaries
 
@@ -97,67 +55,6 @@ html`<div>${async () => {
 
 ---
 
-### F4: Error Boundaries
-
-**What:** Catch rendering errors in a subtree and display fallback UI instead of crashing the entire app.
-
-**How frameworks implement:**
-- React: `class ErrorBoundary extends Component` with `componentDidCatch`
-- SolidJS: `<ErrorBoundary fallback={err => <p>{err.message}</p>}>`
-- Vue: `onErrorCaptured` lifecycle hook
-- Svelte: No built-in (try/catch in load functions)
-
-**Why useful:**
-- Production apps need graceful degradation
-- Isolate errors to the component that failed
-- Show meaningful error messages instead of blank screens
-- Enable retry mechanisms
-
-**Proposed API:**
-```typescript
-// Wrap slot rendering in try/catch
-import { boundary } from '@esportsplus/template';
-
-boundary(
-    () => html`<div>${riskyContent}</div>`,
-    (error) => html`<div class="error">${error.message}</div>`
-);
-```
-
-**Applicability:** Medium — `EffectSlot` already wraps effect execution. Adding try/catch + fallback rendering is natural. Compile-time could detect `boundary()` calls and emit optimized error handling.
-
-**Complexity:** Low-Medium
-**Priority:** Medium
-
----
-
-### F5: Popover API Integration
-
-**What:** Native browser API for overlay/popup content. `popover` attribute + `popovertarget` for declarative show/hide. Automatic top-layer rendering, light-dismiss, focus management.
-
-**Browser support:** Chrome 114+, Firefox 125+, Safari 17+
-
-**Why useful:**
-- Replaces custom tooltip/dropdown/menu libraries
-- Native accessibility (inert background, keyboard handling)
-- Top-layer eliminates z-index conflicts
-- `beforetoggle`/`toggle` events for state tracking
-- `interestfor` (experimental) for hover/focus activation
-
-**Current library gap:** No special handling for `popover` attribute — it would be set via generic `setAttribute`. But `popovertarget` needs special handling since it references another element by ID.
-
-**Proposed integration:**
-- Compile-time: detect `popover` and `popovertarget` attributes
-- Runtime: auto-generate unique IDs for `popovertarget` references
-- Bind `toggle` event via event delegation
-- Add `onpopovershow`/`onpopoverhide` lifecycle events
-
-**Applicability:** Medium — mostly attribute detection + event binding. The compile-time system can validate `popovertarget` references.
-
-**Complexity:** Low
-**Priority:** Medium
-
----
 
 ### F6: `moveBefore()` DOM API
 
