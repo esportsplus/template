@@ -10,6 +10,7 @@ if (typeof Node !== 'undefined') {
 
 export * from './attributes';
 export * from './event';
+export * from './hmr';
 export * from './utilities';
 
 export { default as html } from './html';
