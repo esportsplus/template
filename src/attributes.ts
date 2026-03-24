@@ -29,7 +29,10 @@ function apply(element: Element, name: string, value: unknown) {
     else if (name === 'class') {
         element.className = value as string;
     }
-    else if (name === 'style' || (name[0] === 'd' && name.startsWith('data-')) || element['ownerSVGElement']) {
+    else if (name === 'style') {
+        element.style.cssText = value as string;
+    }
+    else if ((name[0] === 'd' && name.startsWith('data-')) || element['ownerSVGElement']) {
         element.setAttribute(name, value as string);
     }
     else {

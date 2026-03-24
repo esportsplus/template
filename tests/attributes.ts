@@ -61,7 +61,7 @@ describe('attributes', () => {
         it('sets style attribute', () => {
             setProperty(element as unknown as Element, 'style', 'color: red');
 
-            expect(element.getAttribute('style')).toBe('color: red');
+            expect(element.style.cssText).toContain('color: red');
         });
 
         it('sets data-* attributes via setAttribute', () => {
@@ -107,7 +107,8 @@ describe('attributes', () => {
         it('merges static and dynamic styles', () => {
             setList(element as unknown as Element, 'style', 'font-size: 14px', { style: 'color: red' });
 
-            expect(element.getAttribute('style')).toBe('color: red;font-size: 14px');
+            expect(element.style.cssText).toContain('color: red');
+            expect(element.style.cssText).toContain('font-size: 14px');
         });
 
         it('handles null value', () => {
