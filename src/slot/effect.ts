@@ -1,4 +1,5 @@
 import { effect } from '@esportsplus/reactivity';
+import { isAsyncFunction } from '@esportsplus/utilities';
 import { Element, Renderable, SlotGroup } from '../types';
 import { raf, text } from '../utilities'
 import { remove } from './cleanup';
@@ -30,7 +31,7 @@ class EffectSlot {
         this.anchor = anchor;
         this.disposer = null;
 
-        if (fn.constructor.name === 'AsyncFunction') {
+        if (isAsyncFunction(fn)) {
             (fn as (fallback: (content: Renderable<any>) => void) => Promise<Renderable<any>>)(
                 (content) => this.update(content)
             ).then((value) => this.update(value), () => {});

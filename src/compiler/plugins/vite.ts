@@ -15,17 +15,18 @@ type VitePlugin = {
 };
 
 
-let base = plugin.vite({
-    name: PACKAGE_NAME,
-    plugins: [reactivity, template]
-});
+const TEMPLATE_SEARCH = NAMESPACE + '.template(';
 
-let TEMPLATE_SEARCH = NAMESPACE + '.template(';
-
-let TEMPLATE_CALL_REGEX = new RegExp(
+const TEMPLATE_CALL_REGEX = new RegExp(
     '(const\\s+(\\w+)\\s*=\\s*' + NAMESPACE + '\\.template\\()(`)',
     'g'
 );
+
+
+let base = plugin.vite({
+        name: PACKAGE_NAME,
+        plugins: [reactivity, template]
+    });
 
 
 function injectHMR(code: string, id: string): string {
