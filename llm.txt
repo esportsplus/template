@@ -30,9 +30,16 @@ A compile-time template system that transforms `html` tagged template literals i
 │                        RUNTIME                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │  utilities.ts    → template(), clone(), fragment()              │
+│  hmr.ts          → createHotTemplate(), accept() (dev only)    │
 │  attributes.ts   → setList(), setProperty(), reactive bindings  │
 │  slot/           → ArraySlot, EffectSlot, static rendering      │
 │  event/          → Event delegation, lifecycle hooks            │
+├─────────────────────────────────────────────────────────────────┤
+│                     VITE PLUGIN (DEV)                           │
+├─────────────────────────────────────────────────────────────────┤
+│  plugins/vite.ts → Wraps base transform + injects HMR code     │
+│                    In dev: template() → createHotTemplate()     │
+│                    Appends import.meta.hot.accept()             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -182,11 +189,17 @@ Caches parsed HTML, returns cloned fragments on each call.
    - Wraps reactive function in `effect()`
    - Updates content on dependency changes
    - Batches updates via `requestAnimationFrame`
+   - **Async function support**: detects async functions via `isAsyncFunction()` from `@esportsplus/utilities`
+   - Async functions receive a `fallback` callback for loading state, resolved value replaces content
+   - Async signature: `async (fallback: (content: Renderable) => void) => Promise<Renderable>`
 
 3. **ArraySlot** (`slot/array.ts`)
    - Handles reactive arrays with fine-grained updates
-   - Listens to array mutation events (push, pop, splice, etc.)
+   - Listens to array mutation events (push, pop, splice, sort, reverse, etc.)
    - Maintains DOM node groups per array item
+   - **`moveBefore` DOM API**: sort/reverse use `moveBefore` when available for non-destructive reordering (preserves focus, animations, iframe state)
+   - Falls back to `insertBefore` in browsers without `moveBefore`
+   - **LIS algorithm**: sort uses longest increasing subsequence to minimize DOM moves
 
 **SlotGroup Structure**:
 
@@ -291,6 +304,41 @@ const remove = (...groups) => {
 };
 ```
 
+### HMR Module: `hmr.ts`
+
+**Purpose**: Dev-only runtime registry for hot module replacement of templates.
+
+**Key Concepts**:
+- In production, templates use `utilities.template()` which caches a parsed fragment and returns clones
+- In development, the Vite plugin replaces `template()` calls with `createHotTemplate()` which registers factories in a module→template registry
+- On file save, Vite triggers HMR accept which calls `accept(moduleId)` to invalidate cached fragments
+- Next factory call re-parses the updated HTML, producing fresh DOM without page reload
+
+**API**:
+
+```typescript
+// Register or update a template factory for HMR tracking
+createHotTemplate(moduleId: string, templateId: string, html: string): () => DocumentFragment
+
+// Invalidate all cached templates for a module (called from import.meta.hot.accept)
+accept(moduleId: string): void
+```
+
+**Registry Structure**: `Map<moduleId, Map<templateId, HotTemplate>>` where HotTemplate holds the html string, cached fragment, and factory closure.
+
+### Vite Plugin: `compiler/plugins/vite.ts`
+
+**Purpose**: Wraps the base `plugin.vite()` transform with HMR injection.
+
+**How it works**:
+1. `configResolved` captures dev mode (`command === 'serve'` or `mode === 'development'`)
+2. In dev mode, after the base transform runs, `injectHMR()` post-processes the output:
+   - Replaces `NAMESPACE.template(\`...\`)` → `NAMESPACE.createHotTemplate(moduleId, templateId, \`...\`)`
+   - Appends `import.meta.hot.accept(() => { NAMESPACE.accept(moduleId); })`
+3. In production, no HMR code is injected — identical to previous behavior
+
+**Regex**: `TEMPLATE_CALL_REGEX` matches `const varName = NAMESPACE.template(` to capture the variable name as the templateId.
+
 ## Constants Reference
 
 ### `constants.ts` (Runtime)
@@ -330,6 +378,11 @@ const remove = (...groups) => {
    - Add to `DIRECT_ATTACH_EVENTS` set
    - Uses existing `on()` function
 
+4. **Modifying HMR behavior**
+   - `hmr.ts` is standalone with no internal deps — safe to modify
+   - `injectHMR()` in `plugins/vite.ts` only runs in dev mode
+   - Production builds are unaffected by HMR changes
+
 ### Dangerous Changes
 
 1. **Modifying `parser.ts` level tracking**
@@ -344,6 +397,11 @@ const remove = (...groups) => {
 3. **Modifying slot rendering order**
    - Slots must be processed in document order
    - Expression indices must match slot order
+
+4. **Modifying `slot/array.ts` sort/sync**
+   - Uses `moveBefore` API with `insertBefore` fallback — both paths must stay in sync
+   - LIS algorithm in `lis()` determines which nodes to keep in place; incorrect LIS = unnecessary moves
+   - `sync()` and `sort()` both have moveBefore/insertBefore branches
 
 ### Testing Recommendations
 
@@ -373,6 +431,7 @@ After modifying parser/codegen:
 index.ts (runtime entry)
 ├── constants.ts
 ├── attributes.ts ← constants, types, utilities, event
+├── hmr.ts (standalone, no internal deps)
 ├── html.ts ← types, slot (stub, replaced at compile)
 ├── render.ts ← types, utilities, slot
 ├── svg.ts (same as html.ts)
@@ -381,7 +440,7 @@ index.ts (runtime entry)
 ├── slot/
 │   ├── index.ts ← types, effect, render
 │   ├── array.ts ← reactivity, constants, types, utilities, cleanup, html
-│   ├── effect.ts ← reactivity, types, utilities, cleanup, render
+│   ├── effect.ts ← reactivity, utilities (isAsyncFunction), types, utilities, cleanup, render
 │   ├── cleanup.ts ← constants, types
 │   └── render.ts ← utilities, constants, types, array
 └── event/
@@ -398,6 +457,6 @@ compiler/
 ├── ts-parser.ts ← typescript, typescript/compiler, constants
 ├── ts-analyzer.ts ← typescript, constants
 └── plugins/
-    ├── vite.ts ← typescript/compiler, constants, reactivity/compiler, ..
-    └── tsc.ts (similar)
+    ├── vite.ts ← typescript/compiler, constants, reactivity/compiler, .. (wraps base plugin, adds HMR injection)
+    └── tsc.ts (similar, no HMR)
 ```

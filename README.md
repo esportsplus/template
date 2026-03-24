@@ -9,6 +9,9 @@ High-performance, compiler-optimized HTML templating library for JavaScript/Type
 - **Reactive integration** - Works with `@esportsplus/reactivity` for dynamic updates
 - **Event delegation** - Efficient event handling with automatic delegation
 - **Lifecycle events** - `onconnect`, `ondisconnect`, `onrender`, `onresize`, `ontick`
+- **Async slots** - Async function support with fallback content in `EffectSlot`
+- **Non-destructive reordering** - Uses `moveBefore` DOM API for array sort/reverse when available
+- **HMR support** - Fine-grained hot module replacement for templates in development
 - **Type-safe** - Full TypeScript support
 
 ## Installation
@@ -29,9 +32,11 @@ import { defineConfig } from 'vite';
 import template from '@esportsplus/template/compiler/vite';
 
 export default defineConfig({
-    plugins: [template]
+    plugins: [template()]
 });
 ```
+
+HMR is automatically enabled in development mode (`vite dev`). When a file containing `html` templates is saved, only the affected template factories are invalidated and re-created — no full page reload needed.
 
 ### TypeScript Compiler (tsc)
 
@@ -179,6 +184,31 @@ const todoList = (todos: string[]) =>
     html`<ul>${html.reactive(todos, todo => html`<li>${todo}</li>`)}</ul>`;
 ```
 
+Array sort and reverse operations use the `moveBefore` DOM API when available, preserving element state (focus, animations, iframe content) during reordering. Falls back to `insertBefore` in older browsers.
+
+### Async Slots
+
+Async functions are supported in effect slots, with an optional fallback callback for loading states:
+
+```typescript
+import { html } from '@esportsplus/template';
+
+// Async with fallback content while loading
+const asyncContent = () =>
+    html`<div>${async (fallback: (content: any) => void) => {
+        fallback(html`<span>Loading...</span>`);
+        const data = await fetchData();
+        return html`<span>${data}</span>`;
+    }}</div>`;
+
+// Simple async (no fallback)
+const simpleAsync = () =>
+    html`<div>${async () => {
+        const data = await fetchData();
+        return html`<span>${data}</span>`;
+    }}</div>`;
+```
+
 ## Events
 
 ### Standard DOM Events
@@ -270,6 +300,8 @@ const circle = (fill: string) =>
 | `slot` | Slot rendering |
 | `ArraySlot` | Reactive array rendering |
 | `EffectSlot` | Reactive effect rendering |
+| `accept` | HMR accept handler (dev only) |
+| `createHotTemplate` | HMR template factory (dev only) |
 
 ### Types
 
