@@ -3,6 +3,7 @@ import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
 import { clone, fragment, marker, raf } from '../utilities';
 import { ondisconnect, remove } from './cleanup';
+
 import html from '../html';
 
 
@@ -20,6 +21,53 @@ type ArraySlotOp<T> =
 
 
 const EMPTY_FRAGMENT = fragment('');
+
+
+function lis(arr: number[]): Set<number> {
+    let n = arr.length;
+
+    if (n === 0) {
+        return new Set();
+    }
+
+    let ends = new Int32Array(n),
+        predecessors = new Int32Array(n),
+        len = 0;
+
+    for (let i = 0; i < n; i++) {
+        let lo = 0,
+            hi = len,
+            val = arr[i];
+
+        while (lo < hi) {
+            let mid = (lo + hi) >> 1;
+
+            if (arr[ends[mid]] < val) {
+                lo = mid + 1;
+            }
+            else {
+                hi = mid;
+            }
+        }
+
+        ends[lo] = i;
+        predecessors[i] = lo > 0 ? ends[lo - 1] : -1;
+
+        if (lo >= len) {
+            len = lo + 1;
+        }
+    }
+
+    let idx = ends[len - 1],
+        result = new Set<number>();
+
+    for (let i = len - 1; i >= 0; i--) {
+        result.add(idx);
+        idx = predecessors[idx];
+    }
+
+    return result;
+}
 
 
 class ArraySlot<T> {
@@ -204,14 +252,41 @@ class ArraySlot<T> {
             return;
         }
 
-        let sorted = new Array(n) as SlotGroup[];
+        let end: Node | null = n > 0 ? nodes[n - 1].tail.nextSibling : null,
+            keep = lis(order),
+            parent = this.marker.parentNode,
+            sorted = new Array(n) as SlotGroup[];
 
         for (let i = 0; i < n; i++) {
             sorted[i] = nodes[order[i]];
         }
 
         this.nodes = sorted;
-        this.sync();
+
+        if (!parent || keep.size === n) {
+            return;
+        }
+
+        let ref: Node | null = end;
+
+        for (let i = n - 1; i >= 0; i--) {
+            let group = sorted[i];
+
+            if (keep.has(i)) {
+                ref = group.head;
+                continue;
+            }
+
+            let node: Node | null = group.tail;
+
+            while (node) {
+                let prev: Node | null = node === group.head ? null : node.previousSibling;
+
+                parent.insertBefore(node, ref);
+                ref = node;
+                node = prev;
+            }
+        }
     }
 
     private splice(start: number, stop: number = this.nodes.length, items: T[]) {
