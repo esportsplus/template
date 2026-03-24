@@ -1,7 +1,7 @@
 import { read, root, signal, write, Reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
-import { clone, fragment, marker, raf } from '../utilities';
+import { clone, EMPTY_FRAGMENT, marker, raf } from '../utilities';
 import { ondisconnect, remove } from './cleanup';
 
 import html from '../html';
@@ -18,9 +18,6 @@ type ArraySlotOp<T> =
     | { op: 'reverse' }
     | { op: 'shift' }
     | { op: 'sort'; order: number[] };
-
-
-const EMPTY_FRAGMENT = fragment('');
 
 
 function lis(arr: number[]): Set<number> {

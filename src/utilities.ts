@@ -19,6 +19,8 @@ const fragment = (html: string): DocumentFragment => {
     return element.content;
 };
 
+const EMPTY_FRAGMENT = fragment('');
+
 const marker = fragment(SLOT_HTML).firstChild!;
 
 const raf = globalThis?.requestAnimationFrame;
@@ -50,4 +52,4 @@ const text = (value: string) => {
 };
 
 
-export { clone, fragment, template, marker, raf, text };
+export { clone, EMPTY_FRAGMENT, fragment, marker, raf, template, text };

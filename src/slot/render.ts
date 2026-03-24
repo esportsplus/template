@@ -1,11 +1,8 @@
 import { isArray } from '@esportsplus/utilities';
 import { ARRAY_SLOT } from '../constants';
 import { Element } from '../types';
-import { clone, fragment, text } from '../utilities';
+import { clone, EMPTY_FRAGMENT, text } from '../utilities';
 import { ArraySlot } from './array';
-
-
-const EMPTY_FRAGMENT = fragment('');
 
 
 export default function render(anchor: Element, value: unknown): Node {
