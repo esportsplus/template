@@ -21,40 +21,6 @@
 
 ## Feature Findings
 
-### F3: Suspense / Async Content Boundaries
-
-**What:** Declarative async content handling — show fallback UI while async data loads, then swap in real content. Nested suspense boundaries enable progressive rendering.
-
-**How frameworks implement:**
-- React: `<Suspense fallback={<Loading/>}>`
-- SolidJS 2.0: `<Loading>` boundary with `isPending()` — distinguishes initial load from revalidation
-- Svelte: `{#await promise}...{:then data}...{:catch error}...{/await}`
-- Qwik: Automatic suspense via resumability
-
-**Why useful:**
-- Async data fetching is universal; every app needs loading states
-- Nested boundaries prevent full-page loading spinners
-- Streaming SSR: flush boundary fallbacks, then stream resolved content
-- SolidJS 2.0's `isPending()` avoids tearing — query if async work is in flight without demolishing UI
-
-**Proposed API:**
-```typescript
-// Compile-time: detect async effects, wrap in boundary
-html`<div>${async () => {
-    let data = await fetch('/api');
-    return html`<span>${data.name}</span>`;
-}}</div>`;
-
-// Runtime: AsyncSlot that renders fallback, then swaps to resolved content
-```
-
-**Applicability:** Medium — requires new `AsyncSlot` type. Compile-time could detect async arrow functions and emit boundary code. Runtime needs promise tracking + fallback rendering.
-
-**Complexity:** Medium-High
-**Priority:** Medium
-
----
-
 
 ### F6: `moveBefore()` DOM API
 
@@ -84,82 +50,6 @@ else {
 
 **Complexity:** Low
 **Priority:** High (when Safari ships support)
-
----
-
-### F7: Two-Way Binding / Form Handling
-
-**What:** Syntactic sugar for binding form input values to reactive signals with automatic synchronization.
-
-**How frameworks implement:**
-- Vue: `v-model` directive (compiles to value binding + input event)
-- Svelte: `bind:value`, `bind:checked`, `bind:group`
-- SolidJS: No built-in two-way binding (explicit event handlers)
-- Angular: `[(ngModel)]` with FormsModule
-
-**Why useful:**
-- Forms are the most common interactive pattern
-- Manual `oninput` + signal write is boilerplate
-- Checkbox groups, radio groups, select multiples need special handling
-- Validation interception (transform before write)
-
-**Proposed API:**
-```typescript
-// Compile-time: detect reactive value in value/checked position
-html`<input value=${signal} />`  // auto-bind: set value + listen for input event
-
-// Or explicit:
-html`<input bind:value=${signal} />`
-```
-
-**Compile-time detection:** If `value` attribute is an `Effect` (reactive function) on an `<input>`, emit both the attribute binding AND an `input` event listener that writes back to the signal.
-
-**Applicability:** High — compile-time system can detect input elements + reactive attributes and emit two-way binding code.
-
-**Complexity:** Medium (many edge cases: select, textarea, checkbox, radio, contenteditable)
-**Priority:** Medium-High
-
----
-
-### F8: Ref / Element Access Pattern
-
-**What:** A way to get a reference to the actual DOM element after rendering, for use in imperative DOM manipulation, measurements, third-party library integration.
-
-**How frameworks implement:**
-- React: `useRef()` + `ref={myRef}`
-- SolidJS: `let el; <div ref={el}>`
-- Vue: `ref="myRef"` template attribute
-- Lit: `@query('#selector')` decorator
-
-**Why useful:**
-- Canvas/WebGL integration needs element reference
-- Third-party library init (charts, maps, editors)
-- Measurements (getBoundingClientRect)
-- Focus management
-- Animation libraries (GSAP, Motion One)
-
-**Current library state:** The `onconnect` lifecycle event already provides element reference:
-```typescript
-html`<div onconnect=${(el) => { /* have reference */ }}>...</div>`
-```
-
-This is already a ref mechanism. A dedicated `ref` API would be sugar for this pattern.
-
-**Proposed API:**
-```typescript
-// Callback ref (already supported via onconnect)
-html`<div onconnect=${(el) => { canvasRef = el; }}>...</div>`
-
-// Signal ref (new — populate signal with element)
-let el = signal<HTMLDivElement | null>(null);
-html`<div ref=${el}>...</div>`
-// Compile-time: emit `onconnect` that writes to signal + `ondisconnect` that nulls it
-```
-
-**Applicability:** Low-Medium — `onconnect` already covers the core use case. Signal ref is just syntactic sugar.
-
-**Complexity:** Low
-**Priority:** Low
 
 ---
 
