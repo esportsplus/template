@@ -1,4 +1,5 @@
-import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { signal, read, write } from '@esportsplus/reactivity';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
 import type { Element } from '../../src/types';
@@ -223,6 +224,92 @@ describe('slot/EffectSlot', () => {
             let slot = new EffectSlot(anchor, () => 'Test');
 
             expect(slot.scheduled).toBe(false);
+        });
+    });
+
+    describe('RAF scheduled updates', () => {
+        it('batches subsequent reactive updates via RAF', async () => {
+            let s = signal('first');
+
+            new EffectSlot(anchor, () => read(s));
+
+            expect(container.textContent).toContain('first');
+
+            write(s, 'second');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(container.textContent).toContain('second');
+        });
+
+        it('coalesces rapid reactive updates into one RAF', async () => {
+            let s = signal('a');
+
+            new EffectSlot(anchor, () => read(s));
+
+            expect(container.textContent).toContain('a');
+
+            write(s, 'b');
+            write(s, 'c');
+            write(s, 'd');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(container.textContent).toContain('d');
+            expect(container.textContent).not.toContain('b');
+        });
+    });
+
+    describe('dispose with group content', () => {
+        it('dispose with group (complex content) removes group nodes', () => {
+            let frag = document.createDocumentFragment(),
+                span1 = document.createElement('span'),
+                span2 = document.createElement('span');
+
+            span1.textContent = 'A';
+            span2.textContent = 'B';
+            frag.appendChild(span1);
+            frag.appendChild(span2);
+
+            let slot = new EffectSlot(anchor, (dispose) => frag);
+
+            expect(container.querySelector('span')).not.toBeNull();
+            expect(slot.group).not.toBeNull();
+            expect(slot.textnode).toBeNull();
+
+            slot.dispose();
+
+            expect(container.querySelectorAll('span').length).toBe(0);
+        });
+
+        it('dispose with textnode removes text and anchor', () => {
+            let slot = new EffectSlot(anchor, (dispose) => 'Hello text');
+
+            expect(container.textContent).toContain('Hello text');
+            expect(slot.textnode).not.toBeNull();
+
+            slot.dispose();
+
+            expect(container.textContent).not.toContain('Hello text');
+        });
+    });
+
+    describe('textnode reconnection', () => {
+        it('reattaches disconnected textnode on update', () => {
+            let slot = new EffectSlot(anchor, () => 'Hello');
+
+            expect(slot.textnode?.isConnected).toBe(true);
+
+            // Manually remove textnode from DOM
+            slot.textnode!.parentNode!.removeChild(slot.textnode!);
+
+            expect(slot.textnode?.isConnected).toBe(false);
+
+            // Direct update should reattach
+            slot.update('Updated');
+
+            expect(slot.textnode?.isConnected).toBe(true);
+            expect(slot.textnode?.nodeValue).toBe('Updated');
         });
     });
 

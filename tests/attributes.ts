@@ -1,13 +1,22 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { signal, read, write } from '@esportsplus/reactivity';
 import { setList, setProperty, setProperties } from '../src/attributes';
 import type { Element } from '../src/types';
 
 
 describe('attributes', () => {
-    let element: HTMLElement & Record<symbol, unknown>;
+    let container: HTMLElement,
+        element: HTMLElement & Record<symbol, unknown>;
 
     beforeEach(() => {
+        container = document.createElement('div');
         element = document.createElement('div') as HTMLElement & Record<symbol, unknown>;
+        container.appendChild(element);
+        document.body.appendChild(container);
+    });
+
+    afterEach(() => {
+        document.body.removeChild(container);
     });
 
     describe('setProperty', () => {
@@ -307,6 +316,137 @@ describe('attributes', () => {
 
             // Reactive functions update the element style through the effect system
             expect(element.getAttribute('style')).toContain('color');
+        });
+    });
+
+    describe('reactive updates (schedule/task path)', () => {
+        it('removes stale dynamic class values on reactive update', async () => {
+            let s = signal('foo bar');
+
+            setList(element as unknown as Element, 'class', () => read(s));
+
+            expect(element.className).toContain('foo');
+            expect(element.className).toContain('bar');
+
+            write(s, 'foo baz');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(element.className).toContain('foo');
+            expect(element.className).toContain('baz');
+            expect(element.className).not.toContain('bar');
+        });
+
+        it('removes stale dynamic style values on reactive update', async () => {
+            let s = signal('color: red; font-size: 14px');
+
+            setList(element as unknown as Element, 'style', () => read(s));
+
+            expect(element.getAttribute('style')).toContain('color: red');
+            expect(element.getAttribute('style')).toContain('font-size: 14px');
+
+            write(s, 'color: blue');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(element.getAttribute('style')).toContain('color: blue');
+            expect(element.getAttribute('style')).not.toContain('font-size: 14px');
+        });
+
+        it('schedules property update via RAF on reactive change', async () => {
+            let s = signal('first');
+
+            setProperty(element as unknown as Element, 'id', () => read(s));
+
+            expect(element.id).toBe('first');
+
+            write(s, 'second');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(element.id).toBe('second');
+        });
+
+        it('batches multiple property updates in single RAF', async () => {
+            let s1 = signal('a'),
+                s2 = signal('x');
+
+            setProperty(element as unknown as Element, 'id', () => read(s1));
+            setProperty(element as unknown as Element, 'data-value', () => read(s2));
+
+            expect(element.id).toBe('a');
+            expect(element.getAttribute('data-value')).toBe('x');
+
+            write(s1, 'b');
+            write(s2, 'y');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(element.id).toBe('b');
+            expect(element.getAttribute('data-value')).toBe('y');
+        });
+
+        it('clears class via reactive update to empty', async () => {
+            let s = signal('foo bar');
+
+            setList(element as unknown as Element, 'class', () => read(s));
+
+            expect(element.className).toContain('foo');
+
+            write(s, '');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(element.className).not.toContain('foo');
+            expect(element.className).not.toContain('bar');
+        });
+    });
+
+    describe('setProperties event handler routing', () => {
+        it('routes onclick handler function to runtime/delegate', () => {
+            let clicked = false;
+
+            setProperties(element as unknown as Element, {
+                onclick: () => { clicked = true; }
+            });
+
+            element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+            expect(clicked).toBe(true);
+        });
+
+        it('routes onmousedown handler function to runtime/delegate', () => {
+            let fired = false;
+
+            setProperties(element as unknown as Element, {
+                onmousedown: () => { fired = true; }
+            });
+
+            element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+            expect(fired).toBe(true);
+        });
+
+        it('routes onfocus handler function to runtime/on (direct attach)', () => {
+            let focused = false;
+
+            setProperties(element as unknown as Element, {
+                onfocus: () => { focused = true; }
+            });
+
+            element.dispatchEvent(new FocusEvent('focus'));
+
+            expect(focused).toBe(true);
+        });
+
+        it('routes non-event function property via reactive', () => {
+            let s = signal('hello');
+
+            setProperties(element as unknown as Element, {
+                'data-val': () => read(s)
+            });
+
+            expect(element.getAttribute('data-val')).toBe('hello');
         });
     });
 });
