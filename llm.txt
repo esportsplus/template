@@ -160,6 +160,19 @@ Analyzes expressions to determine optimal runtime binding:
 
 ## Runtime Components
 
+### Entry Point: `index.ts`
+
+Pre-allocates `CLEANUP` and `STORE` symbol properties on `Node.prototype` to optimize property access (avoids hidden class transitions when first set per-element):
+
+```typescript
+if (typeof Node !== 'undefined') {
+    (Node.prototype as any)[CLEANUP] = null;
+    (Node.prototype as any)[STORE] = null;
+}
+```
+
+Re-exports everything from: `attributes`, `event`, `hmr`, `utilities`, `html`, `render`, `slot` (including `ArraySlot`, `EffectSlot`), `svg`, and types.
+
 ### Template Factory: `utilities.ts`
 
 ```typescript
@@ -176,6 +189,8 @@ const template = (html: string) => {
 ```
 
 Caches parsed HTML, returns cloned fragments on each call.
+
+**Additional exports**: `clone` (uses `importNode` on Firefox for performance, `cloneNode` elsewhere), `EMPTY_FRAGMENT` (cached empty fragment), `fragment(html)` (parse HTML string), `marker` (slot comment node `<!--$-->`), `raf` (bound `requestAnimationFrame`), `text(value)` (create text node).
 
 ### Slot System: `slot/`
 
@@ -276,17 +291,22 @@ host.addEventListener(event, (e) => {
 Events that don't bubble properly use `addEventListener` directly:
 - `blur`, `focus`, `focusin`, `focusout`
 - `load`, `error`
+- `mouseenter`, `mouseleave`
 - Media events: `play`, `pause`, `ended`, `timeupdate`
 - `scroll`, `submit`, `reset`
 
 **Lifecycle Events**:
 
 Custom events handled specially:
-- `onconnect` - Called when element enters DOM
-- `ondisconnect` - Called when element leaves DOM
-- `onrender` - Called after initial render
-- `onresize` - ResizeObserver-based
-- `ontick` - RAF-based animation loop
+- `onconnect` - Polls `element.isConnected` via RAF loop (using `ontick`'s `add`/`remove`). Retries up to 60 frames, fires listener once when connected, then removes itself.
+- `ondisconnect` - Registers cleanup function via `slot/cleanup.ts` CLEANUP symbol array
+- `onrender` - Calls listener synchronously inside `root()` reactive scope
+- `onresize` - Registers on global `window.resize` event. Tracks elements in a Map, auto-removes disconnected elements, removes window listener when no elements remain.
+- `ontick` - RAF-based animation loop. Listener receives `(dispose, element)`. Auto-removes when element disconnects. 60-frame retry for initial connection.
+
+### SVG: `svg.ts`
+
+`svg` is bound to the same `html` tag function. Additionally provides `svg.sprite(href)` which creates an `<svg><use href="..." /></svg>` fragment from a cached template. Auto-prepends `#` to href if missing.
 
 ### Cleanup System: `slot/cleanup.ts`
 
@@ -445,8 +465,8 @@ index.ts (runtime entry)
 │   └── render.ts ← utilities, constants, types, array
 └── event/
     ├── index.ts ← reactivity, utilities, constants, slot, types, onconnect/resize/tick
-    ├── onconnect.ts ← types
-    ├── onresize.ts ← types, cleanup
+    ├── onconnect.ts ← types, ontick (add/remove)
+    ├── onresize.ts ← reactivity (onCleanup), types
     └── ontick.ts ← types, cleanup, utilities
 
 compiler/

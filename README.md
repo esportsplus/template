@@ -265,8 +265,9 @@ Some events don't bubble and are attached directly:
 
 - `onfocus`, `onblur`, `onfocusin`, `onfocusout`
 - `onload`, `onerror`
+- `onmouseenter`, `onmouseleave`
 - `onplay`, `onpause`, `onended`, `ontimeupdate`
-- `onscroll`
+- `onscroll`, `onsubmit`, `onreset`
 
 ```typescript
 const input = (focus: () => void, blur: () => void) =>
@@ -286,6 +287,20 @@ const circle = (fill: string) =>
     </svg>`;
 ```
 
+### SVG Sprites
+
+Use `svg.sprite` to create `<use>` references to SVG sprite sheets:
+
+```typescript
+import { svg } from '@esportsplus/template';
+
+// Generates <svg><use href="#icon-name" /></svg>
+const icon = svg.sprite('icon-name');
+
+// Hash prefix is added automatically if missing
+const icon2 = svg.sprite('#icon-name');
+```
+
 ## API Reference
 
 ### Exports
@@ -293,22 +308,47 @@ const circle = (fill: string) =>
 | Export | Description |
 |--------|-------------|
 | `html` | Template literal tag for HTML |
-| `svg` | Template literal tag for SVG |
+| `svg` | Template literal tag for SVG (+ `svg.sprite()`) |
 | `render` | Mount renderable to DOM element |
-| `attributes` | Attribute manipulation utilities |
-| `event` | Event system |
-| `slot` | Slot rendering |
+| `setList` | Set class/style list attributes with merge support |
+| `setProperty` | Set a single element property/attribute |
+| `setProperties` | Set multiple properties from an object |
+| `delegate` | Register delegated event handler |
+| `on` | Register direct-attach event handler |
+| `onconnect` | Lifecycle: element connected to DOM |
+| `ondisconnect` | Lifecycle: element disconnected from DOM |
+| `onrender` | Lifecycle: after initial render |
+| `onresize` | Lifecycle: window resize |
+| `ontick` | Lifecycle: RAF animation loop |
+| `runtime` | Route event name to correct handler |
+| `slot` | Static slot rendering |
 | `ArraySlot` | Reactive array rendering |
 | `EffectSlot` | Reactive effect rendering |
+| `clone` | Clone a node (uses `importNode` on Firefox) |
+| `fragment` | Parse HTML string into DocumentFragment |
+| `marker` | Slot position comment node |
+| `template` | Create cached template factory |
+| `text` | Create text node |
+| `raf` | `requestAnimationFrame` reference |
 | `accept` | HMR accept handler (dev only) |
 | `createHotTemplate` | HMR template factory (dev only) |
+| `hmrReset` | HMR state reset (test only) |
 
 ### Types
 
 ```typescript
-type Renderable = DocumentFragment | Node | string | number | null | undefined;
-type Element = HTMLElement & { [STORE]?: Record<string, unknown> };
-type Attributes = Record<string, unknown>;
+type Renderable<T> = ArraySlot<T> | DocumentFragment | Effect<T> | Node | NodeList | Primitive | Renderable<T>[];
+type Element = HTMLElement & Attributes<any>;
+type Attributes<T extends HTMLElement = Element> = {
+    class?: Attribute | Attribute[];
+    style?: Attribute | Attribute[];
+    onconnect?: (element: T) => void;
+    ondisconnect?: (element: T) => void;
+    onrender?: (element: T) => void;
+    ontick?: (dispose: VoidFunction, element: T) => void;
+    [key: `aria-${string}`]: string | number | boolean | undefined;
+    [key: `data-${string}`]: string | undefined;
+} & { [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void };
 ```
 
 ### render(parent, renderable)
