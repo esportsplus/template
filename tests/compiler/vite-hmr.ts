@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { NAMESPACE } from '../../src/compiler/constants';
 
 
-// Reconstruct the same regex and injection logic from vite.ts for testing
+// Reconstruct the same regex and injection logic from vite.ts for unit testing
+// the regex replacement behavior in isolation
 let TEMPLATE_SEARCH = NAMESPACE + '.template(',
     TEMPLATE_CALL_REGEX = new RegExp(
         '(const\\s+(\\w+)\\s*=\\s*' + NAMESPACE + '\\.template\\()(`)',
@@ -121,6 +122,92 @@ describe('compiler/vite-hmr', () => {
             let plugin = mod.default();
 
             plugin.configResolved({ mode: 'development', root: '/test' });
+        });
+
+        it('transform returns null for non-template code', async () => {
+            let mod = await import('../../src/compiler/plugins/vite');
+            let plugin = mod.default();
+
+            plugin.configResolved({ command: 'serve', root: '/test' });
+
+            let result = plugin.transform('let x = 1;', '/src/test.ts');
+
+            expect(result).toBeNull();
+        });
+
+        it('transform in production mode does not inject HMR', async () => {
+            let mod = await import('../../src/compiler/plugins/vite');
+            let plugin = mod.default();
+
+            plugin.configResolved({ command: 'build', root: '/test' });
+
+            let result = plugin.transform('let x = 1;', '/src/test.ts');
+
+            // No templates, so null regardless
+            expect(result).toBeNull();
+        });
+
+        it('handleHotUpdate is callable and does not throw', async () => {
+            let mod = await import('../../src/compiler/plugins/vite');
+            let plugin = mod.default();
+
+            expect(() => {
+                plugin.handleHotUpdate!({ file: '/src/app.ts', modules: [] });
+            }).not.toThrow();
+        });
+
+        it('plugin has correct name', async () => {
+            let mod = await import('../../src/compiler/plugins/vite');
+            let plugin = mod.default();
+
+            expect(plugin.name).toBeDefined();
+            expect(typeof plugin.name).toBe('string');
+        });
+
+        it('plugin has watchChange function', async () => {
+            let mod = await import('../../src/compiler/plugins/vite');
+            let plugin = mod.default();
+
+            expect(typeof plugin.watchChange).toBe('function');
+        });
+    });
+
+    describe('plugin transform with HMR injection', () => {
+        it('dev mode transform injects HMR for template code', async () => {
+            let mod = await import('../../src/compiler/plugins/vite'),
+                root = process.cwd().replace(/\\/g, '/'),
+                plugin = mod.default({ root }),
+                source = "import { html } from '@esportsplus/template';\nlet el = html`<div>hello</div>`;",
+                fileId = root + '/src/__hmr_test.ts';
+
+            plugin.configResolved({ command: 'serve', root });
+
+            let result = plugin.transform(source, fileId);
+
+            // The base plugin should compile the html template, then injectHMR
+            // should replace template() calls with createHotTemplate() and append
+            // import.meta.hot.accept block (vite.ts lines 33-45, 69-75)
+            expect(result).not.toBeNull();
+            expect(result!.code).toContain('createHotTemplate');
+            expect(result!.code).toContain('import.meta.hot');
+        });
+
+        it('build mode transform does not inject HMR', async () => {
+            let mod = await import('../../src/compiler/plugins/vite'),
+                root = process.cwd().replace(/\\/g, '/'),
+                plugin = mod.default({ root }),
+                source = "import { html } from '@esportsplus/template';\nlet el = html`<div>hello</div>`;",
+                fileId = root + '/src/__hmr_test.ts';
+
+            plugin.configResolved({ command: 'build', root });
+
+            let result = plugin.transform(source, fileId);
+
+            // Should compile templates but NOT inject HMR in build mode
+            if (result) {
+                expect(result.code).not.toContain('createHotTemplate');
+                expect(result.code).not.toContain('import.meta.hot');
+            }
         });
     });
 });

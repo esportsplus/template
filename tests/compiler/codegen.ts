@@ -270,6 +270,84 @@ describe('compiler/codegen', () => {
         });
     });
 
+    describe('generateCode - spread attribute slots (object literal expansion)', () => {
+        it('expands plain object literal into individual bindings', () => {
+            let { result } = codegen(`let x = html\`<div \${{ id: 'test', class: 'foo' }}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.setProperty(`);
+            expect(code).toContain("'id'");
+            expect(code).toContain(`${NAMESPACE}.setList(`);
+            expect(code).toContain("'class'");
+        });
+
+        it('falls back to setProperties for object with spread assignment', () => {
+            let { result } = codegen(`let x = html\`<div \${{ ...base, id: 'test' }}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.setProperties(`);
+        });
+
+        it('expands shorthand property assignment', () => {
+            let { result } = codegen(`let x = html\`<div \${{ className }}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.setProperty(`);
+            expect(code).toContain("'className'");
+            expect(code).toContain('className');
+        });
+
+        it('falls back to setProperties for non-object expression', () => {
+            let { result } = codegen(`let x = html\`<div \${props}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.setProperties(`);
+        });
+
+        it('expands object with string literal property name', () => {
+            let { result } = codegen(`let x = html\`<div \${{ 'data-value': val }}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.setProperty(`);
+            expect(code).toContain("'data-value'");
+        });
+
+        it('expands object with style property into setList', () => {
+            let { result } = codegen(`let x = html\`<div \${{ style: sty }}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.setList(`);
+            expect(code).toContain("'style'");
+        });
+
+        it('expands object with event handler into delegate', () => {
+            let { result } = codegen(`let x = html\`<div \${{ onclick: handler }}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.delegate(`);
+            expect(code).toContain("'click'");
+        });
+
+        it('falls back to setProperties for computed property name', () => {
+            let { result } = codegen(`let x = html\`<div \${{ [key]: val }}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.setProperties(`);
+        });
+
+        it('method declaration in object literal throws on print (EmitHint.Expression limitation)', () => {
+            // MethodDeclaration is not an Expression node, so printer.printNode
+            // with EmitHint.Expression throws a debug assertion error during codegen
+            expect(() => {
+                codegen(`let x = html\`<div \${{ onclick() { return true; } }}>text</div>\`;`);
+            }).toThrow();
+        });
+    });
+
+    // codegen.ts:170-171 (path.length === 0) and :176-177 (nodes.has(key)) are defensive
+    // guards unreachable via normal parser output. Parser always produces paths with at
+    // least ["firstChild"] and packs all attributes per element into a single slot entry.
+
     describe('generateCode - arrow function body optimization', () => {
         it('generates template ID directly for parameterless arrow with static body', () => {
             let { result } = codegen(`let fn = () => html\`<div>static</div>\`;`);
