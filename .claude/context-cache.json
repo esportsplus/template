@@ -1,0 +1,2467 @@
+{
+  "project": "D:\\template",
+  "generated": "2026-07-05T08:11:43.150Z",
+  "files": {
+    "bench/runtime.bench.ts": {
+      "hash": "c1d4d523806bcbc494870730d43179dfdf57c55e2946ca1693a2102df4c3acef",
+      "mtime": 1783238960555.923,
+      "loc": 207,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "bench",
+            "describe"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "examples/index.ts": {
+      "hash": "dfead048b6678310913b78cb1595640a11df6e713f71e9d7304514785b6592d4",
+      "mtime": 1783238960555.923,
+      "loc": 648,
+      "exports": [
+        "tests",
+        "results"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/frontend",
+          "names": [
+            "html",
+            "reactive"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "examples/vite.config.ts": {
+      "hash": "707cd09595fb396b68b3552af75348dfbdd42fd983a8f80355167b7db50d3383",
+      "mtime": 1783238960557.4326,
+      "loc": 23,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "path",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "vite",
+          "names": [
+            "defineConfig"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/frontend/compiler/vite",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/attributes.ts": {
+      "hash": "af00b14b3cf8895ac4ec90c660cf81e68589e50a93eb176f0cb550e2758bb65a",
+      "mtime": 1783238960590.5796,
+      "loc": 319,
+      "exports": [
+        "setList",
+        "setProperty",
+        "setProperties"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "effect"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/utilities",
+          "names": [
+            "isArray",
+            "isObject"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./constants",
+          "names": [
+            "ATTRIBUTE_DELIMITERS",
+            "STATE_HYDRATING",
+            "STATE_NONE",
+            "STATE_WAITING",
+            "STORE"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./types",
+          "names": [
+            "Attributes",
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./utilities",
+          "names": [
+            "raf"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./event",
+          "names": [
+            "runtime"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/queue",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/compiler/codegen.ts": {
+      "hash": "7134f63f8b786fd709fe29faa46ca988d9ef6c2b873ea4fb567e90676c9d7684",
+      "mtime": 1783238960592.087,
+      "loc": 492,
+      "exports": [
+        "generateCode",
+        "printer",
+        "rewriteExpression"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/typescript/compiler",
+          "names": [
+            "ast",
+            "uid",
+            "ReplacementIntent"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/utilities",
+          "names": [
+            "pick"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./ts-parser",
+          "names": [
+            "TemplateInfo"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./ts-analyzer",
+          "names": [
+            "analyze"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../constants",
+          "names": [
+            "DIRECT_ATTACH_EVENTS",
+            "LIFECYCLE_EVENTS"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./constants",
+          "names": [
+            "ENTRYPOINT",
+            "ENTRYPOINT_REACTIVITY",
+            "NAMESPACE",
+            "TYPES"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./ts-parser",
+          "names": [
+            "extractTemplateParts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./parser",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/compiler/constants.ts": {
+      "hash": "e8bfbe9ecc6458d92604385f093d0c9e82e811701d7a4d35ba9c751d97d823fa",
+      "mtime": 1783238960593.0952,
+      "loc": 25,
+      "exports": [
+        "ENTRYPOINT",
+        "ENTRYPOINT_REACTIVITY",
+        "NAMESPACE",
+        "TYPES",
+        "PACKAGE_NAME"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/typescript/compiler",
+          "names": [
+            "uid"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "~/constants",
+          "names": [
+            "PACKAGE_NAME"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/compiler/index.ts": {
+      "hash": "a052a18d4773401f0c04eb620e8a5f8aede061600644b70ddd1c11e3f5546d92",
+      "mtime": 1783238960596.6045,
+      "loc": 87,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript/compiler",
+          "names": [
+            "ast"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript/compiler",
+          "names": [
+            "ImportIntent",
+            "ReplacementIntent",
+            "TransformContext"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./constants",
+          "names": [
+            "ENTRYPOINT",
+            "ENTRYPOINT_REACTIVITY",
+            "NAMESPACE",
+            "PACKAGE_NAME"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./codegen",
+          "names": [
+            "generateCode",
+            "printer",
+            "rewriteExpression"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./ts-parser",
+          "names": [
+            "findHtmlTemplates",
+            "findReactiveCalls"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/compiler/parser.ts": {
+      "hash": "8593c9bd70cd63b53c5695ac340ce88a3d947a4420c348bb7cebe61bc2540422",
+      "mtime": 1783238960596.6045,
+      "loc": 243,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "../constants",
+          "names": [
+            "ATTRIBUTE_DELIMITERS",
+            "SLOT_HTML"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./constants",
+          "names": [
+            "PACKAGE_NAME",
+            "TYPES"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/compiler/plugins/tsc.ts": {
+      "hash": "dbd6b1e533df34a6212c9289a49e516b540c4ef79279aeef95ff60236f4f3456",
+      "mtime": 1783238960598.113,
+      "loc": 6,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/typescript/compiler",
+          "names": [
+            "plugin"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/reactivity/compiler",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "..",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/compiler/plugins/vite.ts": {
+      "hash": "16da57a7006cbeb0a9f2754aa8479ebbd350ba4710d39da9698f4866e8c37498",
+      "mtime": 1783238960599.1262,
+      "loc": 79,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "../constants",
+          "names": [
+            "NAMESPACE",
+            "PACKAGE_NAME"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript/compiler",
+          "names": [
+            "plugin"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/reactivity/compiler",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "..",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/compiler/ts-analyzer.ts": {
+      "hash": "5f0be4bdaed63daab05cc87a8f37007f232ba4c05aab9cd535b49bcc37e1c8b5",
+      "mtime": 1783238960600.1235,
+      "loc": 89,
+      "exports": [
+        "analyze"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./constants",
+          "names": [
+            "ENTRYPOINT",
+            "ENTRYPOINT_REACTIVITY",
+            "TYPES"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/compiler/ts-parser.ts": {
+      "hash": "7e348a6eaaed7405be81bfadc089f3687ee20ac12492c585fc65c5e5be3b5723",
+      "mtime": 1783238960601.122,
+      "loc": 112,
+      "exports": [
+        "extractTemplateParts",
+        "findHtmlTemplates",
+        "findReactiveCalls"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript/compiler",
+          "names": [
+            "imports"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./constants",
+          "names": [
+            "ENTRYPOINT",
+            "ENTRYPOINT_REACTIVITY",
+            "PACKAGE_NAME"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/constants.ts": {
+      "hash": "d21a84ccfcf447677b29c1c37afc82fca67ff1e8ce54542de2aa3459ccd46f03",
+      "mtime": 1783238960601.122,
+      "loc": 45,
+      "exports": [
+        "ARRAY_SLOT",
+        "ATTRIBUTE_DELIMITERS",
+        "CLEANUP",
+        "DIRECT_ATTACH_EVENTS",
+        "LIFECYCLE_EVENTS",
+        "PACKAGE_NAME",
+        "SLOT_HTML",
+        "STATE_HYDRATING",
+        "STATE_NONE",
+        "STATE_WAITING",
+        "STORE"
+      ],
+      "imports": []
+    },
+    "src/event/index.ts": {
+      "hash": "96faee9f4f1b1d462531575ea89746467ecfd737c51e9609a2733bb53cda9368",
+      "mtime": 1783238960602.7368,
+      "loc": 130,
+      "exports": [
+        "delegate",
+        "on",
+        "onconnect",
+        "ondisconnect",
+        "onrender",
+        "onresize",
+        "ontick",
+        "runtime"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "root"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/utilities",
+          "names": [
+            "defineProperty"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../constants",
+          "names": [
+            "DIRECT_ATTACH_EVENTS",
+            "LIFECYCLE_EVENTS"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../slot",
+          "names": [
+            "ondisconnect"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../types",
+          "names": [
+            "Attributes",
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./onconnect",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./onresize",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./ontick",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/event/onconnect.ts": {
+      "hash": "78e805c09ce3ed4530faf6355b6eabb7cb7500bf108f84fcbc1347e0530ef129",
+      "mtime": 1783238960602.7368,
+      "loc": 22,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "root"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../types",
+          "names": [
+            "Attributes",
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./ontick",
+          "names": [
+            "add",
+            "remove"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/event/onresize.ts": {
+      "hash": "1799f2b7e88555b0dc67853243bb45e960c5bef5c631e3c3de0de43c5e33a439",
+      "mtime": 1783238960604.858,
+      "loc": 37,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "onCleanup"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../types",
+          "names": [
+            "Attributes",
+            "Element"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/event/ontick.ts": {
+      "hash": "292dd0529a0e794df4c52a6f73796b1c458bf4097f60688b2b5b9cf46a1da8d4",
+      "mtime": 1783238960604.858,
+      "loc": 59,
+      "exports": [
+        "add",
+        "remove",
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "../types",
+          "names": [
+            "Attributes",
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../utilities",
+          "names": [
+            "raf"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/hmr.ts": {
+      "hash": "de9d5bc30c0b0d31a79f737e7f26a4c1e170ff6d588b5c0c6035937fabd0ea24",
+      "mtime": 1783238960605.863,
+      "loc": 70,
+      "exports": [
+        "accept",
+        "createHotTemplate",
+        "hmrReset",
+        "modules"
+      ],
+      "imports": []
+    },
+    "src/html.ts": {
+      "hash": "318c39046274842c5ed7dcef17e8d93291825028cdfbb7057a95b200c1fc6a0a",
+      "mtime": 1783238960605.863,
+      "loc": 18,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "Reactive"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./types",
+          "names": [
+            "Attribute",
+            "Attributes",
+            "Renderable"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./slot",
+          "names": [
+            "ArraySlot"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/index.ts": {
+      "hash": "0b16c3ea34d4b23b0d57ae2f359ec40103592885ea40d5fb6e7e7a7cae29e13b",
+      "mtime": 1783238960607.857,
+      "loc": 20,
+      "exports": [
+        "html",
+        "render",
+        "slot",
+        "ArraySlot",
+        "EffectSlot",
+        "svg",
+        "Attribute",
+        "Attributes",
+        "Element",
+        "Renderable"
+      ],
+      "imports": [
+        {
+          "source": "./constants",
+          "names": [
+            "CLEANUP",
+            "STORE"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./attributes",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "./event",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "./hmr",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "./utilities",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "./html",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./render",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./slot",
+          "names": [
+            "default",
+            "ArraySlot",
+            "EffectSlot"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./svg",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./types",
+          "names": [
+            "Attribute",
+            "Attributes",
+            "Element",
+            "Renderable"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/render.ts": {
+      "hash": "e68c36494526eb3a453721ddb063df9a43aef49aa95c24b47ac6dbb65ad16bd1",
+      "mtime": 1783238960609.8596,
+      "loc": 13,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "./types",
+          "names": [
+            "Element",
+            "Renderable"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./utilities",
+          "names": [
+            "marker"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./slot",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/slot/array.ts": {
+      "hash": "0cedb7763e6cd03b2a4e6352de578362196afb796e4aac9355796a6b2b681054",
+      "mtime": 1783238960611.8596,
+      "loc": 364,
+      "exports": [
+        "ArraySlot"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "read",
+            "root",
+            "signal",
+            "write",
+            "Reactive"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../constants",
+          "names": [
+            "ARRAY_SLOT"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../types",
+          "names": [
+            "Element",
+            "SlotGroup"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../utilities",
+          "names": [
+            "clone",
+            "EMPTY_FRAGMENT",
+            "marker",
+            "raf"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./cleanup",
+          "names": [
+            "ondisconnect",
+            "remove"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../html",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/slot/cleanup.ts": {
+      "hash": "02fffebc9ca74295583a7f6de6dd626b7a898a8d3ab51348d5707f6ce15c206f",
+      "mtime": 1783238960611.8596,
+      "loc": 37,
+      "exports": [
+        "ondisconnect",
+        "remove"
+      ],
+      "imports": [
+        {
+          "source": "../constants",
+          "names": [
+            "CLEANUP"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../types",
+          "names": [
+            "Element",
+            "SlotGroup"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/slot/effect.ts": {
+      "hash": "0669d20c8a52c90875b5820ea440f5d2c3c614a72785bb2ba08e37b3e1a8cd12",
+      "mtime": 1783238960612.8596,
+      "loc": 140,
+      "exports": [
+        "EffectSlot"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "effect"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/utilities",
+          "names": [
+            "isAsyncFunction"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../types",
+          "names": [
+            "Element",
+            "Renderable",
+            "SlotGroup"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../utilities",
+          "names": [
+            "raf",
+            "text"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./cleanup",
+          "names": [
+            "remove"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./render",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/slot/index.ts": {
+      "hash": "1cc1c1d49105bc325c8463cca39f61ed54e0fac130794a65d2977405cd48178b",
+      "mtime": 1783238960613.3699,
+      "loc": 17,
+      "exports": [
+        "default",
+        "render"
+      ],
+      "imports": [
+        {
+          "source": "../types",
+          "names": [
+            "Element",
+            "Renderable"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./effect",
+          "names": [
+            "EffectSlot"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./render",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./array",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "./cleanup",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "./effect",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "./render",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/slot/render.ts": {
+      "hash": "1d7de10a365d1b4519f3a8379a7ff7d51fb912025356816a44d8eaf1c0f32b4c",
+      "mtime": 1783238960614.3765,
+      "loc": 58,
+      "exports": [
+        "render",
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "@esportsplus/utilities",
+          "names": [
+            "isArray"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../constants",
+          "names": [
+            "ARRAY_SLOT"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../utilities",
+          "names": [
+            "clone",
+            "EMPTY_FRAGMENT",
+            "text"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./array",
+          "names": [
+            "ArraySlot"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/svg.ts": {
+      "hash": "ad42e8560ecb87fb4afcb5b05778ea271a69b3d7b81f816d93f1b89604e6bb20",
+      "mtime": 1783238960615.3762,
+      "loc": 27,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "./attributes",
+          "names": [
+            "setProperty"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./utilities",
+          "names": [
+            "template"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "./html",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/types.ts": {
+      "hash": "ac07974caab9c8b85382bf6e3425e9b95e029e7520f489795a4d718eac8f189d",
+      "mtime": 1783238960616.3755,
+      "loc": 40,
+      "exports": [],
+      "imports": [
+        {
+          "source": "./slot",
+          "names": [
+            "ArraySlot"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "src/utilities.ts": {
+      "hash": "6e33422564f0662e53ad619681c5114e66c1d6c64947b24eb2685f3c5200741c",
+      "mtime": 1783238960617.3762,
+      "loc": 55,
+      "exports": [
+        "clone",
+        "EMPTY_FRAGMENT",
+        "fragment",
+        "marker",
+        "raf",
+        "template",
+        "text"
+      ],
+      "imports": [
+        {
+          "source": "./constants",
+          "names": [
+            "SLOT_HTML"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/attributes.ts": {
+      "hash": "ac546062f400cf9dca8c2f460e98a408065a4dfe7c7e18e44289b68a4ec64f4c",
+      "mtime": 1783238960618.3782,
+      "loc": 452,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach",
+            "afterEach"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "signal",
+            "read",
+            "write"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/attributes",
+          "names": [
+            "setList",
+            "setProperty",
+            "setProperties"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/compiler/codegen.ts": {
+      "hash": "0119296c3b364732667e67ca3747920601310d8a11913a538e2dd9ec63ecfcd9",
+      "mtime": 1783238960618.8943,
+      "loc": 370,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/codegen",
+          "names": [
+            "generateCode",
+            "rewriteExpression"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/ts-parser",
+          "names": [
+            "findHtmlTemplates"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/constants",
+          "names": [
+            "NAMESPACE"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/compiler/integration.ts": {
+      "hash": "1b24aff3be8489825e4311567b694beb275599481e2d5c73054c42bf02be4620",
+      "mtime": 1783238960619.8953,
+      "loc": 252,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript/compiler",
+          "names": [
+            "ast"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/codegen",
+          "names": [
+            "generateCode",
+            "rewriteExpression"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/constants",
+          "names": [
+            "NAMESPACE"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/ts-parser",
+          "names": [
+            "findHtmlTemplates",
+            "findReactiveCalls"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/compiler/parser.ts": {
+      "hash": "9d23534a4e536c438e89619b913be1fc292e7cea4344bdb15e8d01803a9db157",
+      "mtime": 1783238960619.8953,
+      "loc": 402,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/parser",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/constants",
+          "names": [
+            "TYPES"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/compiler/transform.ts": {
+      "hash": "531603691cb93911884f14efc2aa8ffdff3f9c856fdd73a52621aa4f20c17bf5",
+      "mtime": 1783238960620.9,
+      "loc": 159,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/constants",
+          "names": [
+            "ENTRYPOINT",
+            "ENTRYPOINT_REACTIVITY",
+            "NAMESPACE"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/compiler/ts-analyzer.ts": {
+      "hash": "879c2661b1e4952cacf0a7517cc17f586455591a22b73f517e69e8ccecd16793",
+      "mtime": 1783238960620.9,
+      "loc": 416,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/ts-analyzer",
+          "names": [
+            "analyze"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/constants",
+          "names": [
+            "TYPES"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/compiler/ts-parser.ts": {
+      "hash": "62b7aca18a0524814e8bb02fad0defe21616209bd709a676134140f7dcc8f3c3",
+      "mtime": 1783238960622.1353,
+      "loc": 160,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/typescript",
+          "names": [
+            "ts"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/ts-parser",
+          "names": [
+            "extractTemplateParts",
+            "findHtmlTemplates",
+            "findReactiveCalls"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/compiler/vite-hmr.ts": {
+      "hash": "3c72a75d4ed54fd829ff3c5e4dd300fc0ab87903d8b7bbf9a64d60c84a0a6ea6",
+      "mtime": 1783238960622.1353,
+      "loc": 213,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/constants",
+          "names": [
+            "NAMESPACE"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/compiler/plugins/vite",
+          "names": [],
+          "namespace": true
+        }
+      ]
+    },
+    "tests/constants.ts": {
+      "hash": "895e1f56a7330fd7777a43cea508a2c905d873c83010e27aa305bcdd31a65c26",
+      "mtime": 1783238960623.1353,
+      "loc": 157,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/constants",
+          "names": [
+            "ARRAY_SLOT",
+            "ATTRIBUTE_DELIMITERS",
+            "CLEANUP",
+            "DIRECT_ATTACH_EVENTS",
+            "LIFECYCLE_EVENTS",
+            "PACKAGE_NAME",
+            "SLOT_HTML",
+            "STATE_HYDRATING",
+            "STATE_NONE",
+            "STATE_WAITING",
+            "STORE"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/event/index.ts": {
+      "hash": "fb7128abe5203d9b61a6594d3c02a50ab4cb510b3ddebe6463fc523f14bb77c7",
+      "mtime": 1783238960626.2417,
+      "loc": 430,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach",
+            "afterEach",
+            "vi"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/event",
+          "names": [
+            "delegate",
+            "on",
+            "ondisconnect",
+            "onrender",
+            "runtime"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/constants",
+          "names": [
+            "CLEANUP"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/event/onconnect.ts": {
+      "hash": "e2d0bfde2f0008b6edbcdd235d579f61727591873d93de642047eb5839366892",
+      "mtime": 1783238960627.2485,
+      "loc": 147,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "afterEach",
+            "beforeEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/utilities",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/event/onconnect",
+          "names": [],
+          "namespace": true
+        }
+      ]
+    },
+    "tests/event/onresize.ts": {
+      "hash": "4408126386cb608a59632606f28ae3a0d0c84ff3b71b0b87e64f37c7243a244b",
+      "mtime": 1783238960627.2485,
+      "loc": 187,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "afterEach",
+            "beforeEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/event/onresize",
+          "names": [],
+          "namespace": true
+        }
+      ]
+    },
+    "tests/event/ontick.ts": {
+      "hash": "ddc60c77a6f7a35e117fe37d6f45581beccbbefeb5ae4fb080f01ee498fe782b",
+      "mtime": 1783238960628.2515,
+      "loc": 273,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "afterEach",
+            "beforeEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/utilities",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/event/ontick",
+          "names": [],
+          "namespace": true
+        },
+        {
+          "source": "../../src/event/ontick",
+          "names": [],
+          "namespace": true
+        }
+      ]
+    },
+    "tests/hmr.ts": {
+      "hash": "2e1a07968b301465518e8bd7d4d4daee3d0e40933bcb25f053be118263cb6d50",
+      "mtime": 1783238960628.2515,
+      "loc": 146,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/hmr",
+          "names": [
+            "accept",
+            "createHotTemplate",
+            "hmrReset",
+            "modules"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/html.ts": {
+      "hash": "73a94a8bfc550dbc19f1d25c569915c3c884063404967f5852bc94f4962215cc",
+      "mtime": 1783238960629.2478,
+      "loc": 33,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/html",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/render.ts": {
+      "hash": "331aff9dd140ba8dedaacf113c9756fa31d3a23691d1bea52130fb7a6a6b796d",
+      "mtime": 1783238960629.2478,
+      "loc": 154,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach",
+            "afterEach"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/render",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/utilities",
+          "names": [
+            "marker"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/slot/array.ts": {
+      "hash": "162bcc485b1e465d8d201967fc02a622cdd61d50547b57acc65260157fbf9ba5",
+      "mtime": 1783238960630.2473,
+      "loc": 950,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach",
+            "afterEach",
+            "vi"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/slot/array",
+          "names": [
+            "ArraySlot"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/constants",
+          "names": [
+            "ARRAY_SLOT"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "reactive"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/slot/async.ts": {
+      "hash": "90239af1e784ecc0b7fabd15859ea17f50a761f7a8aaf0bdb57a0b1b5f7fc6f8",
+      "mtime": 1783238960630.2473,
+      "loc": 389,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "afterEach",
+            "beforeEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/slot/effect",
+          "names": [
+            "EffectSlot"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/utilities",
+          "names": [
+            "marker"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element",
+            "Renderable"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/slot/cleanup.ts": {
+      "hash": "0e42ebda87ef862d1496c12ef658618f2f6f7e653057c7a71d0b4720a3f0585d",
+      "mtime": 1783238960631.7502,
+      "loc": 243,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach",
+            "vi"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/slot/cleanup",
+          "names": [
+            "ondisconnect",
+            "remove"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/constants",
+          "names": [
+            "CLEANUP"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element",
+            "SlotGroup"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/slot/effect.ts": {
+      "hash": "c580ba677b865b81cda88ae85d895643696878897a8f6b2b0024a40fb35f6a0f",
+      "mtime": 1783238960631.7502,
+      "loc": 350,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach",
+            "afterEach"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "@esportsplus/reactivity",
+          "names": [
+            "signal",
+            "read",
+            "write"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/slot/effect",
+          "names": [
+            "EffectSlot"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/utilities",
+          "names": [
+            "marker"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/slot/index.ts": {
+      "hash": "59208b066bb8eae4f3447a7b9a1ad31762edbbeb5a6e4f45f6387a9dd1c68fc8",
+      "mtime": 1783238960632.7554,
+      "loc": 176,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach",
+            "afterEach"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/slot",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/utilities",
+          "names": [
+            "marker"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/slot/render.ts": {
+      "hash": "f258d80e872bf73c7073dc4e18ac20d1ee6975f00b864ec410bba17ec8e9cd90",
+      "mtime": 1783238960632.7554,
+      "loc": 216,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/slot",
+          "names": [
+            "render"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/utilities",
+          "names": [
+            "fragment",
+            "marker",
+            "text"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../../src/types",
+          "names": [
+            "Element"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/svg.ts": {
+      "hash": "5fb00dbc1756727f3e220e14e8a25cc1af38410cbb584a2038ee70e9b6d03248",
+      "mtime": 1783238960632.7554,
+      "loc": 92,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/svg",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "tests/utilities.ts": {
+      "hash": "0981f441c895a8b1717293655f22601f49dac4615686008d7b61e66743e6fe98",
+      "mtime": 1783238960634.1367,
+      "loc": 242,
+      "exports": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "names": [
+            "describe",
+            "expect",
+            "it",
+            "beforeEach"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "../src/utilities",
+          "names": [
+            "clone",
+            "fragment",
+            "marker",
+            "raf",
+            "template",
+            "text"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "vitest.bench.config.ts": {
+      "hash": "0c94b0cb55c3b7b4271c8f9835b7f1764ef8c300ef9e1fb8ea20b54c44dbfb89",
+      "mtime": 1783238960636.136,
+      "loc": 18,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "vitest/config",
+          "names": [
+            "defineConfig"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "path",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    },
+    "vitest.config.ts": {
+      "hash": "6c994a15b34ec83aaeebbc2eddcb4399f095319b5193e72bbfba52068233f49c",
+      "mtime": 1783238960638.1357,
+      "loc": 21,
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        {
+          "source": "vitest/config",
+          "names": [
+            "defineConfig"
+          ],
+          "namespace": false
+        },
+        {
+          "source": "path",
+          "names": [
+            "default"
+          ],
+          "namespace": false
+        }
+      ]
+    }
+  },
+  "adjacency": {
+    "bench/runtime.bench.ts": [],
+    "examples/index.ts": [],
+    "examples/vite.config.ts": [],
+    "src/attributes.ts": [
+      "src/constants.ts",
+      "src/event/index.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "src/compiler/codegen.ts": [
+      "src/compiler/constants.ts",
+      "src/compiler/parser.ts",
+      "src/compiler/ts-analyzer.ts",
+      "src/compiler/ts-parser.ts",
+      "src/constants.ts"
+    ],
+    "src/compiler/constants.ts": [],
+    "src/compiler/index.ts": [
+      "src/compiler/codegen.ts",
+      "src/compiler/constants.ts",
+      "src/compiler/ts-parser.ts"
+    ],
+    "src/compiler/parser.ts": [
+      "src/compiler/constants.ts",
+      "src/constants.ts"
+    ],
+    "src/compiler/plugins/tsc.ts": [
+      "src/compiler/index.ts"
+    ],
+    "src/compiler/plugins/vite.ts": [
+      "src/compiler/constants.ts",
+      "src/compiler/index.ts"
+    ],
+    "src/compiler/ts-analyzer.ts": [
+      "src/compiler/constants.ts"
+    ],
+    "src/compiler/ts-parser.ts": [
+      "src/compiler/constants.ts"
+    ],
+    "src/constants.ts": [],
+    "src/event/index.ts": [
+      "src/constants.ts",
+      "src/event/onconnect.ts",
+      "src/event/onresize.ts",
+      "src/event/ontick.ts",
+      "src/slot/index.ts",
+      "src/types.ts"
+    ],
+    "src/event/onconnect.ts": [
+      "src/event/ontick.ts",
+      "src/types.ts"
+    ],
+    "src/event/onresize.ts": [
+      "src/types.ts"
+    ],
+    "src/event/ontick.ts": [
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "src/hmr.ts": [],
+    "src/html.ts": [
+      "src/slot/index.ts",
+      "src/types.ts"
+    ],
+    "src/index.ts": [
+      "src/attributes.ts",
+      "src/constants.ts",
+      "src/event/index.ts",
+      "src/hmr.ts",
+      "src/html.ts",
+      "src/render.ts",
+      "src/slot/index.ts",
+      "src/svg.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "src/render.ts": [
+      "src/slot/index.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "src/slot/array.ts": [
+      "src/constants.ts",
+      "src/html.ts",
+      "src/slot/cleanup.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "src/slot/cleanup.ts": [
+      "src/constants.ts",
+      "src/types.ts"
+    ],
+    "src/slot/effect.ts": [
+      "src/slot/cleanup.ts",
+      "src/slot/render.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "src/slot/index.ts": [
+      "src/slot/array.ts",
+      "src/slot/cleanup.ts",
+      "src/slot/effect.ts",
+      "src/slot/render.ts",
+      "src/types.ts"
+    ],
+    "src/slot/render.ts": [
+      "src/constants.ts",
+      "src/slot/array.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "src/svg.ts": [
+      "src/attributes.ts",
+      "src/html.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "src/types.ts": [
+      "src/slot/index.ts"
+    ],
+    "src/utilities.ts": [
+      "src/constants.ts"
+    ],
+    "tests/attributes.ts": [
+      "src/attributes.ts",
+      "src/types.ts"
+    ],
+    "tests/compiler/codegen.ts": [
+      "src/compiler/codegen.ts",
+      "src/compiler/constants.ts",
+      "src/compiler/ts-parser.ts"
+    ],
+    "tests/compiler/integration.ts": [
+      "src/compiler/codegen.ts",
+      "src/compiler/constants.ts",
+      "src/compiler/ts-parser.ts"
+    ],
+    "tests/compiler/parser.ts": [
+      "src/compiler/constants.ts",
+      "src/compiler/parser.ts"
+    ],
+    "tests/compiler/transform.ts": [
+      "src/compiler/constants.ts",
+      "src/compiler/index.ts"
+    ],
+    "tests/compiler/ts-analyzer.ts": [
+      "src/compiler/constants.ts",
+      "src/compiler/ts-analyzer.ts"
+    ],
+    "tests/compiler/ts-parser.ts": [
+      "src/compiler/ts-parser.ts"
+    ],
+    "tests/compiler/vite-hmr.ts": [
+      "src/compiler/constants.ts",
+      "src/compiler/plugins/vite.ts"
+    ],
+    "tests/constants.ts": [
+      "src/constants.ts"
+    ],
+    "tests/event/index.ts": [
+      "src/constants.ts",
+      "src/event/index.ts",
+      "src/types.ts"
+    ],
+    "tests/event/onconnect.ts": [
+      "src/event/onconnect.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "tests/event/onresize.ts": [
+      "src/event/onresize.ts",
+      "src/types.ts"
+    ],
+    "tests/event/ontick.ts": [
+      "src/event/ontick.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "tests/hmr.ts": [
+      "src/hmr.ts"
+    ],
+    "tests/html.ts": [
+      "src/html.ts"
+    ],
+    "tests/render.ts": [
+      "src/render.ts",
+      "src/utilities.ts"
+    ],
+    "tests/slot/array.ts": [
+      "src/constants.ts",
+      "src/slot/array.ts"
+    ],
+    "tests/slot/async.ts": [
+      "src/slot/effect.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "tests/slot/cleanup.ts": [
+      "src/constants.ts",
+      "src/slot/cleanup.ts",
+      "src/types.ts"
+    ],
+    "tests/slot/effect.ts": [
+      "src/slot/effect.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "tests/slot/index.ts": [
+      "src/slot/index.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "tests/slot/render.ts": [
+      "src/slot/index.ts",
+      "src/types.ts",
+      "src/utilities.ts"
+    ],
+    "tests/svg.ts": [
+      "src/svg.ts"
+    ],
+    "tests/utilities.ts": [
+      "src/utilities.ts"
+    ],
+    "vitest.bench.config.ts": [],
+    "vitest.config.ts": []
+  },
+  "ranking": {
+    "bench/runtime.bench.ts": 0.0469,
+    "examples/index.ts": 0.0469,
+    "examples/vite.config.ts": 0.0469,
+    "src/attributes.ts": 0.09,
+    "src/compiler/codegen.ts": 0.1117,
+    "src/compiler/constants.ts": 0.493,
+    "src/compiler/index.ts": 0.135,
+    "src/compiler/parser.ts": 0.0858,
+    "src/compiler/plugins/tsc.ts": 0.0469,
+    "src/compiler/plugins/vite.ts": 0.0668,
+    "src/compiler/ts-analyzer.ts": 0.0858,
+    "src/compiler/ts-parser.ts": 0.1705,
+    "src/constants.ts": 0.8681,
+    "src/event/index.ts": 0.0833,
+    "src/event/onconnect.ts": 0.0719,
+    "src/event/onresize.ts": 0.0786,
+    "src/event/ontick.ts": 0.1025,
+    "src/hmr.ts": 0.0907,
+    "src/html.ts": 0.1613,
+    "src/index.ts": 0.0469,
+    "src/render.ts": 0.0708,
+    "src/slot/array.ts": 0.2974,
+    "src/slot/cleanup.ts": 0.3363,
+    "src/slot/effect.ts": 0.2454,
+    "src/slot/index.ts": 1,
+    "src/slot/render.ts": 0.2717,
+    "src/svg.ts": 0.0907,
+    "src/types.ts": 0.957,
+    "src/utilities.ts": 0.4551,
+    "tests/attributes.ts": 0.0469,
+    "tests/compiler/codegen.ts": 0.0469,
+    "tests/compiler/integration.ts": 0.0469,
+    "tests/compiler/parser.ts": 0.0469,
+    "tests/compiler/transform.ts": 0.0469,
+    "tests/compiler/ts-analyzer.ts": 0.0469,
+    "tests/compiler/ts-parser.ts": 0.0469,
+    "tests/compiler/vite-hmr.ts": 0.0469,
+    "tests/constants.ts": 0.0469,
+    "tests/event/index.ts": 0.0469,
+    "tests/event/onconnect.ts": 0.0469,
+    "tests/event/onresize.ts": 0.0469,
+    "tests/event/ontick.ts": 0.0469,
+    "tests/hmr.ts": 0.0469,
+    "tests/html.ts": 0.0469,
+    "tests/render.ts": 0.0469,
+    "tests/slot/array.ts": 0.0469,
+    "tests/slot/async.ts": 0.0469,
+    "tests/slot/cleanup.ts": 0.0469,
+    "tests/slot/effect.ts": 0.0469,
+    "tests/slot/index.ts": 0.0469,
+    "tests/slot/render.ts": 0.0469,
+    "tests/svg.ts": 0.0469,
+    "tests/utilities.ts": 0.0469,
+    "vitest.bench.config.ts": 0.0469,
+    "vitest.config.ts": 0.0469
+  },
+  "rankTask": {
+    "bench/runtime.bench.ts": 0.0318,
+    "examples/index.ts": 0.0318,
+    "examples/vite.config.ts": 0.0318,
+    "src/attributes.ts": 0.1284,
+    "src/compiler/codegen.ts": 0.1338,
+    "src/compiler/constants.ts": 0.704,
+    "src/compiler/index.ts": 0.1688,
+    "src/compiler/parser.ts": 0.0681,
+    "src/compiler/plugins/tsc.ts": 0.0318,
+    "src/compiler/plugins/vite.ts": 0.0995,
+    "src/compiler/ts-analyzer.ts": 0.1222,
+    "src/compiler/ts-parser.ts": 0.1835,
+    "src/constants.ts": 0.8432,
+    "src/event/index.ts": 0.1177,
+    "src/event/onconnect.ts": 0.0575,
+    "src/event/onresize.ts": 0.062,
+    "src/event/ontick.ts": 0.082,
+    "src/hmr.ts": 0.0724,
+    "src/html.ts": 0.1351,
+    "src/index.ts": 0.1591,
+    "src/render.ts": 0.0589,
+    "src/slot/array.ts": 0.2735,
+    "src/slot/cleanup.ts": 0.3157,
+    "src/slot/effect.ts": 0.258,
+    "src/slot/index.ts": 1,
+    "src/slot/render.ts": 0.2594,
+    "src/svg.ts": 0.0724,
+    "src/types.ts": 0.9841,
+    "src/utilities.ts": 0.4292,
+    "tests/attributes.ts": 0.1591,
+    "tests/compiler/codegen.ts": 0.1591,
+    "tests/compiler/integration.ts": 0.0318,
+    "tests/compiler/parser.ts": 0.0318,
+    "tests/compiler/transform.ts": 0.1591,
+    "tests/compiler/ts-analyzer.ts": 0.1591,
+    "tests/compiler/ts-parser.ts": 0.0318,
+    "tests/compiler/vite-hmr.ts": 0.1591,
+    "tests/constants.ts": 0.0318,
+    "tests/event/index.ts": 0.1591,
+    "tests/event/onconnect.ts": 0.0318,
+    "tests/event/onresize.ts": 0.0318,
+    "tests/event/ontick.ts": 0.0318,
+    "tests/hmr.ts": 0.0318,
+    "tests/html.ts": 0.0318,
+    "tests/render.ts": 0.0318,
+    "tests/slot/array.ts": 0.0318,
+    "tests/slot/async.ts": 0.0318,
+    "tests/slot/cleanup.ts": 0.0318,
+    "tests/slot/effect.ts": 0.1591,
+    "tests/slot/index.ts": 0.0318,
+    "tests/slot/render.ts": 0.0318,
+    "tests/svg.ts": 0.0318,
+    "tests/utilities.ts": 0.0318,
+    "vitest.bench.config.ts": 0.0318,
+    "vitest.config.ts": 0.0318
+  }
+}

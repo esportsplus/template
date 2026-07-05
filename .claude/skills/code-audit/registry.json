@@ -1,0 +1,286 @@
+{
+ "version": 12,
+ "project": "esportsplus-template",
+ "created_commit": "97264e3057845d83e3f453f491f629ebfd543364",
+ "scope": "src",
+ "run_counter": 0,
+ "baseline_sha": null,
+ "standards_sweep": null,
+ "fix_shas": [],
+ "recover": null,
+ "next_finding_id": 1,
+ "scan_config": {
+  "roots": [
+   "src"
+  ],
+  "exclude": [
+   ".git",
+   ".claude",
+   "node_modules",
+   "dist",
+   "build",
+   "out",
+   "coverage",
+   "vendor",
+   ".next",
+   "target"
+  ]
+ },
+ "manifest": {
+  "files": {
+   "src/attributes.ts": {
+    "class": "source",
+    "hash": "sha256:af00b14b3cf8895a",
+    "symbols": [
+     "setList",
+     "setProperty",
+     "setProperties"
+    ],
+    "first_seen_run": 1
+   },
+   "src/compiler/codegen.ts": {
+    "class": "source",
+    "hash": "sha256:7134f63f8b786fd7",
+    "symbols": [
+     "generateCode",
+     "printer",
+     "rewriteExpression"
+    ],
+    "first_seen_run": 1
+   },
+   "src/compiler/constants.ts": {
+    "class": "source",
+    "hash": "sha256:e8bfbe9ecc6458d9",
+    "symbols": [
+     "ENTRYPOINT",
+     "ENTRYPOINT_REACTIVITY",
+     "NAMESPACE",
+     "TYPES",
+     "PACKAGE_NAME"
+    ],
+    "first_seen_run": 1
+   },
+   "src/compiler/index.ts": {
+    "class": "source",
+    "hash": "sha256:a052a18d4773401f",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/compiler/parser.ts": {
+    "class": "source",
+    "hash": "sha256:8593c9bd70cd63b5",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/compiler/plugins/tsc.ts": {
+    "class": "source",
+    "hash": "sha256:dbd6b1e533df34a6",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/compiler/plugins/vite.ts": {
+    "class": "source",
+    "hash": "sha256:16da57a7006cbeb0",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/compiler/ts-analyzer.ts": {
+    "class": "source",
+    "hash": "sha256:5f0be4bdaed63daa",
+    "symbols": [
+     "analyze"
+    ],
+    "first_seen_run": 1
+   },
+   "src/compiler/ts-parser.ts": {
+    "class": "source",
+    "hash": "sha256:7e348a6eaaed7405",
+    "symbols": [
+     "extractTemplateParts",
+     "findHtmlTemplates",
+     "findReactiveCalls"
+    ],
+    "first_seen_run": 1
+   },
+   "src/constants.ts": {
+    "class": "source",
+    "hash": "sha256:d21a84ccfcf44767",
+    "symbols": [
+     "ARRAY_SLOT",
+     "ATTRIBUTE_DELIMITERS",
+     "CLEANUP",
+     "DIRECT_ATTACH_EVENTS",
+     "LIFECYCLE_EVENTS",
+     "PACKAGE_NAME",
+     "SLOT_HTML",
+     "STATE_HYDRATING",
+     "STATE_NONE",
+     "STATE_WAITING",
+     "STORE"
+    ],
+    "first_seen_run": 1
+   },
+   "src/event/index.ts": {
+    "class": "source",
+    "hash": "sha256:96faee9f4f1b1d46",
+    "symbols": [
+     "delegate",
+     "on",
+     "onconnect",
+     "ondisconnect",
+     "onrender",
+     "onresize",
+     "ontick",
+     "runtime"
+    ],
+    "first_seen_run": 1
+   },
+   "src/event/onconnect.ts": {
+    "class": "source",
+    "hash": "sha256:78e805c09ce3ed45",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/event/onresize.ts": {
+    "class": "source",
+    "hash": "sha256:1799f2b7e88555b0",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/event/ontick.ts": {
+    "class": "source",
+    "hash": "sha256:292dd0529a0e794d",
+    "symbols": [
+     "add",
+     "remove"
+    ],
+    "first_seen_run": 1
+   },
+   "src/hmr.ts": {
+    "class": "source",
+    "hash": "sha256:de9d5bc30c0b0d31",
+    "symbols": [
+     "accept",
+     "createHotTemplate",
+     "hmrReset",
+     "modules"
+    ],
+    "first_seen_run": 1
+   },
+   "src/html.ts": {
+    "class": "source",
+    "hash": "sha256:318c39046274842c",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/index.ts": {
+    "class": "source",
+    "hash": "sha256:0b16c3ea34d4b23b",
+    "symbols": [
+     "default",
+     "ArraySlot",
+     "EffectSlot"
+    ],
+    "first_seen_run": 1
+   },
+   "src/render.ts": {
+    "class": "source",
+    "hash": "sha256:e68c36494526eb3a",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/slot/array.ts": {
+    "class": "source",
+    "hash": "sha256:0cedb7763e6cd03b",
+    "symbols": [
+     "ArraySlot"
+    ],
+    "first_seen_run": 1
+   },
+   "src/slot/cleanup.ts": {
+    "class": "source",
+    "hash": "sha256:02fffebc9ca74295",
+    "symbols": [
+     "ondisconnect",
+     "remove"
+    ],
+    "first_seen_run": 1
+   },
+   "src/slot/effect.ts": {
+    "class": "source",
+    "hash": "sha256:0669d20c8a52c908",
+    "symbols": [
+     "EffectSlot"
+    ],
+    "first_seen_run": 1
+   },
+   "src/slot/index.ts": {
+    "class": "source",
+    "hash": "sha256:1cc1c1d49105bc32",
+    "symbols": [
+     "default"
+    ],
+    "first_seen_run": 1
+   },
+   "src/slot/render.ts": {
+    "class": "source",
+    "hash": "sha256:1d7de10a365d1b45",
+    "symbols": [
+     "render"
+    ],
+    "first_seen_run": 1
+   },
+   "src/svg.ts": {
+    "class": "source",
+    "hash": "sha256:ad42e8560ecb87fb",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/types.ts": {
+    "class": "source",
+    "hash": "sha256:ac07974caab9c8b8",
+    "symbols": [],
+    "first_seen_run": 1
+   },
+   "src/utilities.ts": {
+    "class": "source",
+    "hash": "sha256:6e33422564f0662e",
+    "symbols": [
+     "clone",
+     "EMPTY_FRAGMENT",
+     "fragment",
+     "marker",
+     "raf",
+     "template",
+     "text"
+    ],
+    "first_seen_run": 1
+   }
+  },
+  "last_updated_run": 1
+ },
+ "files": {},
+ "findings": {},
+ "runs": [],
+ "convergence": {
+  "status": "IN_PROGRESS",
+  "coverage_pct": 0,
+  "files_covered": 0,
+  "files_total": 26,
+  "reason": "0/26 files fully covered (0%); 26 remaining. Re-run to advance coverage.",
+  "uncovered_sample": [
+   "src/attributes.ts",
+   "src/compiler/codegen.ts",
+   "src/compiler/constants.ts",
+   "src/compiler/index.ts",
+   "src/compiler/parser.ts",
+   "src/compiler/plugins/tsc.ts",
+   "src/compiler/plugins/vite.ts",
+   "src/compiler/ts-analyzer.ts",
+   "src/compiler/ts-parser.ts",
+   "src/constants.ts",
+   "src/event/index.ts",
+   "src/event/onconnect.ts"
+  ]
+ }
+}
