@@ -1,4 +1,4 @@
-ignoredBuiltDependencies:
-  - esbuild
+allowBuilds:
+  esbuild: true
 minimumReleaseAgeExclude:
   - tsc-alias
