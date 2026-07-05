@@ -1,15 +1,15 @@
 {
     "author": "ICJR",
     "dependencies": {
-        "@esportsplus/queue": "^0.2.0",
-        "@esportsplus/reactivity": "^0.30.2",
-        "@esportsplus/typescript": "^0.29.0",
-        "@esportsplus/utilities": "^0.27.2"
+        "@esportsplus/queue": "^0.4.2",
+        "@esportsplus/reactivity": "^0.31.2",
+        "@esportsplus/typescript": "^0.29.5",
+        "@esportsplus/utilities": "^0.28.0"
     },
     "devDependencies": {
-        "@vitest/coverage-v8": "^4.0.18",
-        "jsdom": "^28.0.0",
-        "vitest": "^4.0.18"
+        "@vitest/coverage-v8": "^4.1.9",
+        "jsdom": "^29.1.1",
+        "vitest": "^4.1.9"
     },
     "exports": {
         "./compiler": {
