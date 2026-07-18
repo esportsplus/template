@@ -2,14 +2,14 @@
     "author": "ICJR",
     "dependencies": {
         "@esportsplus/queue": "^0.4.2",
-        "@esportsplus/reactivity": "^0.31.2",
+        "@esportsplus/reactivity": "^0.31.3",
         "@esportsplus/typescript": "^0.29.5",
         "@esportsplus/utilities": "^0.28.0"
     },
     "devDependencies": {
-        "@vitest/coverage-v8": "^4.1.9",
+        "@vitest/coverage-v8": "^4.1.10",
         "jsdom": "^29.1.1",
-        "vitest": "^4.1.9"
+        "vitest": "^4.1.10"
     },
     "exports": {
         "./compiler": {
@@ -37,6 +37,7 @@
         "url": "https://github.com/esportsplus/template"
     },
     "scripts": {
+        "bench:krausest": "vitest run --config vitest.krausest.config.ts",
         "bench:run": "vitest bench --config vitest.bench.config.ts",
         "build": "tsc",
         "test": "vitest run",

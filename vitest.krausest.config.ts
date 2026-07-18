@@ -9,10 +9,9 @@ export default defineConfig({
         }
     },
     test: {
-        benchmark: {
-            include: ['bench/**/*.bench.ts']
-        },
         environment: 'jsdom',
-        globals: true
+        globals: true,
+        include: ['bench/krausest/index.ts'],
+        testTimeout: 600000
     }
 });
