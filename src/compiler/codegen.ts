@@ -192,10 +192,14 @@ function generateTemplateCode(
 
         let name = uid('element'),
             segments = path.slice(start),
-            value = `${ancestor}.${segments.join('!.')}`;
+            value = ancestor;
 
-        if (ancestor === root && segments[0] === 'firstChild') {
-            value = value.replace(`${ancestor}.firstChild!`, `(${root}.firstChild! as ${NAMESPACE}.Element)`);
+        for (let s = 0, sn = segments.length; s < sn; s++) {
+            value += `.${segments[s]}`;
+
+            if (s < sn - 1) {
+                value = `(${value}! as ${NAMESPACE}.Element)`;
+            }
         }
 
         declarations.push(`${name} = ${value} as ${NAMESPACE}.Element`);
