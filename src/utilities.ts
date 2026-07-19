@@ -25,8 +25,14 @@ const marker = fragment(SLOT_HTML).firstChild!;
 
 const raf = globalThis?.requestAnimationFrame;
 
-// Factory that caches the fragment for repeated cloning
-const template = (html: string) => {
+// Factory that caches the fragment for repeated cloning; markup-free html skips the parse
+const template = (html: string): (() => DocumentFragment | Text) => {
+    // A markup-free template is provably slotless (node slots carry '<!--$-->', elements carry '<'),
+    // so no caller walks into it - clone a text node instead of paying the innerHTML parse
+    if (html.length > 0 && html.indexOf('<') === -1) {
+        return () => text(html);
+    }
+
     let cached: DocumentFragment | undefined;
 
     return () => {
@@ -42,7 +48,7 @@ const template = (html: string) => {
 };
 
 const text = (value: string) => {
-    let element = txt.cloneNode();
+    let element = txt.cloneNode() as Text;
 
     if (value !== '') {
         element.nodeValue = value;

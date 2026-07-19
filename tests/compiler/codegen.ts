@@ -28,7 +28,7 @@ describe('compiler/codegen', () => {
 
             expect(result.templates.size).toBe(1);
             expect(result.prepend).toHaveLength(1);
-            expect(result.prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello</div>\`)`);
+            expect(result.prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello\`)`);
             expect(result.replacements).toHaveLength(1);
 
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));

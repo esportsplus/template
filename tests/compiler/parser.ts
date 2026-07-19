@@ -15,14 +15,15 @@ describe('compiler/parser', () => {
         it('parses static HTML without slots', () => {
             let result = parser.parse(['<div>Hello World</div>']);
 
-            expect(result.html).toBe('<div>Hello World</div>');
+            // End-of-template closing tags are omitted (fragment parser auto-closes them)
+            expect(result.html).toBe('<div>Hello World');
             expect(result.slots).toBeNull();
         });
 
         it('parses nested static HTML', () => {
             let result = parser.parse(['<div><span><strong>Nested</strong></span></div>']);
 
-            expect(result.html).toBe('<div><span><strong>Nested</strong></span></div>');
+            expect(result.html).toBe('<div><span><strong>Nested');
             expect(result.slots).toBeNull();
         });
 
@@ -31,20 +32,20 @@ describe('compiler/parser', () => {
 
             expect(result.html).toContain('<span>One</span>');
             expect(result.html).toContain('<span>Two</span>');
-            expect(result.html).toContain('<span>Three</span>');
+            expect(result.html).toContain('<span>Three');
             expect(result.slots).toBeNull();
         });
 
         it('trims whitespace', () => {
             let result = parser.parse(['  <div>  Content  </div>  ']);
 
-            expect(result.html).toBe('<div> Content </div>');
+            expect(result.html).toBe('<div> Content ');
         });
 
         it('collapses multiple whitespace', () => {
             let result = parser.parse(['<div>   Multiple    Spaces   </div>']);
 
-            expect(result.html).toBe('<div> Multiple Spaces </div>');
+            expect(result.html).toBe('<div> Multiple Spaces ');
         });
     });
 
@@ -398,5 +399,122 @@ describe('compiler/parser', () => {
             // After slot marker removal, empty class="" should be removed
             expect(result.html).not.toContain('class=""');
         });
+    });
+
+    describe('parse - closing tag omission', () => {
+        it('strips the trailing run of closing tags', () => {
+            let result = parser.parse(['<div><span>text</span></div>']);
+
+            expect(result.html).toBe('<div><span>text');
+        });
+
+        it('preserves mid-stream closing tags', () => {
+            let result = parser.parse(['<div><span>a</span><b>c</b></div>']);
+
+            // Only the terminal </b></div> run is stripped; the inner </span> stays
+            expect(result.html).toBe('<div><span>a</span><b>c');
+        });
+
+        it('strips closing tags around a trailing node slot', () => {
+            let result = parser.parse(['<div><span>', '</span></div>']);
+
+            expect(result.html).toBe('<div><span><!--$-->');
+        });
+    });
+
+    describe('parse - attribute quote omission', () => {
+        it('drops quotes around safe attribute values', () => {
+            let result = parser.parse(['<div class="wrapper" data-id="a.b-c:d">x</div>']);
+
+            expect(result.html).toBe('<div class=wrapper data-id=a.b-c:d>x');
+        });
+
+        it('keeps quotes around values with spaces', () => {
+            let result = parser.parse(['<div class="a b c">x</div>']);
+
+            expect(result.html).toBe('<div class="a b c">x');
+        });
+
+        it('keeps quotes when a value abuts a self-closing slash', () => {
+            let result = parser.parse(['<svg><rect width="10"/></svg>']);
+
+            // width=10/ would swallow the slash into the unquoted value, so quotes stay
+            expect(result.html).toContain('width="10"');
+        });
+    });
+
+    describe('parse - DOM equivalence of minified output', () => {
+        function domEqual(a: Node, b: Node): boolean {
+            if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) {
+                return false;
+            }
+
+            if (a.nodeType === Node.TEXT_NODE || a.nodeType === Node.COMMENT_NODE) {
+                if (a.nodeValue !== b.nodeValue) {
+                    return false;
+                }
+            }
+
+            if (a.nodeType === Node.ELEMENT_NODE) {
+                let ea = a as Element,
+                    eb = b as Element;
+
+                if (ea.attributes.length !== eb.attributes.length) {
+                    return false;
+                }
+
+                for (let i = 0, n = ea.attributes.length; i < n; i++) {
+                    let attr = ea.attributes[i];
+
+                    if (eb.getAttribute(attr.name) !== attr.value) {
+                        return false;
+                    }
+                }
+            }
+
+            let ca = a.childNodes,
+                cb = b.childNodes;
+
+            if (ca.length !== cb.length) {
+                return false;
+            }
+
+            for (let i = 0, n = ca.length; i < n; i++) {
+                if (!domEqual(ca[i], cb[i])) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function parseDOM(html: string): DocumentFragment {
+            let element = document.createElement('template');
+
+            element.innerHTML = html;
+
+            return element.content;
+        }
+
+        let fixtures = [
+            '<div>Hello World</div>',
+            '<div><span><strong>Nested</strong></span></div>',
+            '<span>One</span><span>Two</span><span>Three</span>',
+            '<input type="text"><br><hr>',
+            '<div class="col-md-1"><a></a></div>',
+            '<span class="glyphicon glyphicon-remove" aria-hidden="true"></span>',
+            '<svg><rect width="100" height="100"></rect></svg>',
+            '<svg><circle r="10"/></svg>',
+            '<table class="table table-hover test-data"><tbody><tr><td class="col-md-1"></td></tr></tbody></table>',
+            '<tr><td class="col-md-1"></td><td class="col-md-4"><a></a></td><td class="col-md-6"></td></tr>'
+        ];
+
+        for (let i = 0, n = fixtures.length; i < n; i++) {
+            let html = fixtures[i];
+
+            it(`minified output is DOM-isomorphic: ${html}`, () => {
+                expect(domEqual(parseDOM(html), parseDOM(parser.minify(html)))).toBe(true);
+            });
+        }
     });
 });

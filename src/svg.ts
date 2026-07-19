@@ -16,7 +16,7 @@ svg.sprite = (href: string) => {
         href = '#' + href;
     }
 
-    let root = factory();
+    let root = factory() as DocumentFragment;
 
     setProperty(root.firstChild!.firstChild as Element, 'href', href);
 
