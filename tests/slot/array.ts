@@ -947,4 +947,125 @@ describe('slot/ArraySlot', () => {
             expect(container.querySelectorAll('span').length).toBe(1);
         });
     });
+
+    describe('moveBefore connectivity guards', () => {
+        let template = (s: string) => {
+            let frag = document.createDocumentFragment(),
+                span = document.createElement('span');
+
+            span.textContent = s;
+            frag.appendChild(span);
+
+            return frag as unknown as DocumentFragment;
+        };
+
+        // Chrome 133+/Firefox 144+ throw when the target parent is disconnected.
+        let throwingMoveBefore = (parent: HTMLElement) => {
+            return function (node: Node, ref: Node | null) {
+                if (!parent.isConnected) {
+                    throw new Error('NotSupportedError: moveBefore target is disconnected');
+                }
+
+                parent.insertBefore(node, ref);
+            };
+        };
+
+        it('sort on a detached parent falls back to insertBefore without throwing', async () => {
+            let detached = document.createElement('div'),
+                arr = reactive(['c', 'a', 'b'] as string[]),
+                slot = new ArraySlot(arr, template);
+
+            detached.appendChild(slot.fragment);
+            (detached as any).moveBefore = throwingMoveBefore(detached);
+
+            expect(detached.isConnected).toBe(false);
+
+            arr.sort();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = detached.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('c');
+        });
+
+        it('reverse on a detached parent falls back to the fragment path without throwing', async () => {
+            let detached = document.createElement('div'),
+                arr = reactive(['a', 'b', 'c'] as string[]),
+                slot = new ArraySlot(arr, template);
+
+            detached.appendChild(slot.fragment);
+            (detached as any).moveBefore = throwingMoveBefore(detached);
+
+            expect(detached.isConnected).toBe(false);
+
+            arr.reverse();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = detached.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('c');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('a');
+        });
+
+        it('sort on a connected parent still routes through moveBefore', async () => {
+            let calls = 0,
+                arr = reactive(['c', 'a', 'b'] as string[]),
+                slot = new ArraySlot(arr, template);
+
+            container.appendChild(slot.fragment);
+            (container as any).moveBefore = function (node: Node, ref: Node | null) {
+                if (!container.isConnected) {
+                    throw new Error('NotSupportedError: moveBefore target is disconnected');
+                }
+
+                calls++;
+                container.insertBefore(node, ref);
+            };
+
+            expect(container.isConnected).toBe(true);
+
+            arr.sort();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('c');
+            expect(calls).toBeGreaterThan(0);
+
+            delete (container as any).moveBefore;
+        });
+
+        it('mount-time inserts never route through moveBefore', async () => {
+            let calls = 0,
+                arr = reactive(['b'] as string[]),
+                slot = new ArraySlot(arr, template);
+
+            container.appendChild(slot.fragment);
+            (container as any).moveBefore = function (node: Node, ref: Node | null) {
+                calls++;
+                container.insertBefore(node, ref);
+            };
+
+            arr.push('c');
+            arr.unshift('a');
+            arr.splice(1, 0, 'x');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(4);
+            expect(calls).toBe(0);
+
+            delete (container as any).moveBefore;
+        });
+    });
 });

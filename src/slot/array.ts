@@ -280,7 +280,7 @@ class ArraySlot<T> {
         }
 
         let ref: Node | null = end,
-            useMoveBefore = 'moveBefore' in parent;
+            useMoveBefore = parent.isConnected && 'moveBefore' in parent;
 
         for (let i = n - 1; i >= 0; i--) {
             let group = sorted[i];
@@ -328,7 +328,7 @@ class ArraySlot<T> {
 
         let parent = this.marker.parentNode;
 
-        if (parent && 'moveBefore' in parent) {
+        if (parent && parent.isConnected && 'moveBefore' in parent) {
             let ref: Node | null = nodes[0].tail.nextSibling;
 
             for (let i = n - 1; i >= 0; i--) {
