@@ -104,7 +104,14 @@ class ArraySlot<T> {
 
         if (array.length) {
             root(() => {
-                this.nodes = array.map(this.template);
+                let n = array.length,
+                    nodes = new Array<SlotGroup>(n);
+
+                for (let i = 0; i < n; i++) {
+                    nodes[i] = this.template(array[i]);
+                }
+
+                this.nodes = nodes;
             });
         }
 
@@ -244,7 +251,15 @@ class ArraySlot<T> {
 
         if (n !== order.length) {
             remove(...nodes.splice(0));
-            this.nodes = this.array.map(this.template);
+
+            let m = this.array.length,
+                rebuilt = new Array<SlotGroup>(m);
+
+            for (let i = 0; i < m; i++) {
+                rebuilt[i] = this.template(this.array[i]);
+            }
+
+            this.nodes = rebuilt;
             this.marker.after(this.fragment);
             return;
         }
