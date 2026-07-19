@@ -182,9 +182,9 @@ describe('compiler/integration', () => {
             expect(hasOuter).toBe(true);
             expect(hasInner).toBe(true);
 
-            // Nested html`` rewritten
+            // Nested html`` rewritten; sole-child slot elides its marker and appends to the parent
             expect(output).not.toContain('html`');
-            expect(output).toContain('insertBefore');
+            expect(output).toContain('appendChild');
         });
     });
 

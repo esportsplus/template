@@ -2,7 +2,7 @@ import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compil
 import { pick } from '@esportsplus/utilities';
 import type { TemplateInfo } from './ts-parser';
 import { analyze } from './ts-analyzer';
-import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
+import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, TYPES } from './constants';
 import { extractTemplateParts } from './ts-parser';
 import { ts } from '@esportsplus/typescript';
@@ -115,7 +115,36 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
     );
 }
 
-function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: string, exprNode: ts.Expression | undefined): string {
+function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: string, exprNode: ts.Expression | undefined, mode: 'last' | 'sole' | undefined): string {
+    if (mode) {
+        let flag = mode === 'sole' ? ANCHOR_SOLE : ANCHOR_LAST;
+
+        if (!exprNode) {
+            return `${NAMESPACE}.slot(${anchor}, ${exprText}, ${flag});`;
+        }
+
+        if (isNestedHtmlTemplate(exprNode)) {
+            return `${anchor}.appendChild(${generateNestedTemplateCode(ctx, exprNode)});`;
+        }
+
+        switch (analyze(exprNode, ctx.checker)) {
+            case TYPES.ArraySlot:
+                return `${anchor}.appendChild(new ${NAMESPACE}.ArraySlot(${exprText}).fragment);`;
+
+            case TYPES.DocumentFragment:
+                return `${anchor}.appendChild(${exprText});`;
+
+            case TYPES.Effect:
+                return `new ${NAMESPACE}.EffectSlot(${anchor}, ${exprText}, ${flag});`;
+
+            case TYPES.Static:
+                return `${anchor}.appendChild(${NAMESPACE}.text(${exprText}));`;
+
+            default:
+                return `${NAMESPACE}.slot(${anchor}, ${exprText}, ${flag});`;
+        }
+    }
+
     if (!exprNode) {
         return `${NAMESPACE}.slot(${anchor}, ${exprText});`;
     }
@@ -324,7 +353,7 @@ function generateTemplateCode(
         }
         else {
             code.push(
-                generateNodeBinding(ctx, element, exprTexts[index] || 'undefined', exprNodes[index])
+                generateNodeBinding(ctx, element, exprTexts[index] || 'undefined', exprNodes[index], slot.mode)
             );
             index++;
         }

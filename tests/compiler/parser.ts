@@ -52,7 +52,8 @@ describe('compiler/parser', () => {
         it('parses single node slot', () => {
             let result = parser.parse(['<div>', '</div>']);
 
-            expect(result.html).toContain('<!--$-->');
+            // Sole-child slot elides its marker
+            expect(result.html).not.toContain('<!--$-->');
             expect(result.slots).not.toBeNull();
             expect(result.slots!.length).toBe(1);
             expect(result.slots![0].type).toBe(TYPES.Node);
@@ -97,6 +98,72 @@ describe('compiler/parser', () => {
             let result = parser.parse(['<div>', ' and ', '</div>']);
 
             expect(result.slots!.length).toBe(2);
+        });
+    });
+
+    describe('parse - marker elision (sole/last-child slots)', () => {
+        type NodeSlot = { mode?: 'last' | 'sole'; path: string[]; type: TYPES.Node };
+
+        it('elides marker and flags sole-child slot with parent path', () => {
+            let result = parser.parse(['<div>', '</div>']),
+                slot = result.slots![0] as NodeSlot;
+
+            expect(result.html).toBe('<div></div>');
+            expect(slot.mode).toBe('sole');
+            expect(slot.path).toEqual(['firstChild']);
+        });
+
+        it('elides marker and flags nested sole-child slot with parent element path', () => {
+            let result = parser.parse(['<div><span>', '</span></div>']),
+                slot = result.slots![0] as NodeSlot;
+
+            expect(result.html).toBe('<div><span></span></div>');
+            expect(slot.mode).toBe('sole');
+            expect(slot.path).toEqual(['firstChild', 'firstElementChild']);
+        });
+
+        it('elides marker and flags last-child slot after text', () => {
+            let result = parser.parse(['<div>Text ', '</div>']),
+                slot = result.slots![0] as NodeSlot;
+
+            expect(result.html).not.toContain('<!--$-->');
+            expect(slot.mode).toBe('last');
+            expect(slot.path).toEqual(['firstChild']);
+        });
+
+        it('elides marker and flags last-child slot after an element sibling', () => {
+            let result = parser.parse(['<div><span></span>', '</div>']),
+                slot = result.slots![0] as NodeSlot;
+
+            expect(result.html).not.toContain('<!--$-->');
+            expect(slot.mode).toBe('last');
+            expect(slot.path).toEqual(['firstChild']);
+        });
+
+        it('keeps marker and leaves mid-position slot unflagged', () => {
+            let result = parser.parse(['<div>', ' Text</div>']),
+                slot = result.slots![0] as NodeSlot;
+
+            expect(result.html).toContain('<!--$-->');
+            expect(slot.mode).toBeUndefined();
+        });
+
+        it('flags only the last slot when two share an element', () => {
+            let result = parser.parse(['<div>', ' and ', '</div>']),
+                first = result.slots![0] as NodeSlot,
+                second = result.slots![1] as NodeSlot;
+
+            expect(first.mode).toBeUndefined();
+            expect(second.mode).toBe('last');
+            expect(result.html.match(/<!--\$-->/g)!.length).toBe(1);
+        });
+
+        it('does not elide a root-level (fragment parent) slot', () => {
+            let result = parser.parse(['<span></span>', '']),
+                slot = result.slots![0] as NodeSlot;
+
+            expect(result.html).toContain('<!--$-->');
+            expect(slot.mode).toBeUndefined();
         });
     });
 

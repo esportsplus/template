@@ -1,4 +1,5 @@
 import { reactive, read, signal, write, ReactiveArray, Signal } from '@esportsplus/reactivity';
+import { ANCHOR_SOLE } from '../../src/constants';
 import { setList } from '../../src/attributes';
 import { delegate } from '../../src/event';
 import { ArraySlot } from '../../src/slot/array';
@@ -29,9 +30,10 @@ const EMPTY_STATICS: Record<string, string> = {};
 const NOUNS = ['table', 'chair', 'house', 'bbq', 'desk', 'car', 'pony', 'cookie', 'sandwich', 'burger', 'pizza', 'mouse', 'keyboard'];
 
 // Hand-written equivalents of the compiler's `template()` hoists for the app + row html`` literals
-const ROW = template('<tr><td class="col-md-1"><!--$--></td><td class="col-md-4"><a><!--$--></a></td><td class="col-md-1"><a><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td><td class="col-md-6"></td></tr>');
+// Sole-child node slots elide their <!--$--> markers (id cell text, label anchor, tbody ArraySlot)
+const ROW = template('<tr><td class="col-md-1"></td><td class="col-md-4"><a></a></td><td class="col-md-1"><a><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td><td class="col-md-6"></td></tr>');
 
-const TABLE = template('<table class="table table-hover table-striped test-data"><tbody><!--$--></tbody></table>');
+const TABLE = template('<table class="table table-hover table-striped test-data"><tbody></tbody></table>');
 
 
 let id = 1,
@@ -68,16 +70,14 @@ const create = (container: HTMLElement) => {
         let fragment = ROW(),
             tr = fragment.firstChild as Element,
             idCell = tr.firstChild as Element,
-            idAnchor = idCell.firstChild as Element,
             labelCell = idCell.nextSibling as Element,
             labelLink = labelCell.firstChild as Element,
-            labelAnchor = labelLink.firstChild as Element,
             removeLink = (labelCell.nextSibling as Element).firstChild as Element;
 
         setList(tr, 'class', () => read(selected) === data.id ? 'danger' : '', EMPTY_STATICS);
-        idAnchor.after(text(String(data.id)));
+        idCell.appendChild(text(String(data.id)));
         delegate(labelLink, 'click', () => write(selected, data.id));
-        new EffectSlot(labelAnchor, () => read(data.label));
+        new EffectSlot(labelLink, () => read(data.label), ANCHOR_SOLE);
         delegate(removeLink, 'click', () => {
             rows.splice(rows.indexOf(data), 1);
         });
@@ -87,10 +87,10 @@ const create = (container: HTMLElement) => {
 
     let fragment = TABLE(),
         table = fragment.firstChild as Element,
-        anchor = (table.firstChild as Element).firstChild as Element,
+        tbody = table.firstChild as Element,
         slot = new ArraySlot(rows, row as (value: Row) => DocumentFragment);
 
-    anchor.parentNode!.insertBefore(slot.fragment, anchor);
+    tbody.appendChild(slot.fragment);
     container.appendChild(fragment as unknown as Node);
 
     return {

@@ -184,6 +184,35 @@ describe('slot/render', () => {
         });
     });
 
+    describe('parent-element anchor (parent-mode insert)', () => {
+        it('returns a text node when the anchor is a parent element', () => {
+            let parent = document.createElement('div') as unknown as Element,
+                result = render(parent, 'Hello');
+
+            expect(result.nodeType).toBe(Node.TEXT_NODE);
+            expect(result.nodeValue).toBe('Hello');
+        });
+
+        it('returns the same fragment shape regardless of anchor kind', () => {
+            let parent = document.createElement('div') as unknown as Element,
+                viaMarker = render(anchor, ['One', 'Two', 'Three']),
+                viaParent = render(parent, ['One', 'Two', 'Three']);
+
+            expect(viaMarker).toBeInstanceOf(DocumentFragment);
+            expect(viaParent).toBeInstanceOf(DocumentFragment);
+            expect(viaParent.childNodes.length).toBe(viaMarker.childNodes.length);
+        });
+
+        it('appends a rendered text node into the parent element', () => {
+            let parent = document.createElement('div') as unknown as Element;
+
+            parent.appendChild(render(parent, 'child'));
+
+            expect(parent.textContent).toBe('child');
+            expect(parent.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+        });
+    });
+
     describe('edge cases', () => {
         it('handles 0 as text node', () => {
             let result = render(anchor, 0);

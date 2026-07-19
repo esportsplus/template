@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { signal, read, write } from '@esportsplus/reactivity';
+import { ANCHOR_LAST, ANCHOR_SOLE } from '../../src/constants';
 import { EffectSlot } from '../../src/slot/effect';
+import { ondisconnect } from '../../src/slot/cleanup';
 import { marker } from '../../src/utilities';
 import type { Element } from '../../src/types';
 
@@ -345,6 +347,115 @@ describe('slot/EffectSlot', () => {
             new EffectSlot(anchor, () => 'Hello 👋 World 🌍');
 
             expect(container.textContent).toContain('Hello 👋 World 🌍');
+        });
+    });
+
+    describe('parent-anchor mode', () => {
+        let parent: Element;
+
+        beforeEach(() => {
+            parent = document.createElement('div') as unknown as Element;
+            document.body.appendChild(parent as unknown as Node);
+        });
+
+        afterEach(() => {
+            document.body.removeChild(parent as unknown as Node);
+        });
+
+        it('renders text as a child of the parent (sole)', () => {
+            new EffectSlot(parent, () => 'Hello', ANCHOR_SOLE);
+
+            expect(parent.textContent).toBe('Hello');
+            expect(parent.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+        });
+
+        it('appends text after existing static children (last)', () => {
+            let span = document.createElement('span');
+
+            span.textContent = 'static';
+            parent.appendChild(span);
+
+            new EffectSlot(parent, () => 'tail', ANCHOR_LAST);
+
+            expect(parent.childNodes.length).toBe(2);
+            expect(parent.firstChild).toBe(span);
+            expect(parent.lastChild?.nodeValue).toBe('tail');
+        });
+
+        it('swaps text -> fragment -> text without removing the parent', () => {
+            let slot = new EffectSlot(parent, () => 'first', ANCHOR_SOLE);
+
+            expect(parent.textContent).toBe('first');
+
+            let a = document.createElement('a'),
+                frag = document.createDocumentFragment();
+
+            a.textContent = 'frag';
+            frag.appendChild(a);
+
+            slot.update(frag);
+
+            expect(parent.querySelector('a')?.textContent).toBe('frag');
+            expect(parent.textContent).toBe('frag');
+
+            slot.update('third');
+
+            expect(parent.querySelector('a')).toBeNull();
+            expect(parent.textContent).toBe('third');
+            expect(parent.isConnected).toBe(true);
+        });
+
+        it('dispose fires ondisconnect cleanup and never removes the parent', () => {
+            let cleaned = false,
+                frag = document.createDocumentFragment(),
+                span = document.createElement('span');
+
+            span.textContent = 'x';
+            frag.appendChild(span);
+            ondisconnect(span as unknown as Element, () => { cleaned = true; });
+
+            let slot = new EffectSlot(parent, () => frag, ANCHOR_SOLE);
+
+            expect(parent.querySelector('span')).not.toBeNull();
+
+            slot.dispose();
+
+            expect(cleaned).toBe(true);
+            expect(parent.querySelector('span')).toBeNull();
+            expect(parent.isConnected).toBe(true);
+            expect(document.body.contains(parent as unknown as Node)).toBe(true);
+        });
+
+        it('dispose clears the tracked span but keeps preceding siblings (last)', () => {
+            let span = document.createElement('span');
+
+            span.textContent = 'keep';
+            parent.appendChild(span);
+
+            let slot = new EffectSlot(parent, () => 'gone', ANCHOR_LAST);
+
+            expect(parent.textContent).toBe('keepgone');
+
+            slot.dispose();
+
+            expect(parent.textContent).toBe('keep');
+            expect(parent.firstChild).toBe(span);
+            expect(parent.isConnected).toBe(true);
+        });
+
+        it('reuses the text node across reactive updates', async () => {
+            let s = signal('a'),
+                slot = new EffectSlot(parent, () => read(s), ANCHOR_SOLE),
+                textnode = slot.textnode;
+
+            expect(parent.textContent).toBe('a');
+
+            write(s, 'b');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(slot.textnode).toBe(textnode);
+            expect(parent.textContent).toBe('b');
         });
     });
 });

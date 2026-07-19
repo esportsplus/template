@@ -74,8 +74,16 @@ describe('compiler/codegen', () => {
             expect(code).toContain('"hello"');
         });
 
-        it('generates insertBefore for nested html template', () => {
+        it('generates appendChild for nested html template in sole-child slot', () => {
             let { result } = codegen(`let x = html\`<div>\${html\`<span>nested</span>\`}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain('appendChild');
+            expect(code).not.toContain('insertBefore');
+        });
+
+        it('generates insertBefore for nested html template in mid-position slot', () => {
+            let { result } = codegen(`let x = html\`<div>\${html\`<span>nested</span>\`} tail</div>\`;`);
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
             expect(code).toContain('insertBefore');
@@ -347,6 +355,59 @@ describe('compiler/codegen', () => {
     // codegen.ts:170-171 (path.length === 0) and :176-177 (nodes.has(key)) are defensive
     // guards unreachable via normal parser output. Parser always produces paths with at
     // least ["firstChild"] and packs all attributes per element into a single slot entry.
+
+    describe('generateCode - marker elision (sole/last-child slots)', () => {
+        it('emits 3-arg EffectSlot (sole flag) for sole-child function slot', () => {
+            let { result } = codegen(`let x = html\`<div>\${() => count}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.EffectSlot`);
+            expect(code).toMatch(/,\s*1\)/);
+        });
+
+        it('emits 3-arg slot() (sole flag) for sole-child unknown slot', () => {
+            let { result } = codegen(`let x = html\`<div>\${value}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.slot(`);
+            expect(code).toMatch(/,\s*1\)/);
+        });
+
+        it('emits appendChild for sole-child ArraySlot slot', () => {
+            let { result } = codegen(`let x = html\`<div>\${html.reactive(items, (item) => html\`<span>\${item}</span>\`)}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain('appendChild');
+            expect(code).toContain(`${NAMESPACE}.ArraySlot`);
+            expect(code).not.toContain('insertBefore');
+        });
+
+        it('emits appendChild(text) for sole-child static slot', () => {
+            let { result } = codegen(`let x = html\`<div>\${"hello"}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain('appendChild');
+            expect(code).toContain(`${NAMESPACE}.text(`);
+            expect(code).not.toContain('.after(');
+        });
+
+        it('emits 3-arg EffectSlot (last flag) for last-child slot after text', () => {
+            let { result } = codegen(`let x = html\`<div>label \${() => count}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.EffectSlot`);
+            expect(code).toMatch(/,\s*2\)/);
+        });
+
+        it('leaves mid-position slot in marker mode (2-arg, no flag)', () => {
+            let { result } = codegen(`let x = html\`<div>\${value} tail</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.slot(`);
+            expect(code).not.toContain('appendChild');
+            expect(code).not.toMatch(/,\s*[12]\)/);
+        });
+    });
 
     describe('generateCode - arrow function body optimization', () => {
         it('generates template ID directly for parameterless arrow with static body', () => {
