@@ -2,7 +2,7 @@ import { read, root, signal, write, Reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
 import { clone, EMPTY_FRAGMENT, marker, raf } from '../utilities';
-import { ondisconnect, remove } from './cleanup';
+import { dispose, ondisconnect, remove } from './cleanup';
 
 import html from '../html';
 
@@ -73,16 +73,18 @@ class ArraySlot<T> {
     private queue: ArraySlotOp<T>[] = [];
     private scheduled = false;
     private signal;
+    private soleChild: boolean;
     private template: (...args: Parameters<(value: Reactive<T[]>[number]) => ReturnType<typeof html>>) => SlotGroup;
 
     readonly fragment: DocumentFragment;
 
 
-    constructor(private array: Reactive<T[]>, template: ((value: Reactive<T[]>[number]) => ReturnType<typeof html>)) {
+    constructor(private array: Reactive<T[]>, template: ((value: Reactive<T[]>[number]) => ReturnType<typeof html>), soleChild: boolean = false) {
         let fragment = this.fragment = clone(EMPTY_FRAGMENT);
 
         this.marker = marker.cloneNode() as unknown as Element;
         this.signal = signal(array.length);
+        this.soleChild = soleChild;
         this.template = function (data) {
             let dispose: VoidFunction,
                 frag = root((d) => {
@@ -160,6 +162,17 @@ class ArraySlot<T> {
     }
 
     private clear() {
+        if (this.soleChild) {
+            let parent = this.marker.parentNode;
+
+            if (parent) {
+                dispose(...this.nodes.splice(0));
+                parent.textContent = '';
+                parent.append(this.marker);
+                return;
+            }
+        }
+
         remove(...this.nodes.splice(0));
     }
 

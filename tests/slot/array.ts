@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { ArraySlot } from '../../src/slot/array';
+import { ondisconnect } from '../../src/slot/cleanup';
 import { ARRAY_SLOT } from '../../src/constants';
+import { Element } from '../../src/types';
 import { reactive } from '@esportsplus/reactivity';
 
 
@@ -945,6 +947,113 @@ describe('slot/ArraySlot', () => {
 
             expect(removed).toBeNull();
             expect(container.querySelectorAll('span').length).toBe(1);
+        });
+    });
+
+    describe('sole-child fast clear', () => {
+        function tmpl(s: string) {
+            let frag = document.createDocumentFragment(),
+                span = document.createElement('span');
+
+            span.textContent = s;
+            frag.appendChild(span);
+
+            return frag as unknown as DocumentFragment;
+        }
+
+        it('fires every row cleanup before the parent wipe, leaves only the marker, and re-anchors a following push', async () => {
+            let arr = reactive(['a', 'b', 'c'] as string[]),
+                cleanups = 0,
+                spansAtCleanup: number[] = [],
+                slot = new ArraySlot(arr, tmpl, true);
+
+            container.appendChild(slot.fragment);
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(3);
+
+            for (let i = 0, n = spans.length; i < n; i++) {
+                ondisconnect(spans[i] as unknown as Element, () => {
+                    cleanups++;
+                    spansAtCleanup.push(container.querySelectorAll('span').length);
+                });
+            }
+
+            arr.clear();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(cleanups).toBe(3);
+            // Every cleanup ran while the rows were still connected (before the wipe)
+            expect(spansAtCleanup.every(count => count === 3)).toBe(true);
+            expect(container.querySelectorAll('span').length).toBe(0);
+            // Only the internal marker remains
+            expect(container.childNodes.length).toBe(1);
+            expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
+
+            arr.push('x');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let after = container.querySelectorAll('span');
+
+            expect(after.length).toBe(1);
+            expect(after[0].textContent).toBe('x');
+        });
+
+        it('is behaviourally identical to the unflagged clear (marker retained, rows gone, cleanups fired)', async () => {
+            let flagged = reactive(['a', 'b'] as string[]),
+                flaggedCleanups = 0,
+                flaggedSlot = new ArraySlot(flagged, tmpl, true),
+                unflagged = reactive(['a', 'b'] as string[]),
+                unflaggedCleanups = 0,
+                unflaggedSlot = new ArraySlot(unflagged, tmpl, false),
+                flaggedHost = document.createElement('div'),
+                unflaggedHost = document.createElement('div');
+
+            container.appendChild(flaggedHost);
+            container.appendChild(unflaggedHost);
+            flaggedHost.appendChild(flaggedSlot.fragment);
+            unflaggedHost.appendChild(unflaggedSlot.fragment);
+
+            let flaggedSpans = flaggedHost.querySelectorAll('span'),
+                unflaggedSpans = unflaggedHost.querySelectorAll('span');
+
+            for (let i = 0, n = flaggedSpans.length; i < n; i++) {
+                ondisconnect(flaggedSpans[i] as unknown as Element, () => flaggedCleanups++);
+                ondisconnect(unflaggedSpans[i] as unknown as Element, () => unflaggedCleanups++);
+            }
+
+            flagged.clear();
+            unflagged.clear();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(flaggedCleanups).toBe(2);
+            expect(unflaggedCleanups).toBe(2);
+            expect(flaggedHost.querySelectorAll('span').length).toBe(0);
+            expect(unflaggedHost.querySelectorAll('span').length).toBe(0);
+            // Both retain exactly the internal marker comment
+            expect(flaggedHost.childNodes.length).toBe(1);
+            expect(unflaggedHost.childNodes.length).toBe(1);
+            expect(flaggedHost.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
+            expect(unflaggedHost.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
+        });
+
+        it('clears a never-mounted flagged slot in its fragment (detached) state', async () => {
+            let arr = reactive(['a', 'b'] as string[]),
+                slot = new ArraySlot(arr, tmpl, true);
+
+            expect(slot.fragment.querySelectorAll('span').length).toBe(2);
+
+            arr.clear();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(slot.fragment.querySelectorAll('span').length).toBe(0);
+            expect(slot.fragment.childNodes.length).toBe(1);
+            expect(slot.fragment.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
     });
 });

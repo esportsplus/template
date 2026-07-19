@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { ondisconnect, remove } from '../../src/slot/cleanup';
+import { dispose, ondisconnect, remove } from '../../src/slot/cleanup';
 import { CLEANUP } from '../../src/constants';
 import type { Element, SlotGroup } from '../../src/types';
 
@@ -238,6 +238,91 @@ describe('slot/cleanup', () => {
             remove(group);
 
             expect(container.childNodes.length).toBe(0);
+        });
+    });
+
+    describe('dispose', () => {
+        it('runs cleanup functions without removing nodes', () => {
+            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
+                cleanup = vi.fn();
+
+            container.appendChild(element);
+            ondisconnect(element as unknown as Element, cleanup);
+
+            let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
+
+            dispose(group);
+
+            expect(cleanup).toHaveBeenCalledTimes(1);
+            expect(container.children.length).toBe(1);
+        });
+
+        it('runs cleanup tail to head across a range and removes no nodes', () => {
+            let first = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
+                middle = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
+                last = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
+                callOrder: number[] = [];
+
+            container.appendChild(first);
+            container.appendChild(middle);
+            container.appendChild(last);
+
+            ondisconnect(first as unknown as Element, () => callOrder.push(1));
+            ondisconnect(middle as unknown as Element, () => callOrder.push(2));
+            ondisconnect(last as unknown as Element, () => callOrder.push(3));
+
+            let group: SlotGroup = { head: first as unknown as Element, tail: last as unknown as Element };
+
+            dispose(group);
+
+            expect(callOrder).toEqual([3, 2, 1]);
+            expect(container.childNodes.length).toBe(3);
+        });
+
+        it('empties the cleanup array after running its functions', () => {
+            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
+                cleanup = vi.fn();
+
+            container.appendChild(element);
+            ondisconnect(element as unknown as Element, cleanup);
+
+            let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
+
+            dispose(group);
+
+            expect((element[CLEANUP] as VoidFunction[]).length).toBe(0);
+        });
+
+        it('runs cleanup for multiple groups and removes no nodes', () => {
+            let group1 = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
+                group2 = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
+                cleanup1 = vi.fn(),
+                cleanup2 = vi.fn();
+
+            container.appendChild(group1);
+            container.appendChild(group2);
+            ondisconnect(group1 as unknown as Element, cleanup1);
+            ondisconnect(group2 as unknown as Element, cleanup2);
+
+            dispose(
+                { head: group1 as unknown as Element, tail: group1 as unknown as Element },
+                { head: group2 as unknown as Element, tail: group2 as unknown as Element }
+            );
+
+            expect(cleanup1).toHaveBeenCalledTimes(1);
+            expect(cleanup2).toHaveBeenCalledTimes(1);
+            expect(container.children.length).toBe(2);
+        });
+
+        it('handles elements without cleanup functions', () => {
+            let element = document.createElement('div') as Element;
+
+            container.appendChild(element as unknown as Node);
+
+            let group: SlotGroup = { head: element, tail: element };
+
+            expect(() => dispose(group)).not.toThrow();
+            expect(container.children.length).toBe(1);
         });
     });
 });
