@@ -149,6 +149,32 @@ describe('compiler/codegen', () => {
         });
     });
 
+    describe('generateCode - delegated tuple handlers', () => {
+        it('emits 4-argument delegate for [fn, data] handler', () => {
+            let { result } = codegen(`let x = html\`<div onclick=\${[fn, data]}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.delegate(`);
+            expect(code).toContain("'click', fn, data)");
+        });
+
+        it('emits 3-argument delegate (whole array) for 3-element array handler', () => {
+            let { result } = codegen(`let x = html\`<div onclick=\${[fn, a, b]}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.delegate(`);
+            expect(code).toContain('[fn, a, b]');
+            expect(code).not.toContain("'click', fn, a");
+        });
+
+        it('emits 3-argument delegate for plain function handler', () => {
+            let { result } = codegen(`let x = html\`<div onclick=\${handler}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain("'click', handler)");
+        });
+    });
+
     describe('generateCode - nested templates', () => {
         it('generates nested template with own factory', () => {
             let { result } = codegen(`let x = html\`<div>\${html\`<span>inner</span>\`}</div>\`;`);

@@ -35,7 +35,9 @@ const TABLE = template('<table class="table table-hover table-striped test-data"
 
 
 let id = 1,
-    seed = 42;
+    rows = reactive([] as Row[]),
+    seed = 42,
+    selected = signal(0);
 
 
 function build(n: number): Row[] {
@@ -57,11 +59,19 @@ function random(max: number) {
     return seed % max;
 }
 
+// Shared handlers: one fn per operation for the whole table (mirrors `onclick=${[fn, data]}`
+// compiler output) so rows carry per-row data instead of allocating a closure each
+function removeRow(this: Element, data: Row) {
+    rows.splice(rows.indexOf(data), 1);
+}
+
+function selectRow(this: Element, data: number) {
+    write(selected, data);
+}
+
 
 const create = (container: HTMLElement) => {
-    let flip = false,
-        rows = reactive([] as Row[]),
-        selected = signal(0);
+    let flip = false;
 
     // Hand-written equivalent of the compiled row template body
     function row(data: Row) {
@@ -76,11 +86,9 @@ const create = (container: HTMLElement) => {
 
         setList(tr, 'class', () => read(selected) === data.id ? 'danger' : '', EMPTY_STATICS);
         idAnchor.after(text(String(data.id)));
-        delegate(labelLink, 'click', () => write(selected, data.id));
+        delegate(labelLink, 'click', selectRow, data.id);
         new EffectSlot(labelAnchor, () => read(data.label));
-        delegate(removeLink, 'click', () => {
-            rows.splice(rows.indexOf(data), 1);
-        });
+        delegate(removeLink, 'click', removeRow, data);
 
         return fragment as DocumentFragment;
     }

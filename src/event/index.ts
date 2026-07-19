@@ -9,6 +9,7 @@ import ontick from './ontick';
 
 
 let controllers = new Map<string, (AbortController & { listeners: number }) | null>(),
+    dataKeys: Record<string, symbol> = {},
     host = window.document,
     keys: Record<string, symbol> = {},
     passive = new Set<string>([
@@ -57,10 +58,12 @@ function register(element: Element, event: string) {
         signal = controller.signal;
     }
 
-    let key = keys[event] = Symbol();
+    let dataKey = dataKeys[event] = Symbol(),
+        key = keys[event] = Symbol();
 
     host.addEventListener(event, (e) => {
-        let fn,
+        let data,
+            fn,
             node = e.target as Element | null;
 
         while (node) {
@@ -74,7 +77,9 @@ function register(element: Element, event: string) {
                     }
                 });
 
-                return fn.call(node, e);
+                data = node[dataKey];
+
+                return data !== undefined ? fn.call(node, data, e) : fn.call(node, e);
             }
 
             node = node.parentElement as Element | null;
@@ -88,8 +93,12 @@ function register(element: Element, event: string) {
 }
 
 
-const delegate = <E extends string>(element: Element, event: E, listener: Attributes[`on${E}`]): void => {
+const delegate = <E extends string>(element: Element, event: E, listener: Attributes[`on${E}`], data?: unknown): void => {
     element[ keys[event] || register(element, event) ] = listener;
+
+    if (data !== undefined) {
+        element[ dataKeys[event] ] = data;
+    }
 };
 
 // DIRECT_ATTACH_EVENTS in ./constants.ts tells compiler to use this function
