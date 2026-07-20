@@ -2,7 +2,7 @@ import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compil
 import { pick } from '@esportsplus/utilities';
 import type { TemplateInfo } from './ts-parser';
 import { analyze } from './ts-analyzer';
-import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
+import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS, SLOT_HTML } from '../constants';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, TYPES } from './constants';
 import { extractTemplateParts } from './ts-parser';
 import { ts } from '@esportsplus/typescript';
@@ -43,6 +43,8 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
     if (isReactiveCall(node as ts.Expression)) {
         let call = node as ts.CallExpression;
 
+        // ArraySlots nested in arbitrary expressions have no provable parent element,
+        // so they always emit today's unflagged 2-arg construction
         replacements.push({
             end: node.end,
             start: node.getStart(ctx.sourceFile),
@@ -119,7 +121,7 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
     );
 }
 
-function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: string, exprNode: ts.Expression | undefined): string {
+function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: string, exprNode: ts.Expression | undefined, soleChild: boolean): string {
     if (!exprNode) {
         return `${NAMESPACE}.slot(${anchor}, ${exprText});`;
     }
@@ -130,7 +132,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
 
     switch (analyze(exprNode, ctx.checker)) {
         case TYPES.ArraySlot:
-            return `${anchor}.parentNode!.insertBefore(new ${NAMESPACE}.ArraySlot(${exprText}).fragment, ${anchor});`;
+            return `${anchor}.parentNode!.insertBefore(new ${NAMESPACE}.ArraySlot(${exprText}${soleChild ? ', true' : ''}).fragment, ${anchor});`;
 
         case TYPES.DocumentFragment:
             return `${anchor}.parentNode!.insertBefore(${exprText}, ${anchor});`;
@@ -162,6 +164,8 @@ function generateTemplateCode(
         declarations: string[] = [],
         index = 0,
         isArrowBody = isArrowExpressionBody(templateNode),
+        markerIndex = 0,
+        markers = soleChildMarkers(html),
         nodes = new Map<string, string>(),
         root = uid('root');
 
@@ -337,7 +341,7 @@ function generateTemplateCode(
         }
         else {
             code.push(
-                generateNodeBinding(ctx, element, exprTexts[index] || 'undefined', exprNodes[index])
+                generateNodeBinding(ctx, element, exprTexts[index] || 'undefined', exprNodes[index], markers[markerIndex++] || false)
             );
             index++;
         }
@@ -392,6 +396,55 @@ function isReactiveCall(expr: ts.Expression): expr is ts.CallExpression {
         expr.expression.expression.text === ENTRYPOINT &&
         expr.expression.name.text === ENTRYPOINT_REACTIVITY
     );
+}
+
+// A node slot's marker is the sole child of its parent element when the parent's
+// opening tag ends immediately before it and the parent's closing tag begins
+// immediately after it (tag names must match to rule out sibling/void elements)
+function isSoleChildMarker(html: string, marker: number): boolean {
+    let after = marker + SLOT_HTML.length,
+        open = html.lastIndexOf('<', marker - 1);
+
+    if (
+        open < 0 ||
+        html[marker - 1] !== '>' ||
+        html[open + 1] === '/' ||
+        html[open + 1] === '!' ||
+        !html.startsWith('</', after)
+    ) {
+        return false;
+    }
+
+    return tagName(html, open + 1) === tagName(html, after + 2);
+}
+
+function soleChildMarkers(html: string): boolean[] {
+    let markers: boolean[] = [],
+        scan = html.indexOf(SLOT_HTML);
+
+    while (scan !== -1) {
+        markers.push(isSoleChildMarker(html, scan));
+        scan = html.indexOf(SLOT_HTML, scan + SLOT_HTML.length);
+    }
+
+    return markers;
+}
+
+function tagName(html: string, start: number): string {
+    let i = start,
+        n = html.length;
+
+    while (i < n) {
+        let c = html[i];
+
+        if (c === ' ' || c === '\t' || c === '\n' || c === '/' || c === '>') {
+            break;
+        }
+
+        i++;
+    }
+
+    return html.slice(start, i);
 }
 
 

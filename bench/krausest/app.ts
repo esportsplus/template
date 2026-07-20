@@ -97,7 +97,7 @@ const create = (container: HTMLElement) => {
     let fragment = TABLE(),
         table = fragment.firstChild as Element,
         anchor = (table.firstChild as Element).firstChild as Element,
-        slot = new ArraySlot(rows, row as (value: Row) => DocumentFragment);
+        slot = new ArraySlot(rows, row as (value: Row) => DocumentFragment, true);
 
     anchor.parentNode!.insertBefore(slot.fragment, anchor);
     container.appendChild(fragment as unknown as Node);

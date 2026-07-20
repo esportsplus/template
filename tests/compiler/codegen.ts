@@ -202,6 +202,40 @@ describe('compiler/codegen', () => {
         });
     });
 
+    describe('generateCode - sole-child ArraySlot', () => {
+        it('emits the flagged construction for a sole-child reactive binding', () => {
+            let { result } = codegen(`let x = html\`<table><tbody>\${html.reactive(items, (i) => html\`<tr>\${i}</tr>\`)}</tbody></table>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.ArraySlot`);
+            expect(code).toContain(', true).fragment');
+        });
+
+        it('emits today\'s unflagged form when a text sibling precedes the binding', () => {
+            let { result } = codegen(`let x = html\`<div>x\${html.reactive(items, (i) => html\`<span>\${i}</span>\`)}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.ArraySlot`);
+            expect(code).not.toContain(', true)');
+        });
+
+        it('emits today\'s unflagged form when a sibling element precedes the binding', () => {
+            let { result } = codegen(`let x = html\`<div><br>\${html.reactive(items, (i) => html\`<span>\${i}</span>\`)}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.ArraySlot`);
+            expect(code).not.toContain(', true)');
+        });
+
+        it('emits today\'s unflagged form when a sibling element follows the binding', () => {
+            let { result } = codegen(`let x = html\`<div>\${html.reactive(items, (i) => html\`<span>\${i}</span>\`)}<br></div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.ArraySlot`);
+            expect(code).not.toContain(', true)');
+        });
+    });
+
     describe('generateCode - mixed slots', () => {
         it('handles attribute + node slots on same element', () => {
             let { result } = codegen(`let x = html\`<div class=\${cls}>\${content}</div>\`;`);
