@@ -29,9 +29,10 @@ const EMPTY_STATICS: Record<string, string> = {};
 const NOUNS = ['table', 'chair', 'house', 'bbq', 'desk', 'car', 'pony', 'cookie', 'sandwich', 'burger', 'pizza', 'mouse', 'keyboard'];
 
 // Hand-written equivalents of the compiler's `template()` hoists for the app + row html`` literals
-const ROW = template('<tr><td class="col-md-1"><!--$--></td><td class="col-md-4"><a><!--$--></a></td><td class="col-md-1"><a><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td><td class="col-md-6"></td></tr>');
+// (minified as the parser now emits: end-of-template closing tags omitted, safe attribute quotes dropped)
+const ROW = template('<tr><td class=col-md-1><!--$--></td><td class=col-md-4><a><!--$--></a></td><td class=col-md-1><a><span class="glyphicon glyphicon-remove" aria-hidden=true></span></a></td><td class=col-md-6>');
 
-const TABLE = template('<table class="table table-hover table-striped test-data"><tbody><!--$--></tbody></table>');
+const TABLE = template('<table class="table table-hover table-striped test-data"><tbody><!--$-->');
 
 
 let id = 1,

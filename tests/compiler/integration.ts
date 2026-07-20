@@ -108,7 +108,7 @@ describe('compiler/integration', () => {
 
             expect(imports).toContain('html');
             expect(prepend.length).toBe(1);
-            expect(prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello</div>\`)`);
+            expect(prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello\`)`);
             expect(output).not.toContain('html`');
             expect(output).toContain(`${NAMESPACE}.template(`);
         });
@@ -160,8 +160,8 @@ describe('compiler/integration', () => {
             expect(output).not.toContain('html`');
 
             // Both template factories present
-            let hasFirst = prepend.some(p => p.includes('<div>first</div>')),
-                hasSecond = prepend.some(p => p.includes('<span>second</span>'));
+            let hasFirst = prepend.some(p => p.includes('<div>first')),
+                hasSecond = prepend.some(p => p.includes('<span>second'));
 
             expect(hasFirst).toBe(true);
             expect(hasSecond).toBe(true);
@@ -177,7 +177,7 @@ describe('compiler/integration', () => {
             expect(prepend.length).toBe(2);
 
             let hasOuter = prepend.some(p => p.includes('<div>')),
-                hasInner = prepend.some(p => p.includes('<span>inner</span>'));
+                hasInner = prepend.some(p => p.includes('<span>inner'));
 
             expect(hasOuter).toBe(true);
             expect(hasInner).toBe(true);

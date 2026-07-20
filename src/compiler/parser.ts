@@ -22,6 +22,8 @@ const NODE_WHITELIST: Record<string, number> = {
 
 const REGEX_CLEANUP_WHITESPACE = /\s+/g;
 
+const REGEX_CLOSING_TAGS_END = /(?:<\/[a-z][\w-]*>)+$/i;
+
 const REGEX_EMPTY_ATTRIBUTES = /\s+[\w:-]+\s*=\s*["']\s*["']|\s+(?=>)/g;
 
 const REGEX_EMPTY_TEXT_NODES = /(>|}|\s)\s+(<|{|\s)/g;
@@ -31,6 +33,10 @@ const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=(?:\s*["'][^"']*["'])*)/g;
 const REGEX_SLOT_ATTRIBUTES = /<[\w-]+([^><]*{{\$}}[^><]*)>/g;
 
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{{\$}}/g;
+
+// Only unquote values in the HTML unquoted-attribute-safe subset AND followed by a proper
+// terminator ([\s>]); a value abutting '/>' would swallow the slash into the unquoted value
+const REGEX_UNQUOTED_ATTRIBUTE = /([\w:-]+)="([\w./:-]+)"(?=[\s>])/g;
 
 const SLOT_MARKER = '{{$}}';
 
@@ -68,6 +74,15 @@ function methods(children: number, copy: NodePath, first: NodePath[number], next
     return result;
 }
 
+// Provably DOM-equivalent shrink of the emitted html: the fragment parser auto-closes every open
+// element at end of input (so the trailing closing-tag run is redundant) and unquoted values in the
+// safe subset parse identically. Mid-stream closing tags are never touched.
+function minify(html: string) {
+    return html
+        .replace(REGEX_CLOSING_TAGS_END, '')
+        .replace(REGEX_UNQUOTED_ATTRIBUTE, '$1=$2');
+}
+
 
 const parse = (literals: string[]) => {
     let html = literals
@@ -78,7 +93,7 @@ const parse = (literals: string[]) => {
         n = literals.length - 1;
 
     if (n === 0) {
-        return { html, slots: null };
+        return { html: minify(html), slots: null };
     }
 
     let attributes: Record<string, { names: string[], static: Record<string, string> }> = {},
@@ -234,10 +249,10 @@ const parse = (literals: string[]) => {
         .replace(REGEX_CLEANUP_WHITESPACE, ' ');
 
     return {
-        html: buffer,
+        html: minify(buffer),
         slots: slots.length ? slots : null
     };
 };
 
 
-export default { parse };
+export default { minify, parse };

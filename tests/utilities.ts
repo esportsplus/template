@@ -165,8 +165,37 @@ describe('utilities', () => {
             let factory = template(''),
                 result = factory();
 
+            // Empty string stays on the fragment path (an empty text node is not DOM-equivalent
+            // to an empty fragment); only non-empty markup-free strings take the text fast path
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(0);
+        });
+
+        it('returns a Text-producing factory for markup-free html', () => {
+            // hmr.ts createHotTemplate is a dev-only factory and intentionally does NOT
+            // implement this fast path - it always routes through innerHTML
+            let factory = template('Hello World'),
+                result = factory();
+
+            expect(result.nodeType).toBe(Node.TEXT_NODE);
+            expect(result.nodeValue).toBe('Hello World');
+        });
+
+        it('text fast path returns distinct clones per call', () => {
+            let factory = template('Hello'),
+                first = factory(),
+                second = factory();
+
+            expect(first).not.toBe(second);
+            expect(first.nodeValue).toBe('Hello');
+            expect(second.nodeValue).toBe('Hello');
+        });
+
+        it('routes any html containing < through the fragment path', () => {
+            let factory = template('<div>Hello</div>'),
+                result = factory();
+
+            expect(result).toBeInstanceOf(DocumentFragment);
         });
 
         it('handles SVG template', () => {
