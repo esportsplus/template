@@ -1,0 +1,15 @@
+# Changelog
+
+## Completed
+- [micro-allocation-nits] single-lookup hmr register + inline event preregister (a31de96). Deviations: event/index.ts preregisters via Map constructor initializer (user preference) instead of the spec's for-loop; Check (.map(event absent) still passes. · spec: compiler-runtime-perf
+- [click-paint-latency-harness] REVERTED (removed 2a79816): timer-approx harness produced no usable signal headless; not worth carrying. · spec: compiler-runtime-perf
+- [agent-script-aliases] REVERTED (removed cb22c98): rolled back with click-paint; also cleared a validate INVALID the alias exposed in deferred items' Checks. · spec: compiler-runtime-perf
+- [click-paint-latency-harness] latency.ts + run-latency.mjs raf-vs-microtask A/B harness (2a79816). DECISION: rAF stands (all ops +0.0%, delta below spread). Deviations: headless Chrome starves post-load rAF, so both variants shim rAF onto timers (raf=setTimeout16 proxy, microtask=queueMicrotask); harness confirms CPU-neutrality but cannot measure true sub-frame paint deferral headless — real-hardware validation is the follow-up if ever needed. · spec: compiler-runtime-perf
+- [agent-script-aliases] add agent:test + agent:bench package scripts (cb22c98). Deterministic checks pass: aliases exact, scoped agent:test routes appended path to vitest. Deviations: none. · spec: compiler-runtime-perf
+- [chunked-row-cloning] REVERTED (removed 0e29f35): neutral perf on krausest browser bench, bracketed runs disagreed (-3.3% / +1.7%), below noise floor; complexity not justified. · spec: compiler-runtime-perf
+- [chunked-row-cloning] chunked fragment cloning in ArraySlot for large batches, arity-2 row callbacks (0e29f35). Deviations: composed chunk path with compiler-proven soleChild bulk-clear + marker-elision construction; TemplateFactory call sig widened to DocumentFragment|Text for markup-free fast path. · spec: compiler-runtime-perf
+- [marker-elision-sole-last-child] elide sole/last-child slot markers, parent-anchored bindings (3f1d6b1). Deviations: unified sole-child with compiler-proven bulk-clear flag (mode==='sole'); fixed parser single-char text-gap off-by-one that mis-flagged text-preceded slots as sole. · spec: compiler-runtime-perf
+- [compiler-proven-bulk-clear] textContent bulk clear for sole-child lists (a33db24). Deviations: sole-child detection moved to pre-minify html (77a87bd) to compose with template-fast-path minify. · spec: compiler-runtime-perf
+- [template-fast-path-minification] text fast path + trailing-closing-tag/attr minification (5608991). Deviations: none. · spec: compiler-runtime-perf
+- [event-handler-tuples] [fn, data] tuple delegated handlers, no per-row closures (18ea351). Deviations: none. · spec: compiler-runtime-perf
+- [movebefore-connected-guards] guard moveBefore on disconnected parent, fall back to insertBefore (7fda215). Deviations: none. · spec: compiler-runtime-perf
