@@ -105,6 +105,83 @@ describe('event/index', () => {
         });
     });
 
+    describe('delegate tuple (fn, data)', () => {
+        it('tuple handler receives (data, event) with this = matched node', () => {
+            let element = document.createElement('button') as Element,
+                receivedData: unknown = null,
+                receivedEvent: Event | null = null,
+                thisValue: unknown = null;
+
+            container.appendChild(element as unknown as Node);
+            delegate(element, 'click', function (this: unknown, data: unknown, e: Event) {
+                receivedData = data;
+                receivedEvent = e;
+                thisValue = this;
+            }, 'payload');
+
+            element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+            expect(receivedData).toBe('payload');
+            expect(receivedEvent).toBeInstanceOf(MouseEvent);
+            expect(thisValue).toBe(element);
+        });
+
+        it('plain-registered handler still receives (event) only', () => {
+            let args: unknown[] = [],
+                element = document.createElement('button') as Element;
+
+            container.appendChild(element as unknown as Node);
+            delegate(element, 'click', function (...received: unknown[]) {
+                args = received;
+            });
+
+            element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+            expect(args).toHaveLength(1);
+            expect(args[0]).toBeInstanceOf(MouseEvent);
+        });
+
+        it('two elements sharing one fn dispatch their own data', () => {
+            let a = document.createElement('button') as Element,
+                b = document.createElement('button') as Element,
+                received: unknown[] = [],
+                shared = function (this: unknown, data: unknown) {
+                    received.push(data);
+                };
+
+            container.appendChild(a as unknown as Node);
+            container.appendChild(b as unknown as Node);
+
+            delegate(a, 'click', shared, 'a-data');
+            delegate(b, 'click', shared, 'b-data');
+
+            a.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+            expect(received).toEqual(['a-data', 'b-data']);
+        });
+
+        it('tuple handler resolves via ancestor matching with data + currentTarget', () => {
+            let capturedTarget: EventTarget | null = null,
+                child = document.createElement('span'),
+                parent = document.createElement('div') as Element,
+                receivedData: unknown = null;
+
+            parent.appendChild(child);
+            container.appendChild(parent as unknown as Node);
+
+            delegate(parent, 'click', function (this: unknown, data: unknown, e: Event) {
+                capturedTarget = e.currentTarget;
+                receivedData = data;
+            }, 42);
+
+            child.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+            expect(capturedTarget).toBe(parent);
+            expect(receivedData).toBe(42);
+        });
+    });
+
     describe('on (direct attachment)', () => {
         it('attaches event listener directly', () => {
             let element = document.createElement('input') as Element,

@@ -75,7 +75,7 @@ function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void
     ts.forEachChild(node, child => discoverTemplatesInExpression(ctx, child));
 }
 
-function generateAttributeBinding(element: string, name: string, expr: string, attributes?: string): string {
+function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string, attributes?: string, exprNode?: ts.Expression): string {
     if (name.startsWith('on') && name.length > 2) {
         let event = name.slice(2).toLowerCase(),
             key = name.toLowerCase();
@@ -86,6 +86,10 @@ function generateAttributeBinding(element: string, name: string, expr: string, a
 
         if (DIRECT_ATTACH_EVENTS.has(key)) {
             return `${NAMESPACE}.on(${element}, '${event}', ${expr});`;
+        }
+
+        if (exprNode !== undefined && ts.isArrayLiteralExpression(exprNode) && exprNode.elements.length === 2) {
+            return `${NAMESPACE}.delegate(${element}, '${event}', ${rewriteExpression(ctx, exprNode.elements[0])}, ${rewriteExpression(ctx, exprNode.elements[1])});`;
         }
 
         return `${NAMESPACE}.delegate(${element}, '${event}', ${expr});`;
@@ -256,10 +260,12 @@ function generateTemplateCode(
                                     if (propName) {
                                         code.push(
                                             generateAttributeBinding(
+                                                ctx,
                                                 element,
                                                 propName,
                                                 rewriteExpression(ctx, prop.initializer),
-                                                getAttributes(declarations, i, propName, slot, attributes)
+                                                getAttributes(declarations, i, propName, slot, attributes),
+                                                prop.initializer
                                             )
                                         );
                                     }
@@ -269,6 +275,7 @@ function generateTemplateCode(
 
                                     code.push(
                                         generateAttributeBinding(
+                                            ctx,
                                             element,
                                             propName,
                                             propName,
@@ -281,6 +288,7 @@ function generateTemplateCode(
 
                                     code.push(
                                         generateAttributeBinding(
+                                            ctx,
                                             element,
                                             propName,
                                             printer.printNode(ts.EmitHint.Expression, prop, ctx.sourceFile),
@@ -311,14 +319,19 @@ function generateTemplateCode(
                     index++;
                 }
                 else {
+                    let node = exprNodes[index];
+
                     code.push(
                         generateAttributeBinding(
+                            ctx,
                             element,
                             name,
-                            exprTexts[index++] || 'undefined',
-                            getAttributes(declarations, i, name, slot, attributes)
+                            exprTexts[index] || 'undefined',
+                            getAttributes(declarations, i, name, slot, attributes),
+                            node
                         )
                     );
+                    index++;
                 }
             }
         }
