@@ -8,7 +8,9 @@ import onresize from './onresize';
 import ontick from './ontick';
 
 
-let controllers = new Map<string, (AbortController & { listeners: number }) | null>(),
+let controllers = new Map<string, (AbortController & { listeners: number }) | null>(
+        ['mousemove', 'scroll', 'touchend', 'touchmove', 'touchstart', 'wheel'].map(key => [key, null])
+    ),
     dataKeys: Record<string, symbol> = {},
     host = window.document,
     keys: Record<string, symbol> = {},
@@ -20,11 +22,6 @@ let controllers = new Map<string, (AbortController & { listeners: number }) | nu
         'touchcancel', 'touchend', 'touchleave', 'touchmove', 'touchstart', 'transitionend',
         'wheel'
     ]);
-
-
-(['mousemove', 'scroll', 'touchend', 'touchmove', 'touchstart', 'wheel'] as string[]).map(event => {
-    controllers.set(event, null);
-});
 
 
 function register(element: Element, event: string) {

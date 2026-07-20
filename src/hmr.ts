@@ -38,7 +38,13 @@ function register(moduleId: string, templateId: string, html: string): () => Doc
         html
     };
 
-    (modules.get(moduleId) ?? (modules.set(moduleId, new Map()), modules.get(moduleId)!)).set(templateId, entry);
+    let templates = modules.get(moduleId);
+
+    if (!templates) {
+        modules.set(moduleId, templates = new Map());
+    }
+
+    templates.set(templateId, entry);
 
     return entry.factory;
 }
