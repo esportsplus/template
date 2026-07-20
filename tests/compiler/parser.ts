@@ -232,6 +232,33 @@ describe('compiler/parser', () => {
         });
     });
 
+    describe('parse - static class/style retention', () => {
+        it('keeps a static class token in the emitted html and in slot metadata', () => {
+            let result = parser.parse(['<div class="static ', '">x</div>']),
+                slot = result.slots![0] as { attributes: { static: Record<string, string> }; type: TYPES.Attribute };
+
+            // The static token rides the template clone; codegen no longer re-seeds it at runtime
+            expect(result.html).toContain('class="static');
+            expect(slot.attributes.static.class).toContain('static');
+        });
+
+        it('keeps static style tokens in the emitted html and in slot metadata', () => {
+            let result = parser.parse(['<div style="color: red; ', '">x</div>']),
+                slot = result.slots![0] as { attributes: { static: Record<string, string> }; type: TYPES.Attribute };
+
+            expect(result.html).toContain('style="color: red;');
+            expect(slot.attributes.static.style).toContain('color');
+            expect(slot.attributes.static.style).toContain('red');
+        });
+
+        it('drops a purely dynamic class from the html but records the slot', () => {
+            let result = parser.parse(['<div class="', '">x</div>']);
+
+            expect(result.html).not.toContain('class=');
+            expect(result.slots![0].type).toBe(TYPES.Attribute);
+        });
+    });
+
     describe('parse - void elements', () => {
         it('handles input element', () => {
             let result = parser.parse(['<input type="', '">']);
