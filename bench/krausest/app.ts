@@ -84,7 +84,7 @@ const create = (container: HTMLElement) => {
             labelLink = labelCell.firstChild as Element,
             removeLink = (labelCell.nextSibling as Element).firstChild as Element;
 
-        setList(tr, 'class', () => read(selected) === data.id ? 'danger' : '', EMPTY_STATICS);
+        setList(tr, 'class', () => signal.selector(selected, data.id) ? 'danger' : '', EMPTY_STATICS);
         idCell.appendChild(text(String(data.id)));
         delegate(labelLink, 'click', selectRow, data.id);
         new EffectSlot(labelLink, () => read(data.label), ANCHOR_SOLE);
