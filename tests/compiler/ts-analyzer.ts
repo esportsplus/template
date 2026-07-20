@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ts } from '@esportsplus/typescript';
-import { analyze } from '../../src/compiler/ts-analyzer';
-import { TYPES } from '../../src/compiler/constants';
+import { analyze, fold } from '../../src/compiler/ts-analyzer';
+import { PACKAGE_NAME, TYPES } from '../../src/compiler/constants';
 
 
 function createExpression(code: string): ts.Expression {
@@ -18,7 +18,7 @@ function createExpression(code: string): ts.Expression {
     return declaration.initializer!;
 }
 
-function createProgramAndAnalyze(code: string): TYPES {
+function createProgram(code: string): { checker: ts.TypeChecker; expr: ts.Expression } {
     let compilerOptions: ts.CompilerOptions = {
             lib: ['lib.es2020.d.ts'],
             noEmit: true,
@@ -55,7 +55,19 @@ function createProgramAndAnalyze(code: string): TYPES {
         declaration = lastStatement.declarationList.declarations[0],
         expr = declaration.initializer!;
 
+    return { checker, expr };
+}
+
+function createProgramAndAnalyze(code: string): TYPES {
+    let { checker, expr } = createProgram(code);
+
     return analyze(expr, checker);
+}
+
+function createProgramAndFold(code: string): string | null {
+    let { checker, expr } = createProgram(code);
+
+    return fold(expr, checker);
 }
 
 
@@ -411,6 +423,113 @@ describe('compiler/ts-analyzer', () => {
 
             // never has zero call signatures and is not a union, so Unknown
             expect(result).toBe(TYPES.Unknown);
+        });
+    });
+
+    describe('analyze - checker error handling', () => {
+        it('warns and falls back to Unknown when the checker throws', () => {
+            let expr = createExpression('someVariable'),
+                spy = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                throwingChecker = {
+                    getTypeAtLocation() {
+                        throw new Error('checker exploded');
+                    }
+                } as unknown as ts.TypeChecker;
+
+            let result = analyze(expr, throwingChecker);
+
+            expect(result).toBe(TYPES.Unknown);
+            expect(spy).toHaveBeenCalledOnce();
+            expect(spy.mock.calls[0][0]).toContain(PACKAGE_NAME);
+            expect(spy.mock.calls[0][0]).toContain('someVariable');
+            expect(spy.mock.calls[0][0]).toContain('checker exploded');
+
+            spy.mockRestore();
+        });
+    });
+
+    describe('fold - literals (no checker)', () => {
+        it('folds a string literal', () => {
+            expect(fold(createExpression('"hello"'))).toBe('hello');
+        });
+
+        it('folds a no-substitution template literal', () => {
+            expect(fold(createExpression('`world`'))).toBe('world');
+        });
+
+        it('folds a numeric literal', () => {
+            expect(fold(createExpression('42'))).toBe('42');
+        });
+
+        it('folds a float literal', () => {
+            expect(fold(createExpression('3.14'))).toBe('3.14');
+        });
+
+        it('folds true and false keywords', () => {
+            expect(fold(createExpression('true'))).toBe('true');
+            expect(fold(createExpression('false'))).toBe('false');
+        });
+
+        it('unwraps parentheses before folding', () => {
+            expect(fold(createExpression('((("hello")))'))).toBe('hello');
+        });
+
+        it('unwraps an as-const assertion before folding', () => {
+            expect(fold(createExpression('"hello" as const'))).toBe('hello');
+        });
+
+        it('unwraps a satisfies expression before folding', () => {
+            expect(fold(createExpression('"hello" satisfies string'))).toBe('hello');
+        });
+
+        it('does not fold a value containing an angle bracket', () => {
+            expect(fold(createExpression('"a<b"'))).toBeNull();
+        });
+
+        it('does not fold a value containing a quote', () => {
+            expect(fold(createExpression('"a&b"'))).toBeNull();
+        });
+
+        it('does not fold an identifier without a checker', () => {
+            expect(fold(createExpression('someVar'))).toBeNull();
+        });
+
+        it('does not fold an arrow function', () => {
+            expect(fold(createExpression('() => "hello"'))).toBeNull();
+        });
+
+        it('does not fold a template expression with substitutions', () => {
+            expect(fold(createExpression('`hi ${name}`'))).toBeNull();
+        });
+    });
+
+    describe('fold - const resolution (checker)', () => {
+        it('folds a const string identifier to its literal', () => {
+            expect(createProgramAndFold('const greeting = "hello";\nlet target = greeting;')).toBe('hello');
+        });
+
+        it('folds a const numeric identifier to its literal', () => {
+            expect(createProgramAndFold('const answer = 42;\nlet target = answer;')).toBe('42');
+        });
+
+        it('does not fold a let binding (widens to string)', () => {
+            expect(createProgramAndFold('let greeting = "hello";\nlet target = greeting;')).toBeNull();
+        });
+
+        it('does not fold a non-literal typed binding (mirrors a function parameter)', () => {
+            expect(createProgramAndFold('declare const label: string;\nlet target = label;')).toBeNull();
+        });
+
+        it('folds an as-const object property access', () => {
+            expect(createProgramAndFold('const C = { a: "x" } as const;\nlet target = C.a;')).toBe('x');
+        });
+
+        it('does not fold a mutable object property access', () => {
+            expect(createProgramAndFold('const C = { a: "x" };\nlet target = C.a;')).toBeNull();
+        });
+
+        it('does not fold a const whose value carries an unsafe character', () => {
+            expect(createProgramAndFold('const c = "a<b" as const;\nlet target = c;')).toBeNull();
         });
     });
 });

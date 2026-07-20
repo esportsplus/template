@@ -1,5 +1,10 @@
 import { ts } from '@esportsplus/typescript';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, TYPES } from './constants';
+import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, PACKAGE_NAME, TYPES } from './constants';
+
+
+// Conservative charset that is injection-safe in both text and quoted-attribute positions:
+// no entity/tag delimiters and no quote characters, so a folded value can never break out
+const REGEX_FOLD_SAFE = /^[^&<>"'`]*$/;
 
 
 // Union types that mix functions with non-functions (e.g., Renderable)
@@ -16,6 +21,18 @@ function isTypeFunction(type: ts.Type, checker: ts.TypeChecker): boolean {
     }
 
     return type.getCallSignatures().length > 0;
+}
+
+function literal(type: ts.Type): string | null {
+    if (type.isStringLiteral()) {
+        return type.value;
+    }
+
+    if (type.isNumberLiteral()) {
+        return String(type.value);
+    }
+
+    return null;
 }
 
 
@@ -80,10 +97,35 @@ const analyze = (expr: ts.Expression, checker?: ts.TypeChecker): TYPES => {
                 return TYPES.Effect;
             }
         }
-        catch {}
+        catch (error) {
+            console.warn(`${PACKAGE_NAME}: type analysis failed for '${expr.getText()}', classified as Unknown — ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     return TYPES.Unknown;
 };
 
-export { analyze };
+const fold = (expr: ts.Expression, checker?: ts.TypeChecker): string | null => {
+    while (ts.isAsExpression(expr) || ts.isParenthesizedExpression(expr) || ts.isSatisfiesExpression(expr)) {
+        expr = expr.expression;
+    }
+
+    let value: string | null = null;
+
+    if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr) || ts.isNumericLiteral(expr)) {
+        value = expr.text;
+    }
+    else if (expr.kind === ts.SyntaxKind.TrueKeyword) {
+        value = 'true';
+    }
+    else if (expr.kind === ts.SyntaxKind.FalseKeyword) {
+        value = 'false';
+    }
+    else if (checker && (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr))) {
+        value = literal(checker.getTypeAtLocation(expr));
+    }
+
+    return (value !== null && REGEX_FOLD_SAFE.test(value)) ? value : null;
+};
+
+export { analyze, fold };
