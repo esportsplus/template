@@ -120,6 +120,28 @@ describe('attributes', () => {
             expect(element.style.cssText).toContain('font-size: 14px');
         });
 
+        it('seeds static class from an existing DOM attribute when no statics param is given', () => {
+            element.setAttribute('class', 'static');
+            setList(element as unknown as Element, 'class', 'dynamic');
+
+            expect(element.className).toBe('static dynamic');
+        });
+
+        it('seeds static style from an existing DOM attribute when no statics param is given', () => {
+            element.setAttribute('style', 'color: red');
+            setList(element as unknown as Element, 'style', 'font-size: 14px');
+
+            expect(element.style.cssText).toContain('color: red');
+            expect(element.style.cssText).toContain('font-size: 14px');
+        });
+
+        it('prefers the statics param over the DOM attribute (existing callers unchanged)', () => {
+            element.setAttribute('class', 'from-dom');
+            setList(element as unknown as Element, 'class', 'dynamic', { class: 'static' });
+
+            expect(element.className).toBe('static dynamic');
+        });
+
         it('handles null value', () => {
             setList(element as unknown as Element, 'class', null);
 

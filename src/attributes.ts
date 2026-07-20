@@ -242,10 +242,15 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown, attr
         store = ctx.store ??= {};
 
     store[name] ??= new Set<string>();
-    store[name + '.static'] ??= '';
 
     if (attributes[name]) {
+        store[name + '.static'] ??= '';
         store[name + '.static'] += (store[name + '.static'] ? ATTRIBUTE_DELIMITERS[name] : '') + attributes[name];
+    }
+    else {
+        // Statics now ride the template clone, so seed from the element's own attribute
+        // (mirrors list()'s runtime fallback) instead of a compile-time static map
+        store[name + '.static'] ??= (element.getAttribute(name) || '').trim();
     }
 
     if (typeof value === 'function') {
