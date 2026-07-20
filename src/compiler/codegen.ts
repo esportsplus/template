@@ -1,7 +1,6 @@
 import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compiler';
-import { pick } from '@esportsplus/utilities';
 import type { TemplateInfo } from './ts-parser';
-import { analyze } from './ts-analyzer';
+import { analyze, fold } from './ts-analyzer';
 import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, TYPES } from './constants';
 import { extractTemplateParts } from './ts-parser';
@@ -22,8 +21,6 @@ type CodegenResult = {
 };
 
 type ParseResult = ReturnType<typeof parser.parse>;
-
-type ParseResultAttributes = Extract<NonNullable<ParseResult['slots']>[number], { type: TYPES.Attribute }>;
 
 
 let printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
@@ -62,7 +59,8 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
 
 function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void {
     if (isNestedHtmlTemplate(node as ts.Expression)) {
-        let { expressions, literals } = extractTemplateParts((node as ts.TaggedTemplateExpression).template),
+        let parts = extractTemplateParts((node as ts.TaggedTemplateExpression).template),
+            { expressions, literals } = prefold(parts.literals, parts.expressions, ctx.checker),
             parsed = parser.parse(literals) as ParseResult;
 
         getTemplateID(ctx, parsed.html);
@@ -77,7 +75,7 @@ function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void
     ts.forEachChild(node, child => discoverTemplatesInExpression(ctx, child));
 }
 
-function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string, attributes?: string, exprNode?: ts.Expression): string {
+function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string, exprNode?: ts.Expression): string {
     if (name.startsWith('on') && name.length > 2) {
         let event = name.slice(2).toLowerCase(),
             key = name.toLowerCase();
@@ -98,14 +96,17 @@ function generateAttributeBinding(ctx: CodegenContext, element: string, name: st
     }
 
     if (name === 'class' || name === 'style') {
-        return `${NAMESPACE}.setList(${element}, '${name}', ${expr}, ${attributes});`;
+        // Static class/style tokens ride the template clone; setList seeds them from the
+        // element's own attribute, so no compile-time static map is threaded here
+        return `${NAMESPACE}.setList(${element}, '${name}', ${expr});`;
     }
 
     return `${NAMESPACE}.setProperty(${element}, '${name}', ${expr});`;
 }
 
 function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplateExpression): string {
-    let { expressions, literals } = extractTemplateParts(node.template),
+    let parts = extractTemplateParts(node.template),
+        { expressions, literals } = prefold(parts.literals, parts.expressions, ctx.checker),
         exprTexts: string[] = [];
 
     for (let i = 0, n = expressions.length; i < n; i++) {
@@ -190,8 +191,7 @@ function generateTemplateCode(
         return `${getTemplateID(ctx, html)}()`;
     }
 
-    let attributes = new Map<number, string>(),
-        code: string[] = [],
+    let code: string[] = [],
         declarations: string[] = [],
         index = 0,
         isArrowBody = isArrowExpressionBody(templateNode),
@@ -297,7 +297,6 @@ function generateTemplateCode(
                                                 element,
                                                 propName,
                                                 rewriteExpression(ctx, prop.initializer),
-                                                getAttributes(declarations, i, propName, slot, attributes),
                                                 prop.initializer
                                             )
                                         );
@@ -311,8 +310,7 @@ function generateTemplateCode(
                                             ctx,
                                             element,
                                             propName,
-                                            propName,
-                                            getAttributes(declarations, i, propName, slot, attributes)
+                                            propName
                                         )
                                     );
                                 }
@@ -324,8 +322,7 @@ function generateTemplateCode(
                                             ctx,
                                             element,
                                             propName,
-                                            printer.printNode(ts.EmitHint.Expression, prop, ctx.sourceFile),
-                                            getAttributes(declarations, i, propName, slot, attributes)
+                                            printer.printNode(ts.EmitHint.Expression, prop, ctx.sourceFile)
                                         )
                                     );
                                 }
@@ -333,19 +330,13 @@ function generateTemplateCode(
                         }
                         else {
                             code.push(
-                                `${NAMESPACE}.setProperties(
-                                    ${element}, ${exprTexts[index] || 'undefined'},
-                                    ${getAttributes(declarations, i, 'attributes', slot, attributes)}
-                                );`
+                                `${NAMESPACE}.setProperties(${element}, ${exprTexts[index] || 'undefined'});`
                             );
                         }
                     }
                     else {
                         code.push(
-                            `${NAMESPACE}.setProperties(
-                                ${element}, ${exprTexts[index] || 'undefined'},
-                                ${getAttributes(declarations, i, 'attributes', slot, attributes)}
-                            );`
+                            `${NAMESPACE}.setProperties(${element}, ${exprTexts[index] || 'undefined'});`
                         );
                     }
 
@@ -360,7 +351,6 @@ function generateTemplateCode(
                             element,
                             name,
                             exprTexts[index] || 'undefined',
-                            getAttributes(declarations, i, name, slot, attributes),
                             node
                         )
                     );
@@ -382,21 +372,6 @@ function generateTemplateCode(
 
     return code.join('\n');
 }
-
-function getAttributes(declarations: string[], i: number, name: string, slot: ParseResultAttributes, attributes: Map<number, string>): string | undefined {
-        if (name !== 'class' && name !== 'attributes' && name !== 'style') {
-            return undefined;
-        }
-
-        let attribute = attributes.get(i);
-
-        if (!attribute) {
-            declarations.push(`${attribute = uid('attributes')} = ${JSON.stringify(pick(slot.attributes.static, ['class', 'style']))}`);
-            attributes.set(i, attribute);
-        }
-
-        return attribute;
-    }
 
 function getTemplateID(ctx: CodegenContext, html: string): string {
     let id = ctx.templates.get(html);
@@ -426,6 +401,34 @@ function isReactiveCall(expr: ts.Expression): expr is ts.CallExpression {
         expr.expression.name.text === ENTRYPOINT_REACTIVITY
     );
 }
+
+// Merge every foldable expression into the surrounding literals BEFORE parse: the folded value
+// rides the template clone (as text or a static attribute token) instead of a runtime binding.
+// This is the only safe splice point — post-parse HTML rewriting would invalidate the
+// sibling-count-derived node paths of later slots.
+function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.TypeChecker): { expressions: ts.Expression[]; literals: string[] } {
+    if (expressions.length === 0) {
+        return { expressions, literals };
+    }
+
+    let foldedExpressions: ts.Expression[] = [],
+        foldedLiterals: string[] = [literals[0]];
+
+    for (let i = 0, n = expressions.length; i < n; i++) {
+        let folded = fold(expressions[i], checker);
+
+        if (folded === null) {
+            foldedExpressions.push(expressions[i]);
+            foldedLiterals.push(literals[i + 1]);
+        }
+        else {
+            foldedLiterals[foldedLiterals.length - 1] += folded + literals[i + 1];
+        }
+    }
+
+    return { expressions: foldedExpressions, literals: foldedLiterals };
+}
+
 
 const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, checker?: ts.TypeChecker, callRanges: { end: number; start: number }[] = []): CodegenResult => {
     let result: CodegenResult = {
@@ -461,12 +464,13 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
         };
 
     for (let i = 0, n = root.length; i < n; i++) {
-        let exprTexts: string[] = [],
-            parsed = parser.parse(root[i].literals) as ParseResult,
-            template = root[i];
+        let template = root[i],
+            { expressions, literals } = prefold(template.literals, template.expressions, ctx.checker),
+            exprTexts: string[] = [],
+            parsed = parser.parse(literals) as ParseResult;
 
-        for (let j = 0, m = template.expressions.length; j < m; j++) {
-            exprTexts.push(rewriteExpression(ctx, template.expressions[j]));
+        for (let j = 0, m = expressions.length; j < m; j++) {
+            exprTexts.push(rewriteExpression(ctx, expressions[j]));
         }
 
         if (
@@ -482,7 +486,7 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
             });
         }
         else {
-            let code = generateTemplateCode(ctx, parsed, exprTexts, template.expressions, template.node);
+            let code = generateTemplateCode(ctx, parsed, exprTexts, expressions, template.node);
 
             result.replacements.push({
                 generate: () => code,
@@ -492,10 +496,12 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
     }
 
     for (let i = 0, n = templates.length; i < n; i++) {
-        getTemplateID(ctx, parser.parse(templates[i].literals).html);
+        let { expressions, literals } = prefold(templates[i].literals, templates[i].expressions, ctx.checker);
 
-        for (let j = 0, m = templates[i].expressions.length; j < m; j++) {
-            discoverTemplatesInExpression(ctx, templates[i].expressions[j]);
+        getTemplateID(ctx, parser.parse(literals).html);
+
+        for (let j = 0, m = expressions.length; j < m; j++) {
+            discoverTemplatesInExpression(ctx, expressions[j]);
         }
     }
 

@@ -12,6 +12,30 @@ function codegen(source: string) {
     return { result: generateCode(templates, sourceFile), sourceFile, templates };
 }
 
+// Discovers templates without a checker (skips the import guard) but runs codegen WITH a real
+// checker so fold() can resolve const identifiers to their literal types
+function codegenWithProgram(source: string) {
+    let compilerOptions: ts.CompilerOptions = {
+            lib: ['lib.es2020.d.ts'],
+            noEmit: true,
+            strict: true,
+            target: ts.ScriptTarget.ES2020
+        },
+        host = ts.createCompilerHost(compilerOptions),
+        originalFileExists = host.fileExists,
+        originalReadFile = host.readFile;
+
+    host.readFile = (fileName: string) => fileName === 'test.ts' ? source : originalReadFile.call(host, fileName);
+    host.fileExists = (fileName: string) => fileName === 'test.ts' ? true : originalFileExists.call(host, fileName);
+
+    let program = ts.createProgram(['test.ts'], compilerOptions, host),
+        checker = program.getTypeChecker(),
+        sourceFile = program.getSourceFile('test.ts')!,
+        templates = findHtmlTemplates(sourceFile);
+
+    return generateCode(templates, sourceFile, checker);
+}
+
 
 describe('compiler/codegen', () => {
     describe('generateCode - static templates', () => {
@@ -66,12 +90,13 @@ describe('compiler/codegen', () => {
             expect(code).toContain(`${NAMESPACE}.EffectSlot`);
         });
 
-        it('generates static text binding for string literal', () => {
+        it('inlines a string literal node into the template (no runtime text call)', () => {
             let { result } = codegen(`let x = html\`<div>\${"hello"}</div>\`;`);
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
-            expect(code).toContain(`${NAMESPACE}.text(`);
-            expect(code).toContain('"hello"');
+            expect(code).not.toContain(`${NAMESPACE}.text(`);
+            expect(result.prepend[0]).toContain('hello');
+            expect(code).toMatch(/^[a-zA-Z_$][\w$]*\(\)$/);
         });
 
         it('generates appendChild for nested html template in sole-child slot', () => {
@@ -295,11 +320,12 @@ describe('compiler/codegen', () => {
             expect(code).toContain(`${NAMESPACE}.slot(`);
         });
 
-        it('generates text() for numeric literal', () => {
+        it('inlines a numeric literal node into the template (no runtime text call)', () => {
             let { result } = codegen(`let x = html\`<div>\${42}</div>\`;`);
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
-            expect(code).toContain(`${NAMESPACE}.text(`);
+            expect(code).not.toContain(`${NAMESPACE}.text(`);
+            expect(result.prepend[0]).toContain('42');
         });
     });
 
@@ -442,13 +468,13 @@ describe('compiler/codegen', () => {
             expect(code).not.toContain('insertBefore');
         });
 
-        it('emits appendChild(text) for sole-child static slot', () => {
+        it('inlines a sole-child string literal into the template (no slot, no text call)', () => {
             let { result } = codegen(`let x = html\`<div>\${"hello"}</div>\`;`);
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
-            expect(code).toContain('appendChild');
-            expect(code).toContain(`${NAMESPACE}.text(`);
-            expect(code).not.toContain('.after(');
+            expect(code).not.toContain('appendChild');
+            expect(code).not.toContain(`${NAMESPACE}.text(`);
+            expect(result.prepend[0]).toContain('hello');
         });
 
         it('emits 3-arg EffectSlot (last flag) for last-child slot after text', () => {
@@ -486,6 +512,32 @@ describe('compiler/codegen', () => {
             // Arrow body with slots uses block syntax
             expect(code).toContain('{');
             expect(code).toContain('return');
+        });
+    });
+
+    describe('generateCode - static inlining (fold)', () => {
+        it('does not inline a literal containing an unsafe character', () => {
+            let { result } = codegen(`let x = html\`<div>\${"a<b"}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            // Unsafe charset stays a runtime binding (Static text node), never folded into HTML
+            expect(code).toContain(`${NAMESPACE}.text(`);
+        });
+
+        it('folds a literal attribute value into a static attribute (no setList emitted)', () => {
+            let { result } = codegen(`let x = html\`<div class="static \${"foo"}">x</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).not.toContain(`${NAMESPACE}.setList(`);
+            expect(result.prepend[0]).toContain('static foo');
+        });
+
+        it('inlines a const string identifier into the template (checker-resolved)', () => {
+            let result = codegenWithProgram(`const greeting = "hello"; let x = html\`<div>\${greeting}</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).not.toContain(`${NAMESPACE}.text(`);
+            expect(result.prepend[0]).toContain('hello');
         });
     });
 });
