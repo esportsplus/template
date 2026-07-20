@@ -150,7 +150,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
 
 function generateTemplateCode(
     ctx: CodegenContext,
-    { html, slots }: ParseResult,
+    { html, raw, slots }: ParseResult,
     exprTexts: string[],
     exprNodes: ts.Expression[],
     templateNode: ts.Node
@@ -165,7 +165,7 @@ function generateTemplateCode(
         index = 0,
         isArrowBody = isArrowExpressionBody(templateNode),
         markerIndex = 0,
-        markers = soleChildMarkers(html),
+        markers = soleChildMarkers(raw),
         nodes = new Map<string, string>(),
         root = uid('root');
 

@@ -93,7 +93,7 @@ const parse = (literals: string[]) => {
         n = literals.length - 1;
 
     if (n === 0) {
-        return { html: minify(html), slots: null };
+        return { html: minify(html), raw: html, slots: null };
     }
 
     let attributes: Record<string, { names: string[], static: Record<string, string> }> = {},
@@ -250,6 +250,7 @@ const parse = (literals: string[]) => {
 
     return {
         html: minify(buffer),
+        raw: buffer,
         slots: slots.length ? slots : null
     };
 };
