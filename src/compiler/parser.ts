@@ -93,7 +93,7 @@ const parse = (literals: string[]) => {
         n = literals.length - 1;
 
     if (n === 0) {
-        return { html: minify(html), raw: html, slots: null };
+        return { html: minify(html), slots: null };
     }
 
     let attributes: Record<string, { names: string[], static: Record<string, string> }> = {},
@@ -102,9 +102,10 @@ const parse = (literals: string[]) => {
         level = 0,
         levels = [{ children: 0, elements: 0, path: [] as NodePath }],
         parsed = html.split(SLOT_MARKER),
+        pending: { level: typeof levels[number]; offset: number; ordinal: number; slot: number }[] = [],
         slot = 0,
         slots: (
-            { path: NodePath; type: TYPES.Node } |
+            { mode?: 'last' | 'sole'; path: NodePath; type: TYPES.Node } |
             { attributes: typeof attributes[string]; path: NodePath; type: TYPES.Attribute }
         )[] = [];
 
@@ -189,7 +190,7 @@ const parse = (literals: string[]) => {
                     (match[0].at(-2) === '/' ? NODE_VOID : NODE_ELEMENT)
                 );
 
-            if ((match.index || 1) - 1 > index) {
+            if ((match.index ?? 0) > index) {
                 parent.children++;
             }
 
@@ -220,7 +221,12 @@ const parse = (literals: string[]) => {
                 parent.elements++;
             }
             else if (type === NODE_SLOT) {
-                buffer += parsed[slot++] + SLOT_HTML;
+                buffer += parsed[slot++];
+
+                let offset = buffer.length;
+
+                buffer += SLOT_HTML;
+                pending.push({ level: parent, offset, ordinal: parent.children, slot: slots.length });
                 slots.push({
                     path: methods(parent.children, parent.path, 'firstChild', 'nextSibling'),
                     type: TYPES.Node
@@ -228,8 +234,7 @@ const parse = (literals: string[]) => {
             }
 
             if (n === slot) {
-                buffer += parsed[slot];
-                break;
+                buffer += parsed[slot++];
             }
 
             if (type === NODE_CLOSING) {
@@ -243,6 +248,38 @@ const parse = (literals: string[]) => {
         }
     }
 
+    {
+        let elide: number[] = [];
+
+        for (let i = 0, m = pending.length; i < m; i++) {
+            let p = pending[i];
+
+            if (p.level.path.length === 0 || p.ordinal !== p.level.children - 1) {
+                continue;
+            }
+
+            let node = slots[p.slot];
+
+            if (node.type !== TYPES.Node) {
+                continue;
+            }
+
+            node.mode = p.level.children === 1 ? 'sole' : 'last';
+            node.path = p.level.path.slice();
+            elide.push(p.offset);
+        }
+
+        if (elide.length) {
+            elide.sort((a, b) => b - a);
+
+            for (let i = 0, m = elide.length; i < m; i++) {
+                let offset = elide[i];
+
+                buffer = buffer.slice(0, offset) + buffer.slice(offset + SLOT_HTML.length);
+            }
+        }
+    }
+
     buffer = buffer
         .replace(REGEX_EVENTS, '')
         .replace(REGEX_EMPTY_ATTRIBUTES, '')
@@ -250,7 +287,6 @@ const parse = (literals: string[]) => {
 
     return {
         html: minify(buffer),
-        raw: buffer,
         slots: slots.length ? slots : null
     };
 };

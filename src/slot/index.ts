@@ -1,14 +1,22 @@
+import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable } from '../types';
 import { EffectSlot } from './effect';
 import render from './render';
 
 
-export default <T>(anchor: Element, renderable: Renderable<T>) => {
+export default <T>(anchor: Element, renderable: Renderable<T>, mode: number = ANCHOR_MARKER) => {
     if (typeof renderable === 'function') {
-        new EffectSlot(anchor, renderable);
+        new EffectSlot(anchor, renderable, mode);
     }
     else {
-        anchor.after( render(anchor, renderable) );
+        let node = render(anchor, renderable);
+
+        if (mode === ANCHOR_MARKER) {
+            anchor.after(node);
+        }
+        else {
+            anchor.appendChild(node);
+        }
     }
 };
 export * from './array';

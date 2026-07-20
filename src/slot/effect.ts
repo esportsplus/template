@@ -1,5 +1,6 @@
 import { effect } from '@esportsplus/reactivity';
 import { isAsyncFunction } from '@esportsplus/utilities';
+import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable, SlotGroup } from '../types';
 import { raf, text } from '../utilities'
 import { remove } from './cleanup';
@@ -23,13 +24,15 @@ class EffectSlot {
     anchor: Element;
     disposer: VoidFunction | null;
     group: SlotGroup | null = null;
+    mode: number;
     scheduled = false;
     textnode: Node | null = null;
 
 
-    constructor(anchor: Element, fn: ((...args: any[]) => any)) {
+    constructor(anchor: Element, fn: ((...args: any[]) => any), mode: number = ANCHOR_MARKER) {
         this.anchor = anchor;
         this.disposer = null;
+        this.mode = mode;
 
         if (isAsyncFunction(fn)) {
             (fn as (fallback: (content: Renderable<any>) => void) => Promise<Renderable<any>>)(
@@ -60,17 +63,22 @@ class EffectSlot {
 
 
     dispose() {
-        let { anchor, disposer, group, textnode } = this;
+        let { anchor, disposer, group, mode, textnode } = this;
 
         if (!disposer) {
             return;
         }
 
-        if (textnode) {
-            group = { head: anchor, tail: textnode as Element };
+        if (mode === ANCHOR_MARKER) {
+            if (textnode) {
+                group = { head: anchor, tail: textnode as Element };
+            }
+            else if (group) {
+                group.head = anchor;
+            }
         }
-        else if (group) {
-            group.head = anchor;
+        else if (textnode) {
+            group = { head: textnode as Element, tail: textnode as Element };
         }
 
         disposer();
@@ -81,7 +89,7 @@ class EffectSlot {
     }
 
     update(value: unknown): void {
-        let { anchor, group, textnode } = this;
+        let { anchor, group, mode, textnode } = this;
 
         value = read(value);
 
@@ -99,11 +107,23 @@ class EffectSlot {
                 textnode.nodeValue = value as string;
 
                 if (!textnode.isConnected) {
-                    anchor.after(textnode);
+                    if (mode === ANCHOR_MARKER) {
+                        anchor.after(textnode);
+                    }
+                    else {
+                        anchor.appendChild(textnode);
+                    }
                 }
             }
             else {
-                anchor.after( this.textnode = text(value as string) );
+                textnode = this.textnode = text(value as string);
+
+                if (mode === ANCHOR_MARKER) {
+                    anchor.after(textnode);
+                }
+                else {
+                    anchor.appendChild(textnode);
+                }
             }
         }
         else {
@@ -130,7 +150,12 @@ class EffectSlot {
                     tail: tail as Element
                 };
 
-                anchor.after(fragment);
+                if (mode === ANCHOR_MARKER) {
+                    anchor.after(fragment);
+                }
+                else {
+                    anchor.appendChild(fragment);
+                }
             }
         }
     }

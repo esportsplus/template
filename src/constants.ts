@@ -1,3 +1,9 @@
+const ANCHOR_LAST = 2;
+
+const ANCHOR_MARKER = 0;
+
+const ANCHOR_SOLE = 1;
+
 const ARRAY_SLOT = Symbol('template.array.slot');
 
 const ATTRIBUTE_DELIMITERS: Record<string, string> = {
@@ -36,6 +42,7 @@ const STORE = Symbol('template.store');
 
 
 export {
+    ANCHOR_LAST, ANCHOR_MARKER, ANCHOR_SOLE,
     ARRAY_SLOT, ATTRIBUTE_DELIMITERS,
     CLEANUP,
     DIRECT_ATTACH_EVENTS,

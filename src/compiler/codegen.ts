@@ -2,7 +2,7 @@ import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compil
 import { pick } from '@esportsplus/utilities';
 import type { TemplateInfo } from './ts-parser';
 import { analyze } from './ts-analyzer';
-import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS, SLOT_HTML } from '../constants';
+import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, TYPES } from './constants';
 import { extractTemplateParts } from './ts-parser';
 import { ts } from '@esportsplus/typescript';
@@ -121,7 +121,38 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
     );
 }
 
-function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: string, exprNode: ts.Expression | undefined, soleChild: boolean): string {
+function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: string, exprNode: ts.Expression | undefined, mode: 'last' | 'sole' | undefined): string {
+    if (mode) {
+        let flag = mode === 'sole' ? ANCHOR_SOLE : ANCHOR_LAST;
+
+        if (!exprNode) {
+            return `${NAMESPACE}.slot(${anchor}, ${exprText}, ${flag});`;
+        }
+
+        if (isNestedHtmlTemplate(exprNode)) {
+            return `${anchor}.appendChild(${generateNestedTemplateCode(ctx, exprNode)});`;
+        }
+
+        switch (analyze(exprNode, ctx.checker)) {
+            // A sole-child ArraySlot owns the parent's entire content, so the runtime may bulk-clear
+            // via parent.textContent; a last-child slot has preceding siblings, so the flag stays off
+            case TYPES.ArraySlot:
+                return `${anchor}.appendChild(new ${NAMESPACE}.ArraySlot(${exprText}${mode === 'sole' ? ', true' : ''}).fragment);`;
+
+            case TYPES.DocumentFragment:
+                return `${anchor}.appendChild(${exprText});`;
+
+            case TYPES.Effect:
+                return `new ${NAMESPACE}.EffectSlot(${anchor}, ${exprText}, ${flag});`;
+
+            case TYPES.Static:
+                return `${anchor}.appendChild(${NAMESPACE}.text(${exprText}));`;
+
+            default:
+                return `${NAMESPACE}.slot(${anchor}, ${exprText}, ${flag});`;
+        }
+    }
+
     if (!exprNode) {
         return `${NAMESPACE}.slot(${anchor}, ${exprText});`;
     }
@@ -132,7 +163,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
 
     switch (analyze(exprNode, ctx.checker)) {
         case TYPES.ArraySlot:
-            return `${anchor}.parentNode!.insertBefore(new ${NAMESPACE}.ArraySlot(${exprText}${soleChild ? ', true' : ''}).fragment, ${anchor});`;
+            return `${anchor}.parentNode!.insertBefore(new ${NAMESPACE}.ArraySlot(${exprText}).fragment, ${anchor});`;
 
         case TYPES.DocumentFragment:
             return `${anchor}.parentNode!.insertBefore(${exprText}, ${anchor});`;
@@ -150,7 +181,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
 
 function generateTemplateCode(
     ctx: CodegenContext,
-    { html, raw, slots }: ParseResult,
+    { html, slots }: ParseResult,
     exprTexts: string[],
     exprNodes: ts.Expression[],
     templateNode: ts.Node
@@ -164,8 +195,6 @@ function generateTemplateCode(
         declarations: string[] = [],
         index = 0,
         isArrowBody = isArrowExpressionBody(templateNode),
-        markerIndex = 0,
-        markers = soleChildMarkers(raw),
         nodes = new Map<string, string>(),
         root = uid('root');
 
@@ -341,7 +370,7 @@ function generateTemplateCode(
         }
         else {
             code.push(
-                generateNodeBinding(ctx, element, exprTexts[index] || 'undefined', exprNodes[index], markers[markerIndex++] || false)
+                generateNodeBinding(ctx, element, exprTexts[index] || 'undefined', exprNodes[index], slot.mode)
             );
             index++;
         }
@@ -397,56 +426,6 @@ function isReactiveCall(expr: ts.Expression): expr is ts.CallExpression {
         expr.expression.name.text === ENTRYPOINT_REACTIVITY
     );
 }
-
-// A node slot's marker is the sole child of its parent element when the parent's
-// opening tag ends immediately before it and the parent's closing tag begins
-// immediately after it (tag names must match to rule out sibling/void elements)
-function isSoleChildMarker(html: string, marker: number): boolean {
-    let after = marker + SLOT_HTML.length,
-        open = html.lastIndexOf('<', marker - 1);
-
-    if (
-        open < 0 ||
-        html[marker - 1] !== '>' ||
-        html[open + 1] === '/' ||
-        html[open + 1] === '!' ||
-        !html.startsWith('</', after)
-    ) {
-        return false;
-    }
-
-    return tagName(html, open + 1) === tagName(html, after + 2);
-}
-
-function soleChildMarkers(html: string): boolean[] {
-    let markers: boolean[] = [],
-        scan = html.indexOf(SLOT_HTML);
-
-    while (scan !== -1) {
-        markers.push(isSoleChildMarker(html, scan));
-        scan = html.indexOf(SLOT_HTML, scan + SLOT_HTML.length);
-    }
-
-    return markers;
-}
-
-function tagName(html: string, start: number): string {
-    let i = start,
-        n = html.length;
-
-    while (i < n) {
-        let c = html[i];
-
-        if (c === ' ' || c === '\t' || c === '\n' || c === '/' || c === '>') {
-            break;
-        }
-
-        i++;
-    }
-
-    return html.slice(start, i);
-}
-
 
 const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, checker?: ts.TypeChecker, callRanges: { end: number; start: number }[] = []): CodegenResult => {
     let result: CodegenResult = {
