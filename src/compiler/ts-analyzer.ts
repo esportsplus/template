@@ -1,11 +1,36 @@
 import { ts } from '@esportsplus/typescript';
+import { imports } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, PACKAGE_NAME, TYPES } from './constants';
 
+
+type SelectorComparison = {
+    key: ts.Expression;
+    negated: boolean;
+    node: ts.Expression;
+};
+
+
+const PACKAGE_REACTIVITY = '@esportsplus/reactivity';
+
+const READ = 'read';
 
 // Conservative charset that is injection-safe in both text and quoted-attribute positions:
 // no entity/tag delimiters and no quote characters, so a folded value can never break out
 const REGEX_FOLD_SAFE = /^[^&<>"'`]*$/;
 
+
+// A `read(sig)` call from @esportsplus/reactivity: exactly one argument, and — when a
+// checker is available — an identity match against the reactivity import; without a checker
+// (the checker-less transform harness) the guard degrades to a plain name match on `read`
+function isReadCall(expr: ts.Expression, checker?: ts.TypeChecker): expr is ts.CallExpression {
+    return (
+        ts.isCallExpression(expr) &&
+        ts.isIdentifier(expr.expression) &&
+        expr.expression.text === READ &&
+        expr.arguments.length === 1 &&
+        (!checker || imports.includes(checker, expr.expression, PACKAGE_REACTIVITY, READ))
+    );
+}
 
 // Union types that mix functions with non-functions (e.g., Renderable)
 // should fall through to runtime slot dispatch
@@ -128,4 +153,27 @@ const fold = (expr: ts.Expression, checker?: ts.TypeChecker): string | null => {
     return (value !== null && REGEX_FOLD_SAFE.test(value)) ? value : null;
 };
 
-export { analyze, fold };
+const selectorComparison = (expr: ts.Expression, checker?: ts.TypeChecker): SelectorComparison | null => {
+    if (
+        !ts.isBinaryExpression(expr) ||
+        (expr.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken &&
+            expr.operatorToken.kind !== ts.SyntaxKind.ExclamationEqualsEqualsToken)
+    ) {
+        return null;
+    }
+
+    let negated = expr.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken;
+
+    if (isReadCall(expr.left, checker)) {
+        return { key: expr.right, negated, node: expr.left.arguments[0] };
+    }
+
+    if (isReadCall(expr.right, checker)) {
+        return { key: expr.left, negated, node: expr.right.arguments[0] };
+    }
+
+    return null;
+};
+
+export { analyze, fold, selectorComparison };
+export type { SelectorComparison };
