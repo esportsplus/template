@@ -3,7 +3,7 @@ import { ast, imports as sourceImports } from '@esportsplus/typescript/compiler'
 import type { ImportIntent, ReplacementIntent, TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME } from './constants';
 import { generateCode, printer,  rewriteExpression } from './codegen';
-import { findHtmlTemplates, findReactiveCalls } from './ts-parser';
+import { findTemplateArtifacts } from './ts-parser';
 
 
 const PACKAGE_REACTIVITY = '@esportsplus/reactivity';
@@ -30,7 +30,8 @@ export default {
         `${ENTRYPOINT}.${ENTRYPOINT_REACTIVITY}`
     ],
     transform: (ctx: TransformContext) => {
-        let callRanges: { end: number; start: number }[] = [],
+        let artifacts = findTemplateArtifacts(ctx.sourceFile, ctx.checker),
+            callRanges: { end: number; start: number }[] = [],
             callTemplates = new Map<string, string>(),
             imports: ImportIntent[] = [],
             prepend: string[] = [],
@@ -38,7 +39,7 @@ export default {
             remove: string[] = [],
             replacements: ReplacementIntent[] = [],
             selectorFired = false,
-            templates = findHtmlTemplates(ctx.sourceFile, ctx.checker);
+            templates = artifacts.templates;
 
         for (let i = 0, n = templates.length; i < n; i++) {
             ranges.push({
@@ -47,7 +48,7 @@ export default {
             });
         }
 
-        let calls = findReactiveCalls(ctx.sourceFile, ctx.checker);
+        let calls = artifacts.calls;
 
         for (let i = 0, n = calls.length; i < n; i++) {
             let call = calls[i];

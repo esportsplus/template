@@ -10,6 +10,8 @@ import parser from './parser';
 
 type CodegenContext = {
     checker?: ts.TypeChecker;
+    parseCache?: Map<string, ParseResult>;
+    prefoldCache?: WeakMap<ts.Node, { expressions: ts.Expression[]; literals: string[] }>;
     selectorFired?: boolean;
     sourceFile: ts.SourceFile;
     templates: Map<string, string>;
@@ -85,8 +87,8 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
 function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void {
     if (isNestedHtmlTemplate(node as ts.Expression)) {
         let parts = extractTemplateParts((node as ts.TaggedTemplateExpression).template),
-            { expressions, literals } = prefold(parts.literals, parts.expressions, ctx.checker),
-            parsed = parser.parse(literals) as ParseResult;
+            { expressions, literals } = prefoldCached(ctx, node, parts.literals, parts.expressions),
+            parsed = parseCached(ctx, literals);
 
         getTemplateID(ctx, parsed.html);
 
@@ -131,7 +133,7 @@ function generateAttributeBinding(ctx: CodegenContext, element: string, name: st
 
 function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplateExpression): string {
     let parts = extractTemplateParts(node.template),
-        { expressions, literals } = prefold(parts.literals, parts.expressions, ctx.checker),
+        { expressions, literals } = prefoldCached(ctx, node, parts.literals, parts.expressions),
         exprTexts: string[] = [];
 
     for (let i = 0, n = expressions.length; i < n; i++) {
@@ -140,7 +142,7 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
 
     return generateTemplateCode(
         ctx,
-        parser.parse(literals) as ParseResult,
+        parseCached(ctx, literals),
         exprTexts,
         expressions,
         node
@@ -427,6 +429,20 @@ function isReactiveCall(expr: ts.Expression): expr is ts.CallExpression {
     );
 }
 
+// Each distinct template is parsed once per transform: the root emission, the trailing
+// template-ID discovery loop, and nested-expression discovery all share this cache. The key
+// joins the (post-prefold) literals on NUL, which source template text cannot contain.
+function parseCached(ctx: CodegenContext, literals: string[]): ParseResult {
+    let cache = ctx.parseCache ??= new Map<string, ParseResult>(),
+        key = literals.join('\0');
+
+    if (!cache.has(key)) {
+        cache.set(key, parser.parse(literals) as ParseResult);
+    }
+
+    return cache.get(key)!;
+}
+
 // Merge every foldable expression into the surrounding literals BEFORE parse: the folded value
 // rides the template clone (as text or a static attribute token) instead of a runtime binding.
 // This is the only safe splice point — post-parse HTML rewriting would invalidate the
@@ -452,6 +468,20 @@ function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.
     }
 
     return { expressions: foldedExpressions, literals: foldedLiterals };
+}
+
+// prefold's inputs derive entirely from the template node, so its result is stable per node —
+// keyed by node identity, the root emission and the ID-discovery loop fold each template once.
+function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], expressions: ts.Expression[]): { expressions: ts.Expression[]; literals: string[] } {
+    let cache = ctx.prefoldCache ??= new WeakMap<ts.Node, { expressions: ts.Expression[]; literals: string[] }>(),
+        result = cache.get(node);
+
+    if (result === undefined) {
+        result = prefold(literals, expressions, ctx.checker);
+        cache.set(node, result);
+    }
+
+    return result;
 }
 
 
@@ -491,9 +521,9 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
 
     for (let i = 0, n = root.length; i < n; i++) {
         let template = root[i],
-            { expressions, literals } = prefold(template.literals, template.expressions, ctx.checker),
+            { expressions, literals } = prefoldCached(ctx, template.node, template.literals, template.expressions),
             exprTexts: string[] = [],
-            parsed = parser.parse(literals) as ParseResult;
+            parsed = parseCached(ctx, literals);
 
         for (let j = 0, m = expressions.length; j < m; j++) {
             exprTexts.push(rewriteExpression(ctx, expressions[j]));
@@ -522,9 +552,9 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
     }
 
     for (let i = 0, n = templates.length; i < n; i++) {
-        let { expressions, literals } = prefold(templates[i].literals, templates[i].expressions, ctx.checker);
+        let { expressions, literals } = prefoldCached(ctx, templates[i].node, templates[i].literals, templates[i].expressions);
 
-        getTemplateID(ctx, parser.parse(literals).html);
+        getTemplateID(ctx, parseCached(ctx, literals).html);
 
         for (let j = 0, m = expressions.length; j < m; j++) {
             discoverTemplatesInExpression(ctx, expressions[j]);

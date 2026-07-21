@@ -21,7 +21,13 @@ type TemplateInfo = {
 };
 
 
-function visitReactiveCalls(node: ts.Node, calls: ReactiveCallInfo[], checker: ts.TypeChecker | undefined): void {
+// Deepest first so a nested template lowers before its parent consumes it, then document
+// order for position-deterministic emission. Shared by the standalone and combined walks.
+function byDepthThenStart(a: TemplateInfo, b: TemplateInfo): number {
+    return a.depth !== b.depth ? b.depth - a.depth : a.start - b.start;
+}
+
+function matchReactiveCall(node: ts.Node, calls: ReactiveCallInfo[], checker: ts.TypeChecker | undefined): void {
     if (
         ts.isCallExpression(node) &&
         ts.isPropertyAccessExpression(node.expression) &&
@@ -39,15 +45,9 @@ function visitReactiveCalls(node: ts.Node, calls: ReactiveCallInfo[], checker: t
             start: node.getStart()
         });
     }
-
-    ts.forEachChild(node, child => visitReactiveCalls(child, calls, checker));
 }
 
-function visitTemplates(node: ts.Node, depth: number, templates: TemplateInfo[], checker: ts.TypeChecker | undefined): void {
-    let nextDepth = (ts.isArrowFunction(node) || ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isMethodDeclaration(node))
-            ? depth + 1
-            : depth;
-
+function matchTemplate(node: ts.Node, depth: number, templates: TemplateInfo[], checker: ts.TypeChecker | undefined): void {
     if (
         ts.isTaggedTemplateExpression(node) &&
         ts.isIdentifier(node.tag) &&
@@ -65,8 +65,35 @@ function visitTemplates(node: ts.Node, depth: number, templates: TemplateInfo[],
             start: node.getStart()
         });
     }
+}
 
-    ts.forEachChild(node, child => visitTemplates(child, nextDepth, templates, checker));
+function nextDepth(node: ts.Node, depth: number): number {
+    return (ts.isArrowFunction(node) || ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isMethodDeclaration(node))
+        ? depth + 1
+        : depth;
+}
+
+function visitArtifacts(node: ts.Node, depth: number, templates: TemplateInfo[], calls: ReactiveCallInfo[], checker: ts.TypeChecker | undefined): void {
+    matchReactiveCall(node, calls, checker);
+    matchTemplate(node, depth, templates, checker);
+
+    let d = nextDepth(node, depth);
+
+    ts.forEachChild(node, child => visitArtifacts(child, d, templates, calls, checker));
+}
+
+function visitReactiveCalls(node: ts.Node, calls: ReactiveCallInfo[], checker: ts.TypeChecker | undefined): void {
+    matchReactiveCall(node, calls, checker);
+
+    ts.forEachChild(node, child => visitReactiveCalls(child, calls, checker));
+}
+
+function visitTemplates(node: ts.Node, depth: number, templates: TemplateInfo[], checker: ts.TypeChecker | undefined): void {
+    matchTemplate(node, depth, templates, checker);
+
+    let d = nextDepth(node, depth);
+
+    ts.forEachChild(node, child => visitTemplates(child, d, templates, checker));
 }
 
 
@@ -96,7 +123,7 @@ const findHtmlTemplates = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker):
 
     visitTemplates(sourceFile, 0, templates, checker);
 
-    return templates.sort((a, b) => a.depth !== b.depth ? b.depth - a.depth : a.start - b.start);
+    return templates.sort(byDepthThenStart);
 };
 
 const findReactiveCalls = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker): ReactiveCallInfo[] => {
@@ -107,6 +134,20 @@ const findReactiveCalls = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker):
     return calls;
 };
 
+// One AST walk collecting both templates and reactive calls — the transform entrypoint's
+// path, replacing a separate findHtmlTemplates + findReactiveCalls pass over the same tree.
+const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker): { calls: ReactiveCallInfo[]; templates: TemplateInfo[] } => {
+    let calls: ReactiveCallInfo[] = [],
+        templates: TemplateInfo[] = [];
 
-export { extractTemplateParts, findHtmlTemplates, findReactiveCalls };
+    visitArtifacts(sourceFile, 0, templates, calls, checker);
+
+    return {
+        calls,
+        templates: templates.sort(byDepthThenStart)
+    };
+};
+
+
+export { extractTemplateParts, findHtmlTemplates, findReactiveCalls, findTemplateArtifacts };
 export type { ReactiveCallInfo, TemplateInfo };
