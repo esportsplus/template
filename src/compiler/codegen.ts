@@ -279,7 +279,8 @@ function generateTemplateCode(
             slot = slots[i];
 
         if (slot.type === TYPES.Attribute) {
-            let names = slot.attributes.names;
+            let names = slot.attributes.names,
+                parts = slot.attributes.parts;
 
             for (let j = 0, m = names.length; j < m; j++) {
                 let name = names[j];
@@ -369,19 +370,61 @@ function generateTemplateCode(
 
                     index++;
                 }
-                else {
-                    let node = exprNodes[index];
-
+                else if (name.startsWith('on') && name.length > 2) {
                     code.push(
                         generateAttributeBinding(
                             ctx,
                             element,
                             name,
                             exprTexts[index] || 'undefined',
-                            node
+                            exprNodes[index]
                         )
                     );
                     index++;
+                }
+                else {
+                    // Markers sharing a value (or a class/style token) with each other or with
+                    // literal text emit ONE binding, concatenated at compile time. Concatenation
+                    // is a primitive contract: a function value stringifies, as it should
+                    let group = parts[j].group,
+                        last = j;
+
+                    while (last + 1 < m && names[last + 1] === name && parts[last + 1].group === group) {
+                        last++;
+                    }
+
+                    if (last === j && !parts[j].prefix && !parts[j].suffix) {
+                        code.push(
+                            generateAttributeBinding(
+                                ctx,
+                                element,
+                                name,
+                                exprTexts[index] || 'undefined',
+                                exprNodes[index]
+                            )
+                        );
+                        index++;
+                    }
+                    else {
+                        let values: string[] = [];
+
+                        for (let k = j; k <= last; k++) {
+                            if (parts[k].prefix) {
+                                values.push(JSON.stringify(parts[k].prefix));
+                            }
+
+                            values.push(`(${exprTexts[index++] || 'undefined'})`);
+                        }
+
+                        if (parts[last].suffix) {
+                            values.push(JSON.stringify(parts[last].suffix));
+                        }
+
+                        code.push(
+                            generateAttributeBinding(ctx, element, name, values.join(' + '))
+                        );
+                        j = last;
+                    }
                 }
             }
         }

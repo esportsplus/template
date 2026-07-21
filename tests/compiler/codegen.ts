@@ -515,6 +515,62 @@ describe('compiler/codegen', () => {
         });
     });
 
+    describe('generateCode - literal text abutting an attribute slot', () => {
+        it('binds a class token with its prefix', () => {
+            let { result } = codegen(`let x = html\`<div class="button button--\${modifier}">x</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`${NAMESPACE}.setList(`);
+            expect(code).toContain(`"button--" + (modifier)`);
+        });
+
+        it('binds a property attribute with its prefix and suffix', () => {
+            let { result } = codegen(`let x = html\`<a href="/users/\${id}/edit">x</a>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`"/users/" + (id) + "/edit"`);
+        });
+
+        it('emits one binding for several markers in one value', () => {
+            let { result } = codegen(`let x = html\`<a href="/users/\${id}/edit/\${tab}">x</a>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`"/users/" + (id) + "/edit/" + (tab)`);
+            expect(code.match(/setProperty\(/g)).toHaveLength(1);
+        });
+
+        it('emits a binding per class token', () => {
+            let { result } = codegen(`let x = html\`<div class="a-\${one} b-\${two}">x</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`"a-" + (one)`);
+            expect(code).toContain(`"b-" + (two)`);
+        });
+
+        it('parenthesizes a concatenated expression so precedence holds', () => {
+            let { result } = codegen(`let x = html\`<div class="tab-\${active ? "on" : "off"}">x</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`"tab-" + (active ? "on" : "off")`);
+        });
+
+        it('leaves a slot owning the whole value unwrapped', () => {
+            let { result } = codegen(`let x = html\`<div class="\${value}">x</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).toContain(`'class', value)`);
+            expect(code).not.toContain(' + ');
+        });
+
+        it('never concatenates an event binding', () => {
+            let { result } = codegen(`let x = html\`<button onclick="\${handler}">x</button>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+
+            expect(code).not.toContain(' + ');
+            expect(code).toContain(`'click'`);
+        });
+    });
+
     describe('generateCode - static inlining (fold)', () => {
         it('does not inline a literal containing an unsafe character', () => {
             let { result } = codegen(`let x = html\`<div>\${"a<b"}</div>\`;`);

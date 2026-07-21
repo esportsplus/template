@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import parser from '../../src/compiler/parser';
+import parser, { type AttributeMetadata } from '../../src/compiler/parser';
 import { TYPES } from '../../src/compiler/constants';
 
 
@@ -229,6 +229,71 @@ describe('compiler/parser', () => {
             let result = parser.parse(['<button onclick="', '">Click</button>']);
 
             expect(result.html).not.toContain('onclick');
+        });
+    });
+
+    describe('parse - literal text abutting an attribute slot', () => {
+        it('records a class token prefix and keeps it out of the html', () => {
+            let result = parser.parse(['<div class="button button--', '">x</div>']),
+                slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
+
+            expect(result.html).not.toContain('button--');
+            expect(result.html).toContain('class="button ');
+            expect(slot.attributes.parts[0].prefix).toBe('button--');
+            expect(slot.attributes.parts[0].suffix).toBe('');
+        });
+
+        it('records a prefix and suffix around a property attribute slot', () => {
+            let result = parser.parse(['<a href="/users/', '/edit">x</a>']),
+                slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
+
+            expect(result.html).not.toContain('/users/');
+            expect(result.html).not.toContain('/edit');
+            expect(slot.attributes.parts[0].prefix).toBe('/users/');
+            expect(slot.attributes.parts[0].suffix).toBe('/edit');
+        });
+
+        it('bounds a style token by the style delimiter', () => {
+            let result = parser.parse(['<div style="color: red; width: ', 'px">x</div>']),
+                slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
+
+            expect(result.html).toContain('color: red;');
+            expect(result.html).not.toContain('width');
+            expect(slot.attributes.parts[0].prefix).toBe(' width: ');
+            expect(slot.attributes.parts[0].suffix).toBe('px');
+        });
+
+        it('groups every marker sharing one property value', () => {
+            let result = parser.parse(['<a href="/users/', '/edit/', '">x</a>']),
+                slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
+
+            expect(slot.attributes.names).toEqual(['href', 'href']);
+            expect(slot.attributes.parts[0].group).toBe(slot.attributes.parts[1].group);
+            expect(slot.attributes.parts[1].prefix).toBe('/edit/');
+        });
+
+        it('splits markers in separate class tokens into separate groups', () => {
+            let result = parser.parse(['<div class="a-', ' b-', '">x</div>']),
+                slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
+
+            expect(slot.attributes.parts[0].group).not.toBe(slot.attributes.parts[1].group);
+            expect(slot.attributes.parts[0].prefix).toBe('a-');
+            expect(slot.attributes.parts[1].prefix).toBe('b-');
+        });
+
+        it('leaves a slot owning the whole value without prefix or suffix', () => {
+            let result = parser.parse(['<div class="', '">x</div>']),
+                slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
+
+            expect(slot.attributes.parts[0].prefix).toBe('');
+            expect(slot.attributes.parts[0].suffix).toBe('');
+        });
+
+        it('keeps text around a node slot in the html', () => {
+            let result = parser.parse(['<div>hello ', '!</div>']);
+
+            expect(result.html).toContain('hello');
+            expect(result.html).toContain('!');
         });
     });
 

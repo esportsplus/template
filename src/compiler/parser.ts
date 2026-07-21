@@ -2,6 +2,10 @@ import { ATTRIBUTE_DELIMITERS, SLOT_HTML } from '../constants';
 import { PACKAGE_NAME, TYPES } from './constants';
 
 
+type AttributeMetadata = { clean: string; names: string[]; parts: AttributePart[]; static: Record<string, string> };
+
+type AttributePart = { group: number; prefix: string; suffix: string };
+
 type NodePath = ('firstChild' | 'firstElementChild' | 'nextElementSibling' | 'nextSibling')[];
 
 
@@ -30,7 +34,7 @@ const REGEX_EMPTY_TEXT_NODES = /(>|}|\s)\s+(<|{|\s)/g;
 
 const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=(?:\s*["'][^"']*["'])*)/g;
 
-const REGEX_SLOT_ATTRIBUTES = /<[\w-]+([^><]*{{\$}}[^><]*)>/g;
+const REGEX_SLOT_ATTRIBUTES = /<([\w-]+)([^><]*{{\$}}[^><]*)>/g;
 
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{{\$}}/g;
 
@@ -56,6 +60,110 @@ const SLOT_MARKER = '{{$}}';
     'rect', 'set', 'stop', 'use', 'view'
 ].map(tag => NODE_WHITELIST[tag] = NODE_VOID);
 
+
+// Literal text abutting a slot marker belongs to that slot's value, never to the emitted clone:
+// scanning an element's attribute segment hands each run to the marker it touches (as prefix or
+// suffix) and rebuilds the segment without it - the run is already in `buffer`, so nothing is
+// re-cut out of the source. `group` ties every marker sharing one value (or one class/style token)
+// together, so a value carrying several markers still emits a single binding.
+function metadata(found: string): AttributeMetadata {
+    let attribute = '',
+        buffer = '',
+        clean = '',
+        delimiter = '',
+        group = 0,
+        names: string[] = [],
+        parts: AttributePart[] = [],
+        pending = -1,
+        quote = '',
+        statics: Record<string, string> = {};
+
+    // One past the end: the sentinel closes the trailing value without duplicating the flush
+    for (let i = 0, n = found.length; i <= n; i++) {
+        let char = i < n ? found[i] : '',
+            close = false,
+            separate = false;
+
+        if (char === '') {
+            close = true;
+        }
+        else if (char === '{' && found.startsWith(SLOT_MARKER, i)) {
+            names.push(attribute || TYPES.Attributes);
+            parts.push({ group, prefix: buffer, suffix: '' });
+
+            buffer = '';
+            clean += SLOT_MARKER;
+            i += SLOT_MARKER.length - 1;
+            pending = parts.length - 1;
+            continue;
+        }
+        else if (char === '=' && !quote) {
+            attribute = buffer;
+            clean += buffer + char;
+            buffer = '';
+            delimiter = ATTRIBUTE_DELIMITERS[attribute] || '';
+            continue;
+        }
+        else if (char === '"' || char === "'") {
+            if (!quote) {
+                if (attribute) {
+                    quote = char;
+                }
+
+                clean += char;
+                continue;
+            }
+            else if (quote === char) {
+                close = true;
+            }
+        }
+        else if (char === ' ') {
+            if (!quote) {
+                close = true;
+            }
+            else if (delimiter === ' ') {
+                separate = true;
+            }
+        }
+        else if (quote && char === delimiter) {
+            separate = true;
+        }
+
+        if (close || separate) {
+            if (pending !== -1) {
+                parts[pending].suffix = buffer;
+                pending = -1;
+            }
+            else if (buffer) {
+                clean += buffer;
+
+                if (delimiter) {
+                    let token = buffer.trim();
+
+                    if (token) {
+                        statics[attribute] = statics[attribute] ? statics[attribute] + delimiter + token : token;
+                    }
+                }
+            }
+
+            buffer = '';
+            clean += char;
+            group++;
+
+            if (close) {
+                attribute = '';
+                delimiter = '';
+                quote = '';
+            }
+
+            continue;
+        }
+
+        buffer += char;
+    }
+
+    return { clean, names, parts, static: statics };
+}
 
 function methods(children: number, copy: NodePath, first: NodePath[number], next: NodePath[number]) {
     let length = copy.length,
@@ -96,8 +204,22 @@ const parse = (literals: string[]) => {
         return { html: minify(html), slots: null };
     }
 
-    let attributes: Record<string, { names: string[], static: Record<string, string> }> = {},
-        buffer = '',
+    let cache: Record<string, AttributeMetadata> = {},
+        metas: AttributeMetadata[] = [];
+
+    // Every pass below (node walk, slot paths, emitted clone) reads html AFTER the text owned by
+    // an attribute binding is gone, so no downstream pass has to re-cut it back out. Elements are
+    // rewritten in document order, which is the order the node walk consumes their metadata in.
+    html = html.replace(REGEX_SLOT_ATTRIBUTES, (_, name: string, found: string) => {
+        let meta = cache[found] ??= metadata(found);
+
+        metas.push(meta);
+
+        return '<' + name + meta.clean + '>';
+    });
+
+    let buffer = '',
+        cursor = 0,
         index = 0,
         level = 0,
         levels = [{ children: 0, elements: 0, path: [] as NodePath }],
@@ -106,81 +228,8 @@ const parse = (literals: string[]) => {
         slot = 0,
         slots: (
             { mode?: 'last' | 'sole'; path: NodePath; type: TYPES.Node } |
-            { attributes: typeof attributes[string]; path: NodePath; type: TYPES.Attribute }
+            { attributes: AttributeMetadata; path: NodePath; type: TYPES.Attribute }
         )[] = [];
-
-    {
-        let attribute = '',
-            buffer = '',
-            char = '',
-            quote = '';
-
-        for (let match of html.matchAll(REGEX_SLOT_ATTRIBUTES)) {
-            let found = match[1];
-
-            if (attributes[found]) {
-                continue;
-            }
-
-            let { names, static: s } = attributes[found] = { names: [], static: {} } as typeof attributes[string];
-
-            for (let i = 0, n = found.length; i < n; i++) {
-                char = found[i];
-
-                if (char === ' ') {
-                    if (attribute && attribute in ATTRIBUTE_DELIMITERS) {
-                        s[attribute] ??= '';
-                        s[attribute] += char + buffer;
-                    }
-
-                    buffer = '';
-                }
-                else if (char === '=') {
-                    attribute = buffer;
-                    buffer = '';
-                }
-                else if (char === '"' || char === "'") {
-                    if (!attribute) {
-                        continue;
-                    }
-                    else if (!quote) {
-                        quote = char;
-                    }
-                    else if (quote === char) {
-                        if (attribute && attribute in ATTRIBUTE_DELIMITERS) {
-                            s[attribute] ??= '';
-                            s[attribute] += ` ${buffer}`;
-                        }
-
-                        attribute = '';
-                        buffer = '';
-                        quote = '';
-                    }
-                }
-                else if (char === '{' && char !== buffer) {
-                    buffer = char;
-                }
-                else {
-                    buffer += char;
-
-                    if (buffer === SLOT_MARKER) {
-                        buffer = '';
-
-                        if (attribute) {
-                            names.push(attribute);
-
-                            if (!quote) {
-                                attribute = '';
-                            }
-                        }
-                        else {
-                            names.push(TYPES.Attributes);
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     {
         for (let match of html.matchAll(REGEX_SLOT_NODES)) {
@@ -201,7 +250,7 @@ const parse = (literals: string[]) => {
                         : methods(parent.children, [], 'firstChild', 'nextSibling');
 
                 if (attr) {
-                    let attrs = attributes[attr];
+                    let attrs = metas[cursor++];
 
                     if (!attrs) {
                         throw new Error(`${PACKAGE_NAME}: attribute metadata could not be found for '${attr}'`);
@@ -293,3 +342,4 @@ const parse = (literals: string[]) => {
 
 
 export default { minify, parse };
+export type { AttributeMetadata, AttributePart };
