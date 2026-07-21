@@ -37,6 +37,7 @@
         "url": "https://github.com/esportsplus/template"
     },
     "scripts": {
+        "agent:test": "vitest run",
         "bench:krausest": "vitest run --config vitest.krausest.config.ts",
         "bench:krausest:browser": "node bench/krausest/run-browser.mjs",
         "bench:run": "vitest bench --config vitest.bench.config.ts",
