@@ -1,6 +1,10 @@
 # Changelog
 
 ## Completed
+- abandoned spend: ~$0.00 equivalent API cost across 0 terminal non-COMPLETED item(s); recorded, not divided into per-item costs (run fcac643c)
+- run-level spend: ~$0.00 equivalent API cost (warm implementer runs + unit-scoped + boundary seats; never divided across items; blended rate = mean(input, output, cache_read, cache_creation) per million tokens) (run fcac643c)
+- [selector-rewrite] a68077816fc6d604ef15865b95f550462c150879. Deviations: added — Defined module-local PACKAGE_REACTIVITY and SIGNAL constants in index.ts (mirrors ts-analyzer/codegen values) since constants.ts is outside this directive's writable surface; added — Aliased the compiler helper import as `sourceImports` to avoid shadowing the local `imports: ImportIntent[]` array inside transform(); deviated — (d) checker test uses a shadowing local `function read` in a single-file real Program (noLib) rather than a cross-module import — the acceptance's sanctioned fallback, keeping module resolution out of the harness; ladder: 1 attempt (critic), completed. Cost: ~$38.41 equivalent API cost (blended-rate approximation). · spec: spec-compiler-selector
+- cost source of truth: ccusage per-model breakdown (local transcripts carry the input/output/cache split the run journal does not) — figures above are a blended-rate approximation per contracts/models.json pricing (run fcac643c)
 - [micro-allocation-nits] single-lookup hmr register + inline event preregister (a31de96). Deviations: event/index.ts preregisters via Map constructor initializer (user preference) instead of the spec's for-loop; Check (.map(event absent) still passes. · spec: compiler-runtime-perf
 - [click-paint-latency-harness] REVERTED (removed 2a79816): timer-approx harness produced no usable signal headless; not worth carrying. · spec: compiler-runtime-perf
 - [agent-script-aliases] REVERTED (removed cb22c98): rolled back with click-paint; also cleared a validate INVALID the alias exposed in deferred items' Checks. · spec: compiler-runtime-perf
