@@ -29,13 +29,13 @@ function register(element: Element, event: string) {
         signal: AbortController['signal'] | undefined;
 
     if (controller === null) {
-        let { abort, signal } = new AbortController();
+        let c = new AbortController();
 
         controllers.set(
             event,
             controller = {
-                abort,
-                signal,
+                abort: c.abort.bind(c),
+                signal: c.signal,
                 listeners: 0,
             }
         );
