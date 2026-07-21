@@ -1,9 +1,27 @@
 import { ts } from '@esportsplus/typescript';
-import { ast } from '@esportsplus/typescript/compiler';
+import { ast, imports as sourceImports } from '@esportsplus/typescript/compiler';
 import type { ImportIntent, ReplacementIntent, TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME } from './constants';
 import { generateCode, printer,  rewriteExpression } from './codegen';
 import { findHtmlTemplates, findReactiveCalls } from './ts-parser';
+
+
+const PACKAGE_REACTIVITY = '@esportsplus/reactivity';
+
+const SIGNAL = 'signal';
+
+
+function hasSignalImport(sourceFile: ts.SourceFile): boolean {
+    let infos = sourceImports.all(sourceFile, PACKAGE_REACTIVITY);
+
+    for (let i = 0, n = infos.length; i < n; i++) {
+        if (infos[i].specifiers.has(SIGNAL)) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 
 export default {
@@ -19,6 +37,7 @@ export default {
             ranges: { end: number; start: number }[] = [],
             remove: string[] = [],
             replacements: ReplacementIntent[] = [],
+            selectorFired = false,
             templates = findHtmlTemplates(ctx.sourceFile, ctx.checker);
 
         for (let i = 0, n = templates.length; i < n; i++) {
@@ -44,11 +63,15 @@ export default {
             });
 
             // Pre-compute the rewritten callback to capture templates
-            let rewrittenCallback = rewriteExpression({
+            let codegenContext = {
                     checker: ctx.checker,
+                    selectorFired: false,
                     sourceFile: ctx.sourceFile,
                     templates: callTemplates
-                }, call.callbackArg);
+                },
+                rewrittenCallback = rewriteExpression(codegenContext, call.callbackArg);
+
+            selectorFired ||= codegenContext.selectorFired;
 
             replacements.push({
                 generate: (sourceFile) => `new ${NAMESPACE}.ArraySlot(
@@ -70,6 +93,7 @@ export default {
             prepend.push(...result.prepend);
             replacements.push(...result.replacements);
             remove.push(ENTRYPOINT);
+            selectorFired ||= result.selectorFired;
         }
 
         if (replacements.length === 0 && prepend.length === 0) {
@@ -81,6 +105,13 @@ export default {
             package: PACKAGE_NAME,
             remove: remove
         });
+
+        if (selectorFired && !hasSignalImport(ctx.sourceFile)) {
+            imports.push({
+                add: [SIGNAL],
+                package: PACKAGE_REACTIVITY
+            });
+        }
 
         return { imports, prepend, replacements };
     }

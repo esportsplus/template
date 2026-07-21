@@ -1,6 +1,6 @@
 import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compiler';
 import type { TemplateInfo } from './ts-parser';
-import { analyze, fold } from './ts-analyzer';
+import { analyze, fold, selectorComparison } from './ts-analyzer';
 import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, TYPES } from './constants';
 import { extractTemplateParts } from './ts-parser';
@@ -10,6 +10,7 @@ import parser from './parser';
 
 type CodegenContext = {
     checker?: ts.TypeChecker;
+    selectorFired?: boolean;
     sourceFile: ts.SourceFile;
     templates: Map<string, string>;
 };
@@ -17,16 +18,20 @@ type CodegenContext = {
 type CodegenResult = {
     prepend: string[];
     replacements: ReplacementIntent[];
+    selectorFired: boolean;
     templates: Map<string, string>;
 };
 
 type ParseResult = ReturnType<typeof parser.parse>;
 
 
+const SIGNAL = 'signal';
+
+
 let printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
 
 
-function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: { end: number; start: number; text: string }[]): void {
+function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: { end: number; start: number; text: string }[], inObserver: boolean): void {
     if (isNestedHtmlTemplate(node as ts.Expression)) {
         replacements.push({
             end: node.end,
@@ -54,7 +59,27 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
         return;
     }
 
-    ts.forEachChild(node, child => collectNestedReplacements(ctx, child, replacements));
+    if (inObserver) {
+        let selector = selectorComparison(node as ts.Expression, ctx.checker);
+
+        if (selector !== null) {
+            // SIG/KEY are rewritten recursively so nested templates/reactive calls inside them
+            // still lower; the replacement spans the whole comparison, so returning here keeps
+            // its offsets from overlapping any child replacement under the descending-start sort
+            replacements.push({
+                end: node.end,
+                start: node.getStart(ctx.sourceFile),
+                text: `${selector.negated ? '!' : ''}${SIGNAL}.selector(${rewriteExpression(ctx, selector.node)}, ${rewriteExpression(ctx, selector.key)})`
+            });
+            ctx.selectorFired = true;
+
+            return;
+        }
+    }
+
+    let childObserver = inObserver || ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+
+    ts.forEachChild(node, child => collectNestedReplacements(ctx, child, replacements, childObserver));
 }
 
 function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void {
@@ -434,6 +459,7 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
     let result: CodegenResult = {
             prepend: [],
             replacements: [],
+            selectorFired: false,
             templates: new Map()
         };
 
@@ -509,6 +535,8 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
         result.prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
     }
 
+    result.selectorFired = ctx.selectorFired === true;
+
     return result;
 };
 
@@ -521,15 +549,17 @@ const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => 
         return `${rewriteExpression(ctx, expr.arguments[0] as ts.Expression)}, ${rewriteExpression(ctx, expr.arguments[1] as ts.Expression)}`;
     }
 
-    if (!ast.test(expr, n => isNestedHtmlTemplate(n as ts.Expression) || isReactiveCall(n as ts.Expression))) {
+    let replacements: { end: number; start: number; text: string }[] = [],
+        rootObserver = ts.isArrowFunction(expr) || ts.isFunctionExpression(expr);
+
+    ts.forEachChild(expr, child => collectNestedReplacements(ctx, child, replacements, rootObserver));
+
+    if (replacements.length === 0) {
         return printer.printNode(ts.EmitHint.Expression, expr, ctx.sourceFile);
     }
 
-    let replacements: { end: number; start: number; text: string }[] = [],
-        start = expr.getStart(ctx.sourceFile),
+    let start = expr.getStart(ctx.sourceFile),
         text = expr.getText(ctx.sourceFile);
-
-    ts.forEachChild(expr, child => collectNestedReplacements(ctx, child, replacements));
 
     replacements.sort((a, b) => b.start - a.start);
 
