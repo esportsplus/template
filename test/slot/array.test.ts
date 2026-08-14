@@ -1,9 +1,9 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { reactive } from '@esportsplus/reactivity';
+import { ARRAY_SLOT } from '../../src/constants';
 import { ArraySlot } from '../../src/slot/array';
 import { ondisconnect } from '../../src/slot/cleanup';
-import { ARRAY_SLOT } from '../../src/constants';
-import { Element } from '../../src/types';
-import { reactive } from '@esportsplus/reactivity';
+import type { Element } from '../../src/types';
 
 
 describe('slot/ArraySlot', () => {
@@ -82,7 +82,6 @@ describe('slot/ArraySlot', () => {
 
             container.appendChild(slot.fragment);
 
-            // Should only have the marker comment
             expect(container.childNodes.length).toBe(1);
             expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
@@ -132,7 +131,6 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.push('b', 'c');
 
-            // Wait for RAF
             await new Promise(resolve => requestAnimationFrame(resolve));
 
             let spans = container.querySelectorAll('span');
@@ -388,13 +386,16 @@ describe('slot/ArraySlot', () => {
 
             container.appendChild(slot.fragment);
 
-            // The concat method on reactive arrays triggers the 'concat' event
-            let newArr = arr.concat(['b', 'c']);
+            arr.concat(['b', 'c']);
 
             await new Promise(resolve => requestAnimationFrame(resolve));
 
-            // Note: concat returns a new array, but the event should still fire
-            // The original array listeners should handle it
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(3);
+            expect(spans[0].textContent).toBe('a');
+            expect(spans[1].textContent).toBe('b');
+            expect(spans[2].textContent).toBe('c');
         });
     });
 
@@ -460,7 +461,6 @@ describe('slot/ArraySlot', () => {
 
             container.appendChild(slot.fragment);
 
-            // Multiple operations in same frame
             arr.push('d');
             arr.push('e');
             arr.shift();
@@ -705,7 +705,6 @@ describe('slot/ArraySlot', () => {
 
             container.appendChild(slot.fragment);
 
-            // Polyfill moveBefore on the parent
             (container as any).moveBefore = function (node: Node, ref: Node | null) {
                 moveBeforeCalls.push([node, ref]);
                 container.insertBefore(node, ref);
@@ -739,7 +738,6 @@ describe('slot/ArraySlot', () => {
 
             container.appendChild(slot.fragment);
 
-            // Ensure no moveBefore
             expect('moveBefore' in container).toBe(false);
 
             arr.sort();
@@ -846,8 +844,6 @@ describe('slot/ArraySlot', () => {
 
             expect(spans[0].textContent).toBe('a');
             expect(spans[1].textContent).toBe('b');
-
-            // 'a' should be moved before 'b'
             expect(moveBeforeCalls.some(([n]) => n === 'a')).toBe(true);
 
             delete (container as any).moveBefore;
@@ -910,7 +906,6 @@ describe('slot/ArraySlot', () => {
 
             expect(spans.length).toBe(3);
 
-            // Clear removes all items and their DOM nodes
             arr.splice(0, arr.length);
 
             await new Promise(resolve => requestAnimationFrame(resolve));
@@ -1106,10 +1101,8 @@ describe('slot/ArraySlot', () => {
             await new Promise(resolve => requestAnimationFrame(resolve));
 
             expect(cleanups).toBe(3);
-            // Every cleanup ran while the rows were still connected (before the wipe)
             expect(spansAtCleanup.every(count => count === 3)).toBe(true);
             expect(container.querySelectorAll('span').length).toBe(0);
-            // Only the internal marker remains
             expect(container.childNodes.length).toBe(1);
             expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
 
@@ -1155,7 +1148,6 @@ describe('slot/ArraySlot', () => {
             expect(unflaggedCleanups).toBe(2);
             expect(flaggedHost.querySelectorAll('span').length).toBe(0);
             expect(unflaggedHost.querySelectorAll('span').length).toBe(0);
-            // Both retain exactly the internal marker comment
             expect(flaggedHost.childNodes.length).toBe(1);
             expect(unflaggedHost.childNodes.length).toBe(1);
             expect(flaggedHost.firstChild?.nodeType).toBe(Node.COMMENT_NODE);

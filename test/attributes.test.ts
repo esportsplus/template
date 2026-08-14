@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { signal, read, write } from '@esportsplus/reactivity';
-import { setList, setProperty, setProperties } from '../src/attributes';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { read, signal, write } from '@esportsplus/reactivity';
+import { setList, setProperties, setProperty } from '../src/attributes';
 import type { Element } from '../src/types';
 
 
@@ -95,7 +95,6 @@ describe('attributes', () => {
         it('applies class list from string', () => {
             setList(element as unknown as Element, 'class', 'foo bar baz');
 
-            // Class values are applied to className
             expect(element.className).toContain('foo');
             expect(element.className).toContain('bar');
             expect(element.className).toContain('baz');
@@ -326,7 +325,6 @@ describe('attributes', () => {
 
             setList(element as unknown as Element, 'class', () => classes);
 
-            // Reactive functions update the element className through the effect system
             expect(element.className).toContain('foo');
             expect(element.className).toContain('bar');
         });
@@ -336,7 +334,6 @@ describe('attributes', () => {
 
             setList(element as unknown as Element, 'style', () => style);
 
-            // Reactive functions update the element style through the effect system
             expect(element.getAttribute('style')).toContain('color');
         });
     });

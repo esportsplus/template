@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ts } from '@esportsplus/typescript';
-import { analyze, fold } from '../../src/compiler/ts-analyzer';
 import { PACKAGE_NAME, TYPES } from '../../src/compiler/constants';
+import { analyze, fold } from '../../src/compiler/ts-analyzer';
 
 
 function createExpression(code: string): ts.Expression {
@@ -49,7 +49,6 @@ function createProgram(code: string): { checker: ts.TypeChecker; expr: ts.Expres
         checker = program.getTypeChecker(),
         sourceFile = program.getSourceFile('test.ts')!;
 
-    // Find the target expression (last variable declaration's initializer)
     let statements = sourceFile.statements,
         lastStatement = statements[statements.length - 1] as ts.VariableStatement,
         declaration = lastStatement.declarationList.declarations[0],
@@ -142,11 +141,9 @@ describe('compiler/ts-analyzer', () => {
         });
 
         it('identifies undefined keyword as Static', () => {
-            // Note: The identifier 'undefined' in TypeScript is analyzed as Unknown
-            // because it's an identifier, not a keyword
+            // 'undefined' is an identifier, not a keyword, so without a checker it falls to Unknown
             let expr = createExpression('undefined');
 
-            // undefined as identifier falls to Unknown without type checker
             expect(analyze(expr)).toBe(TYPES.Unknown);
         });
 
@@ -225,7 +222,6 @@ describe('compiler/ts-analyzer', () => {
         });
 
         it('identifies ternary with both Static branches as Static', () => {
-            // Both 42 and "string" are Static literals
             let expr = createExpression('condition ? 42 : "string"');
 
             expect(analyze(expr)).toBe(TYPES.Static);
@@ -416,12 +412,11 @@ describe('compiler/ts-analyzer', () => {
         });
 
         it('identifies empty union as non-function (returns Unknown)', () => {
-            // never type has empty union
+            // never has zero call signatures and is not a union, so Unknown
             let result = createProgramAndAnalyze(
                 'declare const n: never;\nlet target = n;'
             );
 
-            // never has zero call signatures and is not a union, so Unknown
             expect(result).toBe(TYPES.Unknown);
         });
     });

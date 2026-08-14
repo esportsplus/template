@@ -1,15 +1,15 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { signal, read, write } from '@esportsplus/reactivity';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { read, signal, write } from '@esportsplus/reactivity';
 import { ANCHOR_LAST, ANCHOR_SOLE } from '../../src/constants';
-import { EffectSlot } from '../../src/slot/effect';
 import { ondisconnect } from '../../src/slot/cleanup';
+import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
 import type { Element } from '../../src/types';
 
 
 describe('slot/EffectSlot', () => {
-    let container: HTMLElement,
-        anchor: Element;
+    let anchor: Element,
+        container: HTMLElement;
 
     beforeEach(() => {
         container = document.createElement('div');
@@ -64,20 +64,19 @@ describe('slot/EffectSlot', () => {
         it('renders null as empty', () => {
             new EffectSlot(anchor, () => null);
 
-            // Should not add any text content besides the anchor
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.textContent).toBe('');
         });
 
         it('renders false as empty', () => {
             new EffectSlot(anchor, () => false);
 
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.textContent).toBe('');
         });
 
         it('renders undefined as empty', () => {
             new EffectSlot(anchor, () => undefined);
 
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.textContent).toBe('');
         });
     });
 
@@ -157,7 +156,6 @@ describe('slot/EffectSlot', () => {
 
             slot.dispose();
 
-            // After dispose, anchor and content are removed
             expect(container.textContent).not.toContain('Content');
         });
 
@@ -190,7 +188,6 @@ describe('slot/EffectSlot', () => {
             let slot = new EffectSlot(anchor, () => value);
             let textnode = slot.textnode;
 
-            // Simulate update by calling update directly
             slot.update('Second');
 
             expect(slot.textnode).toBe(textnode);
@@ -302,12 +299,10 @@ describe('slot/EffectSlot', () => {
 
             expect(slot.textnode?.isConnected).toBe(true);
 
-            // Manually remove textnode from DOM
             slot.textnode!.parentNode!.removeChild(slot.textnode!);
 
             expect(slot.textnode?.isConnected).toBe(false);
 
-            // Direct update should reattach
             slot.update('Updated');
 
             expect(slot.textnode?.isConnected).toBe(true);
@@ -319,8 +314,7 @@ describe('slot/EffectSlot', () => {
         it('handles empty string', () => {
             new EffectSlot(anchor, () => '');
 
-            // Empty string renders as empty text
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.textContent).toBe('');
         });
 
         it('handles 0', () => {
@@ -332,7 +326,7 @@ describe('slot/EffectSlot', () => {
         it('handles empty array', () => {
             new EffectSlot(anchor, () => []);
 
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.textContent).toBe('');
         });
 
         it('handles special characters', () => {

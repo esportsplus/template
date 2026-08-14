@@ -1,12 +1,13 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import slot from '../../src/slot';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { marker } from '../../src/utilities';
 import type { Element } from '../../src/types';
 
+import slot from '../../src/slot';
+
 
 describe('slot/index', () => {
-    let container: HTMLElement,
-        anchor: Element;
+    let anchor: Element,
+        container: HTMLElement;
 
     beforeEach(() => {
         container = document.createElement('div');
@@ -101,7 +102,6 @@ describe('slot/index', () => {
         it('handles null', () => {
             slot(anchor, null);
 
-            // Should not add content after anchor
             expect(container.childNodes.length).toBe(1);
         });
 

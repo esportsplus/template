@@ -149,7 +149,8 @@ describe('slot/EffectSlot (async)', () => {
             new EffectSlot(anchor, async () => null);
 
             await vi.waitFor(() => {
-                expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+                expect(container.lastChild?.nodeType).toBe(Node.TEXT_NODE);
+                expect(container.lastChild?.nodeValue).toBe('');
             });
         });
 
@@ -157,7 +158,8 @@ describe('slot/EffectSlot (async)', () => {
             new EffectSlot(anchor, async () => false);
 
             await vi.waitFor(() => {
-                expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+                expect(container.lastChild?.nodeType).toBe(Node.TEXT_NODE);
+                expect(container.lastChild?.nodeValue).toBe('');
             });
         });
     });
@@ -181,13 +183,14 @@ describe('slot/EffectSlot (async)', () => {
     });
 
     describe('error handling', () => {
-        it('does not crash when async function rejects', async () => {
+        it('renders nothing when async function rejects (rejection swallowed)', async () => {
             new EffectSlot(anchor, async () => {
                 throw new Error('async failure');
             });
 
             await vi.waitFor(() => {
-                expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+                expect(container.childNodes.length).toBe(1);
+                expect(container.firstChild).toBe(anchor as unknown as Node);
             });
         });
 
@@ -208,16 +211,8 @@ describe('slot/EffectSlot (async)', () => {
             new EffectSlot(anchor, async () => undefined);
 
             await vi.waitFor(() => {
-                let nodes = container.childNodes;
-                let found = false;
-
-                for (let i = 0, n = nodes.length; i < n; i++) {
-                    if (nodes[i].nodeType === 3) {
-                        found = true;
-                    }
-                }
-
-                expect(found).toBe(true);
+                expect(container.lastChild?.nodeType).toBe(Node.TEXT_NODE);
+                expect(container.lastChild?.nodeValue).toBe('');
             });
         });
 

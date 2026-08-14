@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { dispose, ondisconnect, remove } from '../../src/slot/cleanup';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLEANUP } from '../../src/constants';
+import { dispose, ondisconnect, remove } from '../../src/slot/cleanup';
 import type { Element, SlotGroup } from '../../src/types';
 
 
@@ -93,7 +93,7 @@ describe('slot/cleanup', () => {
 
             remove(group);
 
-            expect(callOrder).toEqual([3, 2, 1]); // Popped in reverse
+            expect(callOrder).toEqual([3, 2, 1]);
         });
 
         it('removes range of elements (head to tail)', () => {

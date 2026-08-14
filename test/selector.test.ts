@@ -69,8 +69,9 @@ describe('signal.selector', () => {
     });
 
     it('stays bounded across repeated subscribe/dispose cycles', () => {
-        const CYCLES = 5,
-            N = 50;
+        const CYCLES = 5;
+
+        const N = 50;
 
         let source = signal(0) as Signal<number>;
 

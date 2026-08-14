@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { NAMESPACE } from '../../src/compiler/constants';
 
 
-// Reconstruct the same regex and injection logic from vite.ts for unit testing
-// the regex replacement behavior in isolation
-let TEMPLATE_SEARCH = NAMESPACE + '.template(',
-    TEMPLATE_CALL_REGEX = new RegExp(
-        '(const\\s+(\\w+)\\s*=\\s*' + NAMESPACE + '\\.template\\()(`)',
-        'g'
-    );
+// Mirrors vite.ts regex + injection logic to exercise the replacement behavior in isolation
+const TEMPLATE_CALL_REGEX = new RegExp(
+    '(const\\s+(\\w+)\\s*=\\s*' + NAMESPACE + '\\.template\\()(`)',
+    'g'
+);
+
+const TEMPLATE_SEARCH = NAMESPACE + '.template(';
+
 
 function injectHMR(code: string, id: string): string {
     let hmrId = id.replace(/\\/g, '/'),
@@ -113,7 +114,6 @@ describe('compiler/vite-hmr', () => {
             let mod = await import('../../src/compiler/plugins/vite');
             let plugin = mod.default();
 
-            // Should not throw
             plugin.configResolved({ command: 'serve', root: '/test' });
         });
 
@@ -184,9 +184,6 @@ describe('compiler/vite-hmr', () => {
 
             let result = plugin.transform(source, fileId);
 
-            // The base plugin should compile the html template, then injectHMR
-            // should replace template() calls with createHotTemplate() and append
-            // import.meta.hot.accept block (vite.ts lines 33-45, 69-75)
             expect(result).not.toBeNull();
             expect(result!.code).toContain('createHotTemplate');
             expect(result!.code).toContain('import.meta.hot');
@@ -203,7 +200,6 @@ describe('compiler/vite-hmr', () => {
 
             let result = plugin.transform(source, fileId);
 
-            // Should compile templates but NOT inject HMR in build mode
             if (result) {
                 expect(result.code).not.toContain('createHotTemplate');
                 expect(result.code).not.toContain('import.meta.hot');

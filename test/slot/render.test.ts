@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { render } from '../../src/slot';
 import { fragment, marker, text } from '../../src/utilities';
 import type { Element } from '../../src/types';
@@ -154,8 +154,7 @@ describe('slot/render', () => {
             let result = render(anchor, ['Keep', null, false, '', 'Also Keep']);
 
             expect(result).toBeInstanceOf(DocumentFragment);
-            // render doesn't filter - it processes each item
-            // null/false/'' return empty fragments which have no children
+            // render does not filter — null/false/'' yield empty fragments, so only real values produce nodes
             expect(result.childNodes[0].nodeValue).toBe('Keep');
             expect(result.childNodes[1].nodeValue).toBe('Also Keep');
         });

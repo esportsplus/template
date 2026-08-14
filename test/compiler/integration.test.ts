@@ -80,7 +80,7 @@ function pipeline(source: string): TransformResult {
         imports.push('html');
     }
 
-    // Apply replacements to source in reverse order to preserve positions
+    // Apply replacements in reverse order so earlier offsets stay valid
     let output = source;
 
     replacements.sort((a, b) => b.start - a.start);
@@ -91,7 +91,6 @@ function pipeline(source: string): TransformResult {
         output = output.slice(0, r.start) + r.code + output.slice(r.end);
     }
 
-    // Prepend template factories
     if (prepend.length > 0) {
         output = prepend.join('\n') + '\n' + output;
     }
@@ -131,12 +130,10 @@ describe('compiler/integration', () => {
             let source = `import { html } from '@esportsplus/template';\nlet el = html\`<button onclick=\${handler}>click</button>\`;`,
                 { output, prepend } = pipeline(source);
 
-            // Event attributes stripped from template HTML
             expect(prepend.length).toBe(1);
             expect(prepend[0]).not.toContain('onclick');
             expect(prepend[0]).toContain(`${NAMESPACE}.template(`);
 
-            // Delegation code generated
             expect(output).toContain(`${NAMESPACE}.delegate(`);
             expect(output).toContain("'click'");
             expect(output).toContain('handler');
@@ -152,14 +149,10 @@ describe('compiler/integration', () => {
                 ].join('\n'),
                 { output, prepend, replacements } = pipeline(source);
 
-            // Two different templates = two factories
             expect(prepend.length).toBe(2);
             expect(replacements.length).toBe(2);
-
-            // Both rewritten - no html`` left
             expect(output).not.toContain('html`');
 
-            // Both template factories present
             let hasFirst = prepend.some(p => p.includes('<div>first')),
                 hasSecond = prepend.some(p => p.includes('<span>second'));
 
@@ -173,7 +166,6 @@ describe('compiler/integration', () => {
             let source = `import { html } from '@esportsplus/template';\nlet el = html\`<div>\${html\`<span>inner</span>\`}</div>\`;`,
                 { output, prepend } = pipeline(source);
 
-            // Outer + inner = 2 template factories
             expect(prepend.length).toBe(2);
 
             let hasOuter = prepend.some(p => p.includes('<div>')),
@@ -182,7 +174,7 @@ describe('compiler/integration', () => {
             expect(hasOuter).toBe(true);
             expect(hasInner).toBe(true);
 
-            // Nested html`` rewritten; sole-child slot elides its marker and appends to the parent
+            // Sole-child slot elides its marker and appends to the parent
             expect(output).not.toContain('html`');
             expect(output).toContain('appendChild');
         });
@@ -193,14 +185,11 @@ describe('compiler/integration', () => {
             let source = `import { html } from '@esportsplus/template';\nlet el = html.reactive(items, (item) => html\`<li>\${item}</li>\`);`,
                 { output, prepend } = pipeline(source);
 
-            // Template factory for callback template
             expect(prepend.length).toBeGreaterThanOrEqual(1);
 
             let hasLi = prepend.some(p => p.includes('<li>'));
 
             expect(hasLi).toBe(true);
-
-            // ArraySlot generated
             expect(output).toContain(`${NAMESPACE}.ArraySlot`);
             expect(output).toContain('items');
             expect(output).not.toContain('html.reactive');
@@ -234,16 +223,13 @@ describe('compiler/integration', () => {
                 ].join('\n'),
                 { output, prepend } = pipeline(source);
 
-            // Template factory generated
             expect(prepend.length).toBe(1);
 
-            // Non-template code preserved
             expect(output).toContain(`import { signal } from '@esportsplus/reactivity';`);
             expect(output).toContain(`let count = signal(0);`);
             expect(output).toContain(`let label = 'Counter';`);
             expect(output).toContain(`console.log('done');`);
 
-            // Template rewritten
             expect(output).not.toContain('html`');
             expect(output).toContain(`${NAMESPACE}.setList(`);
             expect(output).toContain(`${NAMESPACE}.EffectSlot`);

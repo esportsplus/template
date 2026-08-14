@@ -55,12 +55,11 @@ describe('compiler/ts-parser', () => {
             expect(templates[0].expressions).toEqual([]);
         });
 
-        it('no html import → returns empty array', () => {
+        it('no html import → still matched by tag name (no checker)', () => {
             let source = `let x = html\`<div>hello</div>\`;`;
             let sourceFile = createSourceFile(source);
             let templates = findHtmlTemplates(sourceFile);
 
-            // Without type checker, tag name match alone is sufficient
             expect(templates.length).toBe(1);
         });
 
@@ -109,7 +108,6 @@ describe('compiler/ts-parser', () => {
             let templates = findHtmlTemplates(sourceFile);
 
             expect(templates.length).toBe(2);
-            // Sorted deepest first
             expect(templates[0].depth).toBeGreaterThanOrEqual(templates[1].depth);
         });
 
@@ -123,9 +121,8 @@ describe('compiler/ts-parser', () => {
             let templates = findHtmlTemplates(sourceFile);
 
             expect(templates.length).toBe(3);
-            // First template should be deepest (the inner one from arrow fn)
             expect(templates[0].depth).toBeGreaterThan(templates[1].depth);
-            // Same-depth items sorted by position ascending
+
             let sameDepthtemplates = templates.filter(t => t.depth === 0);
 
             for (let i = 1, n = sameDepthtemplates.length; i < n; i++) {

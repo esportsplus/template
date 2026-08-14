@@ -138,8 +138,7 @@ describe('compiler/transform', () => {
                 "let x = html`<div>${html.reactive(items, (item) => html`<li>${item}</li>`)}</div>`;"
             ));
 
-            // The reactive call inside the template is handled by codegen, not as a standalone call
-            // Should still have replacements (for the outer template)
+            // Inner reactive call is handled by codegen, not as a standalone top-level call
             expect(result.replacements).toBeDefined();
             expect(result.replacements!.length).toBeGreaterThan(0);
         });
@@ -152,7 +151,6 @@ describe('compiler/transform', () => {
             ));
 
             expect(result.replacements).toBeDefined();
-            // One for the template, one for the reactive call
             expect(result.replacements!.length).toBe(2);
         });
     });

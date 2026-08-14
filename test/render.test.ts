@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
 import render from '../src/render';
-import { marker } from '../src/utilities';
 
 
 describe('render', () => {
@@ -31,7 +31,6 @@ describe('render', () => {
         it('appends content after anchor', () => {
             render(container, 'New Content');
 
-            // Content should be present after anchor marker
             expect(container.textContent).toContain('New Content');
         });
 
@@ -56,7 +55,6 @@ describe('render', () => {
         it('creates EffectSlot for function', () => {
             render(container, () => 'Effect Content');
 
-            // EffectSlot should render the content
             expect(container.textContent).toContain('Effect Content');
         });
     });
@@ -123,26 +121,29 @@ describe('render', () => {
         it('handles null', () => {
             render(container, null);
 
-            // Should not throw, marker should be present
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.childNodes.length).toBe(1);
+            expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
 
         it('handles undefined', () => {
             render(container, undefined);
 
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.childNodes.length).toBe(1);
+            expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
 
         it('handles false', () => {
             render(container, false);
 
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.childNodes.length).toBe(1);
+            expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
 
         it('handles empty string', () => {
             render(container, '');
 
-            expect(container.childNodes.length).toBeGreaterThanOrEqual(1);
+            expect(container.childNodes.length).toBe(1);
+            expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
 
         it('renders 0', () => {

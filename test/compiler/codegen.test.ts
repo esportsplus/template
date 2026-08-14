@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ts } from '@esportsplus/typescript';
 import { generateCode, rewriteExpression } from '../../src/compiler/codegen';
-import { findHtmlTemplates } from '../../src/compiler/ts-parser';
 import { NAMESPACE } from '../../src/compiler/constants';
+import { findHtmlTemplates } from '../../src/compiler/ts-parser';
 
 
 function codegen(source: string) {
@@ -12,8 +12,7 @@ function codegen(source: string) {
     return { result: generateCode(templates, sourceFile), sourceFile, templates };
 }
 
-// Discovers templates without a checker (skips the import guard) but runs codegen WITH a real
-// checker so fold() can resolve const identifiers to their literal types
+// Runs codegen with a real checker so fold() can resolve const identifiers to their literal types
 function codegenWithProgram(source: string) {
     let compilerOptions: ts.CompilerOptions = {
             lib: ['lib.es2020.d.ts'],
@@ -64,7 +63,6 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let x = html\`<div>hello</div>\`;`);
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
-            // Static template without slots just calls the template factory
             expect(code).toMatch(/^[a-zA-Z_$][\w$]*\(\)$/);
         });
     });
@@ -77,7 +75,6 @@ describe('compiler/codegen', () => {
 
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
-            // Should contain slot() call for unknown type expression
             expect(code).toContain(`${NAMESPACE}.slot(`);
             expect(code).toContain('value');
             expect(code).toContain('return');
@@ -212,7 +209,6 @@ describe('compiler/codegen', () => {
         it('generates nested template with own factory', () => {
             let { result } = codegen(`let x = html\`<div>\${html\`<span>inner</span>\`}</div>\`;`);
 
-            // Outer template + inner template
             expect(result.templates.size).toBe(2);
             expect(result.prepend).toHaveLength(2);
         });
@@ -220,7 +216,6 @@ describe('compiler/codegen', () => {
         it('rewrites nested html`` in expressions', () => {
             let { result } = codegen(`let x = html\`<div>\${condition ? html\`<span>a</span>\` : html\`<em>b</em>\`}</div>\`;`);
 
-            // Outer + 2 inner templates
             expect(result.templates.size).toBe(3);
             expect(result.prepend).toHaveLength(3);
         });
@@ -291,7 +286,6 @@ describe('compiler/codegen', () => {
         it('deduplicates identical template literals', () => {
             let { result } = codegen(`let a = html\`<div>same</div>\`; let b = html\`<div>same</div>\`;`);
 
-            // Same HTML should produce only one template factory
             expect(result.templates.size).toBe(1);
             expect(result.prepend).toHaveLength(1);
             expect(result.replacements).toHaveLength(2);
@@ -343,7 +337,6 @@ describe('compiler/codegen', () => {
             let expr = templates[0].expressions[0],
                 rewritten = rewriteExpression(ctx, expr);
 
-            // Nested html`` should be rewritten to template factory call
             expect(rewritten).not.toContain('html`');
         });
 
@@ -430,17 +423,12 @@ describe('compiler/codegen', () => {
         });
 
         it('method declaration in object literal throws on print (EmitHint.Expression limitation)', () => {
-            // MethodDeclaration is not an Expression node, so printer.printNode
-            // with EmitHint.Expression throws a debug assertion error during codegen
+            // MethodDeclaration is not an Expression node, so EmitHint.Expression printing throws
             expect(() => {
                 codegen(`let x = html\`<div \${{ onclick() { return true; } }}>text</div>\`;`);
             }).toThrow();
         });
     });
-
-    // codegen.ts:170-171 (path.length === 0) and :176-177 (nodes.has(key)) are defensive
-    // guards unreachable via normal parser output. Parser always produces paths with at
-    // least ["firstChild"] and packs all attributes per element into a single slot entry.
 
     describe('generateCode - marker elision (sole/last-child slots)', () => {
         it('emits 3-arg EffectSlot (sole flag) for sole-child function slot', () => {
@@ -500,7 +488,6 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let fn = () => html\`<div>static</div>\`;`);
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
-            // Should be just the template ID (no () call, no IIFE)
             expect(code).not.toContain('()');
             expect(code).not.toContain('return');
         });
@@ -509,7 +496,6 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let fn = () => html\`<div>\${value}</div>\`;`);
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
-            // Arrow body with slots uses block syntax
             expect(code).toContain('{');
             expect(code).toContain('return');
         });
@@ -576,7 +562,6 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let x = html\`<div>\${"a<b"}</div>\`;`);
             let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
 
-            // Unsafe charset stays a runtime binding (Static text node), never folded into HTML
             expect(code).toContain(`${NAMESPACE}.text(`);
         });
 
