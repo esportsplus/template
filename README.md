@@ -287,20 +287,6 @@ const circle = (fill: string) =>
     </svg>`;
 ```
 
-### SVG Sprites
-
-`svg` is a dedicated sprite helper that creates `<use>` references to SVG sprite sheets:
-
-```typescript
-import { svg } from '@esportsplus/template';
-
-// Generates <svg><use href="#icon-name" /></svg>
-const icon = svg('icon-name');
-
-// Hash prefix is added automatically if missing
-const icon2 = svg('#icon-name');
-```
-
 ## API Reference
 
 ### Exports
@@ -308,7 +294,6 @@ const icon2 = svg('#icon-name');
 | Export | Description |
 |--------|-------------|
 | `html` | Template literal tag for HTML and SVG |
-| `svg` | SVG sprite helper — `<use>` reference to a sprite sheet |
 | `render` | Mount renderable to DOM element |
 | `setList` | Set class/style list attributes with merge support |
 | `setProperty` | Set a single element property/attribute |
