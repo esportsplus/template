@@ -11,8 +11,11 @@ type Ctx = {
 
 
 const ATTRS = ['class', 'style', 'title'];
+
 const DENSE = 1000;
+
 const NODES = 1000;
+
 const SPARSE = 10;
 
 
@@ -38,13 +41,11 @@ function paint(ctx: Ctx, name: string, value: string) {
 }
 
 
-// Current model: attribute queue reallocates `updates` per drain, EffectSlot allocates
-// a raf closure per scheduled slot, ontick iterates a separate Set. Three drains.
+// Current model: attribute queue reallocates updates per drain, EffectSlot allocates a raf closure per slot, ontick iterates a separate Set — three drains
 function frameCurrent(nodes: Ctx[], dirty: number) {
     let queue: Ctx[] = [],
         ticks = new Set<VoidFunction>();
 
-    // Reactive layer writes values + schedules (attributes.ts schedule()).
     for (let i = 0; i < dirty; i++) {
         let ctx = nodes[i],
             updates = (ctx.updates = {});
@@ -58,14 +59,12 @@ function frameCurrent(nodes: Ctx[], dirty: number) {
             queue.push(ctx);
         }
 
-        // EffectSlot: a fresh closure captured per scheduled slot (slot/effect.ts:55).
         ticks.add(() => {
             ctx.scheduled = false;
             ctx.textnode.nodeValue = 'v' + i;
         });
     }
 
-    // Drain 1: attribute queue.
     for (let i = 0, n = queue.length; i < n; i++) {
         let ctx = queue[i],
             updates = ctx.updates;
@@ -82,14 +81,12 @@ function frameCurrent(nodes: Ctx[], dirty: number) {
         ctx.updating = false;
     }
 
-    // Drain 2: per-slot raf closures.
     for (let tick of ticks) {
         tick();
     }
 }
 
-// Unified model: one queue, one drain, reused updates buffer (null-out, no realloc),
-// slot text write called inline (no closure), tick folded into the same pass.
+// Unified model: one queue, one drain, reused updates buffer (null-out, no realloc), inline slot text write, tick folded into the same pass
 function frameUnified(nodes: Ctx[], dirty: number) {
     let queue: Ctx[] = [];
 

@@ -28,8 +28,8 @@ describe('attributes - apply', () => {
 
 describe('attributes - class list rebuild', () => {
     bench('Set for..of + string concat', () => {
-        let set = new Set(['alpha', 'beta', 'gamma', 'delta', 'epsilon']),
-            result = '';
+        let result = '',
+            set = new Set(['alpha', 'beta', 'gamma', 'delta', 'epsilon']);
 
         for (let key of set) {
             result += (result ? ' ' : '') + key;
@@ -43,8 +43,8 @@ describe('attributes - class list rebuild', () => {
     });
 
     bench('set forEach + string concat', () => {
-        let set = new Set(['alpha', 'beta', 'gamma', 'delta', 'epsilon']),
-            result = '';
+        let result = '',
+            set = new Set(['alpha', 'beta', 'gamma', 'delta', 'epsilon']);
 
         set.forEach(key => {
             result += (result ? ' ' : '') + key;
@@ -148,8 +148,8 @@ describe('array sync - fragment append', () => {
 
 
 describe('array sort - full resync vs minimal moves', () => {
-    let parent: HTMLDivElement,
-        fragment: DocumentFragment;
+    let fragment: DocumentFragment,
+        parent: HTMLDivElement;
 
     bench('full detach + reattach (current)', () => {
         parent = document.createElement('div');
@@ -161,7 +161,6 @@ describe('array sort - full resync vs minimal moves', () => {
 
         let children = Array.from(parent.children);
 
-        // Simulate: detach all, reattach in new order
         for (let i = 0, n = children.length; i < n; i++) {
             fragment.append(children[i]);
         }
@@ -178,7 +177,6 @@ describe('array sort - full resync vs minimal moves', () => {
 
         let children = Array.from(parent.children);
 
-        // Simulate: only move 5 out of 50 elements (90% stay)
         for (let i = 0; i < 5; i++) {
             let idx = Math.floor(Math.random() * children.length);
 

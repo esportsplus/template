@@ -16,8 +16,7 @@ let data: Signal<number>[] = [],
     tick = 0;
 
 
-// Expando property names route apply() through its terminal element[name] branch,
-// so the per-write branch chain + ownerSVGElement lookup dominate the drain
+// Expando names route apply() through its terminal element[name] branch so the per-write branch chain + ownerSVGElement lookup dominate the drain
 for (let i = 0; i < NODES; i++) {
     let element = document.createElement('div') as unknown as Element,
         set: Signal<number>[] = [];

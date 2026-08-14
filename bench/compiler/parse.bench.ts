@@ -1,12 +1,12 @@
 import { bench, describe } from 'vitest';
+
 import parser from '../../src/compiler/parser';
 
 
 const ELEMENTS = 50;
 
 
-// One literal per slot boundary: `parse` receives the template's literals exactly as the tagged
-// template hands them over, so each shape below differs only in the text abutting its markers
+// One literal per slot boundary: parse receives the tagged template's literals verbatim, so each shape differs only in the text abutting its markers
 function build(n: number, head: string, tail: string): string[] {
     let literals: string[] = [];
 

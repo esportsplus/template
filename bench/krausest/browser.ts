@@ -8,10 +8,10 @@ let container = document.createElement('div');
 
 document.body.appendChild(container);
 
-let results = run(create(container), flush, () => {
+let pre = document.createElement('pre'),
+    results = run(create(container), flush, () => {
         void (container as HTMLElement).offsetHeight;
-    }),
-    pre = document.createElement('pre');
+    });
 
 pre.id = 'results';
 pre.textContent = JSON.stringify({ results });

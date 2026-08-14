@@ -2,8 +2,8 @@
 import { flush } from '../krausest/setup';
 import { reactive } from '@esportsplus/reactivity';
 import { bench, describe } from 'vitest';
-import { dispose, remove } from '../../src/slot/cleanup';
 import { ArraySlot } from '../../src/slot/array';
+import { dispose, remove } from '../../src/slot/cleanup';
 import { SlotGroup } from '../../src/types';
 import { template } from '../../src/utilities';
 
@@ -42,8 +42,7 @@ function row(value: number) {
 }
 
 
-// Detached single-node groups isolate the walk + call overhead the variadic
-// signature adds, instead of drowning it in jsdom mount cost
+// Detached single-node groups isolate the variadic signature's walk + call overhead instead of drowning it in jsdom mount cost
 describe('slot/cleanup — bulk group teardown (10k detached groups)', () => {
     let pool = groups(10000);
 

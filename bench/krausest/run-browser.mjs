@@ -65,8 +65,8 @@ let bundle = esbuild().buildSync({
         target: 'es2024',
         write: false
     }),
-    label = process.env.BENCH_LABEL || 'browser',
-    js = bundle.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+    js = bundle.outputFiles[0].text.replace(/<\/script/gi, '<\\/script'),
+    label = process.env.BENCH_LABEL || 'browser';
 
 mkdirSync(STORAGE, { recursive: true });
 

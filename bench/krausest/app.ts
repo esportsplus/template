@@ -1,6 +1,6 @@
 import { reactive, read, signal, write, ReactiveArray, Signal } from '@esportsplus/reactivity';
-import { ANCHOR_SOLE } from '../../src/constants';
 import { setList } from '../../src/attributes';
+import { ANCHOR_SOLE } from '../../src/constants';
 import { delegate } from '../../src/event';
 import { ArraySlot } from '../../src/slot/array';
 import { EffectSlot } from '../../src/slot/effect';
@@ -29,8 +29,7 @@ const EMPTY_STATICS: Record<string, string> = {};
 
 const NOUNS = ['table', 'chair', 'house', 'bbq', 'desk', 'car', 'pony', 'cookie', 'sandwich', 'burger', 'pizza', 'mouse', 'keyboard'];
 
-// Hand-written equivalents of the compiler's `template()` hoists for the app + row html`` literals
-// Sole-child node slots elide their <!--$--> markers (id cell text, label anchor, tbody ArraySlot)
+// Hand-written equivalents of the compiler's template() hoists; sole-child slots elide their <!--$--> markers
 const ROW = template('<tr><td class="col-md-1"></td><td class="col-md-4"><a></a></td><td class="col-md-1"><a><span class="glyphicon glyphicon-remove" aria-hidden="true"></span></a></td><td class="col-md-6"></td></tr>');
 
 const TABLE = template('<table class="table table-hover table-striped test-data"><tbody></tbody></table>');
@@ -61,8 +60,7 @@ function random(max: number) {
     return seed % max;
 }
 
-// Shared handlers: one fn per operation for the whole table (mirrors `onclick=${[fn, data]}`
-// compiler output) so rows carry per-row data instead of allocating a closure each
+// Shared handlers: one fn per table op (mirrors onclick=${[fn, data]}) so rows carry data instead of a closure each
 function removeRow(this: Element, data: Row) {
     rows.splice(rows.indexOf(data), 1);
 }
@@ -94,9 +92,9 @@ const create = (container: HTMLElement) => {
     }
 
     let fragment = TABLE(),
+        slot = new ArraySlot(rows, row as (value: Row) => DocumentFragment, true),
         table = fragment.firstChild as Element,
-        tbody = table.firstChild as Element,
-        slot = new ArraySlot(rows, row as (value: Row) => DocumentFragment, true);
+        tbody = table.firstChild as Element;
 
     tbody.appendChild(slot.fragment);
     container.appendChild(fragment as unknown as Node);

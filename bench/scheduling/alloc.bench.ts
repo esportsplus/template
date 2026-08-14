@@ -19,8 +19,7 @@ let counter = 0,
     texts: Signal<number>[] = [];
 
 
-// Expando property names + text nodes keep jsdom attribute machinery out of the
-// measurement, so scheduling bookkeeping + allocation churn dominate each frame
+// Expando property names + text nodes keep jsdom attribute machinery out of the measurement so scheduling bookkeeping + allocation churn dominate each frame
 for (let i = 0; i < NODES; i++) {
     let anchor = document.createElement('div') as unknown as Element,
         prop = signal(0),

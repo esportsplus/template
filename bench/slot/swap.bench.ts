@@ -34,6 +34,14 @@ function build(n: number): Row[] {
     return items;
 }
 
+// Row-count guard: the baseline set path can drop groups, degenerating later iterations into empty-table ops that invalidate the comparison
+function reset() {
+    if (rows.length !== SIZE) {
+        rows.splice(0, rows.length, ...build(SIZE));
+        flush();
+    }
+}
+
 function row(data: Row) {
     let fragment = ROW() as DocumentFragment,
         tr = fragment.firstChild as Element,
@@ -44,15 +52,6 @@ function row(data: Row) {
     new EffectSlot(labelLink, () => read(data.label), ANCHOR_SOLE);
 
     return fragment;
-}
-
-// Row-count guard: the baseline set path can drop groups, which would degenerate
-// later iterations into empty-table ops and invalidate the comparison
-function reset() {
-    if (rows.length !== SIZE) {
-        rows.splice(0, rows.length, ...build(SIZE));
-        flush();
-    }
 }
 
 
