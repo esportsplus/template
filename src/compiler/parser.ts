@@ -287,7 +287,13 @@ const parse = (literals: string[]) => {
             }
 
             if (type === NODE_CLOSING) {
-                level--;
+                // A void-classified element (rect, circle, path, input, ...) never opened a level,
+                // so an explicit end tag for it is redundant markup the fragment parser drops.
+                // Popping a level here corrupts every following sibling/child path, so skip it.
+                // The same lowercased lookup as the open scan keeps open/close symmetric.
+                if (NODE_WHITELIST[match[0].slice(2, -1).trim().toLowerCase()] !== NODE_VOID) {
+                    level--;
+                }
             }
             else {
                 parent.children++;

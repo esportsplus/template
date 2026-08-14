@@ -407,6 +407,22 @@ describe('compiler/parser', () => {
             expect(result.slots!.length).toBe(1);
             expect(result.slots![0].type).toBe(TYPES.Node);
         });
+
+        it('nests the path when a void child carries an explicit end tag', () => {
+            // </rect> is redundant markup - it must not pop the <svg> level, or the slot in the
+            // following <g> collapses to a root-level ['firstChild','nextSibling'] path
+            let closed = parser.parse(['<svg><rect></rect><g>', '</g></svg>']),
+                selfClosed = parser.parse(['<svg><rect/><g>', '</g></svg>']);
+
+            expect(closed.slots![0].path).toEqual(['firstChild', 'firstElementChild', 'nextElementSibling']);
+            expect(closed.slots![0].path).toEqual(selfClosed.slots![0].path);
+        });
+
+        it('keeps the sibling path after a closed void element', () => {
+            let result = parser.parse(['<svg><circle r="1"></circle><text>', '</text></svg>']);
+
+            expect(result.slots![0].path).toEqual(['firstChild', 'firstElementChild', 'nextElementSibling']);
+        });
     });
 
     describe('parse - path generation', () => {
