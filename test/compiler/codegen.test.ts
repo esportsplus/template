@@ -177,6 +177,19 @@ describe('compiler/codegen', () => {
 
             expect(code).toContain(`${NAMESPACE}.onresize(`);
         });
+
+        it('treats a bare spread after an event attribute as its own binding, not the event handler', () => {
+            // Whitespace between markers collapses upstream, so `onanimationend=${h} ${rest}` reaches
+            // the parser as two abutting markers. The spread must emit setProperties — it must not
+            // inherit the preceding event name and compile to a second delegate('animationend', rest).
+            let { result } = codegen(`let x = html\`<div onanimationend=\${handler} \${rest}>text</div>\`;`);
+            let code = result.replacements[0].generate(ts.createSourceFile('', '', ts.ScriptTarget.Latest));
+            let delegates = code.match(new RegExp(`${NAMESPACE}\\.delegate\\(`, 'g')) || [];
+
+            expect(delegates).toHaveLength(1);
+            expect(code).toContain(`${NAMESPACE}.setProperties(`);
+            expect(code).toContain('rest');
+        });
     });
 
     describe('generateCode - delegated tuple handlers', () => {

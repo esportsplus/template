@@ -79,7 +79,7 @@ class ArraySlot<T> {
     readonly fragment: DocumentFragment;
 
 
-    constructor(private array: Reactive<T[]>, template: ((value: Reactive<T[]>[number]) => ReturnType<typeof html>), soleChild: boolean = false) {
+    constructor(private array: Reactive<T[]>, template: ((value: Reactive<T[]>[number]) => ReturnType<typeof html> | Text), soleChild: boolean = false) {
         let fragment = this.fragment = clone(EMPTY_FRAGMENT);
 
         this.marker = marker.cloneNode() as unknown as Element;

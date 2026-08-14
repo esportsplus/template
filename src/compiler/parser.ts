@@ -95,6 +95,19 @@ function metadata(found: string): AttributeMetadata {
             clean += SLOT_MARKER;
             i += SLOT_MARKER.length - 1;
             pending = parts.length - 1;
+
+            // A quoted value ('a ${x} b ${y}') groups several markers under one attribute name,
+            // so keep `attribute` while the quote is open. An unquoted attribute value (name=${x})
+            // or a bare spread (${x}) is a single, self-contained marker — the next marker cannot
+            // belong to the same attribute. Whitespace between markers is collapsed upstream, so
+            // abutting markers reach here with no separator to reset `attribute`; clear it now, or
+            // the following marker inherits this one's name (e.g. a spread after onanimationend=${}
+            // wrongly compiling to delegate('animationend', spread)).
+            if (!quote) {
+                attribute = '';
+                delimiter = '';
+            }
+
             continue;
         }
         else if (char === '=' && !quote) {
