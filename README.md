@@ -276,29 +276,29 @@ const input = (focus: () => void, blur: () => void) =>
 
 ## SVG Support
 
-Use `svg` for SVG templates:
+Use `html` for SVG templates — the compiler handles SVG elements natively:
 
 ```typescript
-import { svg } from '@esportsplus/template';
+import { html } from '@esportsplus/template';
 
 const circle = (fill: string) =>
-    svg`<svg width="100" height="100">
+    html`<svg width="100" height="100">
         <circle cx="50" cy="50" r="40" fill="${fill}"/>
     </svg>`;
 ```
 
 ### SVG Sprites
 
-Use `svg.sprite` to create `<use>` references to SVG sprite sheets:
+`svg` is a dedicated sprite helper that creates `<use>` references to SVG sprite sheets:
 
 ```typescript
 import { svg } from '@esportsplus/template';
 
 // Generates <svg><use href="#icon-name" /></svg>
-const icon = svg.sprite('icon-name');
+const icon = svg('icon-name');
 
 // Hash prefix is added automatically if missing
-const icon2 = svg.sprite('#icon-name');
+const icon2 = svg('#icon-name');
 ```
 
 ## API Reference
@@ -307,8 +307,8 @@ const icon2 = svg.sprite('#icon-name');
 
 | Export | Description |
 |--------|-------------|
-| `html` | Template literal tag for HTML |
-| `svg` | Template literal tag for SVG (+ `svg.sprite()`) |
+| `html` | Template literal tag for HTML and SVG |
+| `svg` | SVG sprite helper — `<use>` reference to a sprite sheet |
 | `render` | Mount renderable to DOM element |
 | `setList` | Set class/style list attributes with merge support |
 | `setProperty` | Set a single element property/attribute |

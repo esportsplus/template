@@ -1,17 +1,12 @@
 import { setProperty } from './attributes';
 import { template } from './utilities';
 import { Element } from './types';
-import html from './html';
 
 
 let factory = template('<svg><use /></svg>');
 
 
-const svg = html.bind(null) as typeof html & {
-    sprite: (href: string) => DocumentFragment
-};
-
-svg.sprite = (href: string) => {
+export default (href: string) => {
     if (href[0] !== '#') {
         href = '#' + href;
     }
@@ -22,6 +17,3 @@ svg.sprite = (href: string) => {
 
     return root;
 };
-
-
-export default svg;
