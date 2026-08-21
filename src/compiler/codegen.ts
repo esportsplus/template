@@ -2,14 +2,14 @@ import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compil
 import type { TemplateInfo } from './ts-parser';
 import { analyze, fold, selectorComparison } from './ts-analyzer';
 import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, TYPES } from './constants';
+import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME, TYPES } from './constants';
 import { extractTemplateParts } from './ts-parser';
 import { ts } from '@esportsplus/typescript';
 import parser from './parser';
 
 
 type CodegenContext = {
-    checker?: ts.TypeChecker;
+    checker?: ts.Checker;
     parseCache?: Map<string, ParseResult>;
     prefoldCache?: WeakMap<ts.Node, { expressions: ts.Expression[]; literals: string[] }>;
     selectorFired?: boolean;
@@ -28,9 +28,6 @@ type ParseResult = ReturnType<typeof parser.parse>;
 
 
 const SIGNAL = 'signal';
-
-
-let printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
 
 
 function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: { end: number; start: number; text: string }[], inObserver: boolean): void {
@@ -81,7 +78,7 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
 
     let childObserver = inObserver || ts.isArrowFunction(node) || ts.isFunctionExpression(node);
 
-    ts.forEachChild(node, child => collectNestedReplacements(ctx, child, replacements, childObserver));
+    node.forEachChild(child => collectNestedReplacements(ctx, child, replacements, childObserver));
 }
 
 function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void {
@@ -99,7 +96,7 @@ function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void
         return;
     }
 
-    ts.forEachChild(node, child => discoverTemplatesInExpression(ctx, child));
+    node.forEachChild(child => discoverTemplatesInExpression(ctx, child));
 }
 
 function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string, exprNode?: ts.Expression): string {
@@ -330,7 +327,7 @@ function generateTemplateCode(
                                         );
                                     }
                                 }
-                                else if (ts.isShorthandPropertyAssignment(prop)) {
+                                else if (ts.isShorthandPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
                                     let propName = prop.name.text;
 
                                     code.push(
@@ -343,16 +340,7 @@ function generateTemplateCode(
                                     );
                                 }
                                 else if (ts.isMethodDeclaration(prop) && ts.isIdentifier(prop.name)) {
-                                    let propName = prop.name.text;
-
-                                    code.push(
-                                        generateAttributeBinding(
-                                            ctx,
-                                            element,
-                                            propName,
-                                            printer.printNode(ts.EmitHint.Expression, prop, ctx.sourceFile)
-                                        )
-                                    );
+                                    throw new Error(`${PACKAGE_NAME}: method declarations are not supported in spread attribute object literals`);
                                 }
                             }
                         }
@@ -490,7 +478,7 @@ function parseCached(ctx: CodegenContext, literals: string[]): ParseResult {
 // rides the template clone (as text or a static attribute token) instead of a runtime binding.
 // This is the only safe splice point — post-parse HTML rewriting would invalidate the
 // sibling-count-derived node paths of later slots.
-function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.TypeChecker): { expressions: ts.Expression[]; literals: string[] } {
+function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.Checker): { expressions: ts.Expression[]; literals: string[] } {
     if (expressions.length === 0) {
         return { expressions, literals };
     }
@@ -528,7 +516,7 @@ function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], e
 }
 
 
-const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, checker?: ts.TypeChecker, callRanges: { end: number; start: number }[] = []): CodegenResult => {
+const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, checker?: ts.Checker, callRanges: { end: number; start: number }[] = []): CodegenResult => {
     let result: CodegenResult = {
             prepend: [],
             replacements: [],
@@ -625,10 +613,10 @@ const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => 
     let replacements: { end: number; start: number; text: string }[] = [],
         rootObserver = ts.isArrowFunction(expr) || ts.isFunctionExpression(expr);
 
-    ts.forEachChild(expr, child => collectNestedReplacements(ctx, child, replacements, rootObserver));
+    expr.forEachChild(child => collectNestedReplacements(ctx, child, replacements, rootObserver));
 
     if (replacements.length === 0) {
-        return printer.printNode(ts.EmitHint.Expression, expr, ctx.sourceFile);
+        return expr.getText(ctx.sourceFile);
     }
 
     let start = expr.getStart(ctx.sourceFile),
@@ -646,5 +634,5 @@ const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => 
 }
 
 
-export { generateCode, printer, rewriteExpression };
+export { generateCode, rewriteExpression };
 export type { CodegenResult };

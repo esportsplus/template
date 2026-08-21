@@ -2,7 +2,7 @@ import { ts } from '@esportsplus/typescript';
 import { ast, imports as sourceImports } from '@esportsplus/typescript/compiler';
 import type { ImportIntent, ReplacementIntent, TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME } from './constants';
-import { generateCode, printer,  rewriteExpression } from './codegen';
+import { generateCode, rewriteExpression } from './codegen';
 import { findTemplateArtifacts } from './ts-parser';
 
 
@@ -76,7 +76,7 @@ export default {
 
             replacements.push({
                 generate: (sourceFile) => `new ${NAMESPACE}.ArraySlot(
-                    ${printer.printNode(ts.EmitHint.Expression, call.arrayArg, sourceFile)},
+                    ${call.arrayArg.getText(sourceFile)},
                     ${rewrittenCallback}
                 )`,
                 node: call.node

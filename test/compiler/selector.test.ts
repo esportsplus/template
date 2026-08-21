@@ -1,31 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { ts } from '@esportsplus/typescript';
+import { languageService } from '@esportsplus/typescript/compiler';
 import { selectorComparison } from '../../src/compiler/ts-analyzer';
 
 import transform from '../../src/compiler';
 
 
-function createCheckerContext(source: string) {
-    let fileName = 'selector-test.ts',
-        sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true),
-        host: ts.CompilerHost = {
-            fileExists: (f) => f === fileName,
-            getCanonicalFileName: (f) => f,
-            getCurrentDirectory: () => '',
-            getDefaultLibFileName: () => 'lib.d.ts',
-            getNewLine: () => '\n',
-            getSourceFile: (f) => (f === fileName ? sourceFile : undefined),
-            readFile: () => undefined,
-            useCaseSensitiveFileNames: () => true,
-            writeFile: () => {}
-        },
-        program = ts.createProgram([fileName], { noLib: true, target: ts.ScriptTarget.Latest }, host);
+const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
 
-    return { checker: program.getTypeChecker(), sourceFile: program.getSourceFile(fileName)! };
+
+function createCheckerContext(source: string) {
+    let { checker, sourceFile } = languageService.scratch(process.cwd() + '/selector-test.ts', source);
+
+    return { checker, sourceFile };
 }
 
 function createContext(source: string) {
-    let sourceFile = ts.createSourceFile('test.ts', source, ts.ScriptTarget.Latest, true);
+    let sourceFile = languageService.parse(process.cwd() + '/test.ts', source);
 
     return { checker: undefined, sourceFile };
 }
@@ -41,7 +32,7 @@ function findBinary(node: ts.Node): ts.BinaryExpression | undefined {
 
     let found: ts.BinaryExpression | undefined;
 
-    ts.forEachChild(node, (child) => {
+    node.forEachChild((child) => {
         if (!found) {
             found = findBinary(child);
         }
@@ -51,10 +42,9 @@ function findBinary(node: ts.Node): ts.BinaryExpression | undefined {
 }
 
 function generatedCode(source: string): string {
-    let dummy = ts.createSourceFile('', '', ts.ScriptTarget.Latest),
-        result = transform.transform(createContext(source));
+    let result = transform.transform(createContext(source));
 
-    return (result.replacements || []).map((r) => r.generate(dummy)).join('\n');
+    return (result.replacements || []).map((r) => r.generate(EMPTY)).join('\n');
 }
 
 function signalIntent(source: string) {

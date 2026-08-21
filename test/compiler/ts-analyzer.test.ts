@@ -1,16 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ts } from '@esportsplus/typescript';
+import { languageService } from '@esportsplus/typescript/compiler';
 import { PACKAGE_NAME, TYPES } from '../../src/compiler/constants';
 import { analyze, fold } from '../../src/compiler/ts-analyzer';
 
 
 function createExpression(code: string): ts.Expression {
-    let sourceFile = ts.createSourceFile(
-        'test.ts',
-        `let x = ${code};`,
-        ts.ScriptTarget.Latest,
-        true
-    );
+    let sourceFile = languageService.parse(process.cwd() + '/test.ts', `let x = ${code};`);
 
     let statement = sourceFile.statements[0] as ts.VariableStatement,
         declaration = statement.declarationList.declarations[0];
@@ -18,36 +14,8 @@ function createExpression(code: string): ts.Expression {
     return declaration.initializer!;
 }
 
-function createProgram(code: string): { checker: ts.TypeChecker; expr: ts.Expression } {
-    let compilerOptions: ts.CompilerOptions = {
-            lib: ['lib.es2020.d.ts'],
-            noEmit: true,
-            strict: true,
-            target: ts.ScriptTarget.ES2020
-        },
-        host = ts.createCompilerHost(compilerOptions),
-        originalFileExists = host.fileExists,
-        originalReadFile = host.readFile;
-
-    host.readFile = (fileName: string) => {
-        if (fileName === 'test.ts') {
-            return code;
-        }
-
-        return originalReadFile.call(host, fileName);
-    };
-
-    host.fileExists = (fileName: string) => {
-        if (fileName === 'test.ts') {
-            return true;
-        }
-
-        return originalFileExists.call(host, fileName);
-    };
-
-    let program = ts.createProgram(['test.ts'], compilerOptions, host),
-        checker = program.getTypeChecker(),
-        sourceFile = program.getSourceFile('test.ts')!;
+function createProgram(code: string): { checker: ts.Checker; expr: ts.Expression } {
+    let { checker, sourceFile } = languageService.scratch(process.cwd() + '/test.ts', code);
 
     let statements = sourceFile.statements,
         lastStatement = statements[statements.length - 1] as ts.VariableStatement,
@@ -170,12 +138,7 @@ describe('compiler/ts-analyzer', () => {
 
     describe('analyze - DocumentFragment detection', () => {
         it('identifies html tagged template as DocumentFragment', () => {
-            let sourceFile = ts.createSourceFile(
-                'test.ts',
-                `let x = html\`<div>hello</div>\`;`,
-                ts.ScriptTarget.Latest,
-                true
-            );
+            let sourceFile = languageService.parse(process.cwd() + '/test.ts', `let x = html\`<div>hello</div>\`;`);
 
             let statement = sourceFile.statements[0] as ts.VariableStatement,
                 declaration = statement.declarationList.declarations[0],
@@ -187,12 +150,7 @@ describe('compiler/ts-analyzer', () => {
 
     describe('analyze - ArraySlot detection', () => {
         it('identifies html.reactive call as ArraySlot', () => {
-            let sourceFile = ts.createSourceFile(
-                'test.ts',
-                `let x = html.reactive(items, (item) => html\`<li>\${item}</li>\`);`,
-                ts.ScriptTarget.Latest,
-                true
-            );
+            let sourceFile = languageService.parse(process.cwd() + '/test.ts', `let x = html.reactive(items, (item) => html\`<li>\${item}</li>\`);`);
 
             let statement = sourceFile.statements[0] as ts.VariableStatement,
                 declaration = statement.declarationList.declarations[0],
@@ -306,12 +264,7 @@ describe('compiler/ts-analyzer', () => {
         });
 
         it('handles bigint literal', () => {
-            let sourceFile = ts.createSourceFile(
-                'test.ts',
-                `let x = 9007199254740991n;`,
-                ts.ScriptTarget.Latest,
-                true
-            );
+            let sourceFile = languageService.parse(process.cwd() + '/test.ts', `let x = 9007199254740991n;`);
 
             let statement = sourceFile.statements[0] as ts.VariableStatement,
                 declaration = statement.declarationList.declarations[0],
@@ -429,7 +382,7 @@ describe('compiler/ts-analyzer', () => {
                     getTypeAtLocation() {
                         throw new Error('checker exploded');
                     }
-                } as unknown as ts.TypeChecker;
+                } as unknown as ts.Checker;
 
             let result = analyze(expr, throwingChecker);
 

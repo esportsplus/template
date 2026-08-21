@@ -27,7 +27,7 @@ function byDepthThenStart(a: TemplateInfo, b: TemplateInfo): number {
     return a.depth !== b.depth ? b.depth - a.depth : a.start - b.start;
 }
 
-function matchReactiveCall(node: ts.Node, calls: ReactiveCallInfo[], checker: ts.TypeChecker | undefined): void {
+function matchReactiveCall(node: ts.Node, calls: ReactiveCallInfo[], checker: ts.Checker | undefined): void {
     if (
         ts.isCallExpression(node) &&
         ts.isPropertyAccessExpression(node.expression) &&
@@ -47,7 +47,7 @@ function matchReactiveCall(node: ts.Node, calls: ReactiveCallInfo[], checker: ts
     }
 }
 
-function matchTemplate(node: ts.Node, depth: number, templates: TemplateInfo[], checker: ts.TypeChecker | undefined): void {
+function matchTemplate(node: ts.Node, depth: number, templates: TemplateInfo[], checker: ts.Checker | undefined): void {
     if (
         ts.isTaggedTemplateExpression(node) &&
         ts.isIdentifier(node.tag) &&
@@ -73,27 +73,27 @@ function nextDepth(node: ts.Node, depth: number): number {
         : depth;
 }
 
-function visitArtifacts(node: ts.Node, depth: number, templates: TemplateInfo[], calls: ReactiveCallInfo[], checker: ts.TypeChecker | undefined): void {
+function visitArtifacts(node: ts.Node, depth: number, templates: TemplateInfo[], calls: ReactiveCallInfo[], checker: ts.Checker | undefined): void {
     matchReactiveCall(node, calls, checker);
     matchTemplate(node, depth, templates, checker);
 
     let d = nextDepth(node, depth);
 
-    ts.forEachChild(node, child => visitArtifacts(child, d, templates, calls, checker));
+    node.forEachChild(child => visitArtifacts(child, d, templates, calls, checker));
 }
 
-function visitReactiveCalls(node: ts.Node, calls: ReactiveCallInfo[], checker: ts.TypeChecker | undefined): void {
+function visitReactiveCalls(node: ts.Node, calls: ReactiveCallInfo[], checker: ts.Checker | undefined): void {
     matchReactiveCall(node, calls, checker);
 
-    ts.forEachChild(node, child => visitReactiveCalls(child, calls, checker));
+    node.forEachChild(child => visitReactiveCalls(child, calls, checker));
 }
 
-function visitTemplates(node: ts.Node, depth: number, templates: TemplateInfo[], checker: ts.TypeChecker | undefined): void {
+function visitTemplates(node: ts.Node, depth: number, templates: TemplateInfo[], checker: ts.Checker | undefined): void {
     matchTemplate(node, depth, templates, checker);
 
     let d = nextDepth(node, depth);
 
-    ts.forEachChild(node, child => visitTemplates(child, d, templates, checker));
+    node.forEachChild(child => visitTemplates(child, d, templates, checker));
 }
 
 
@@ -118,7 +118,7 @@ const extractTemplateParts = (template: ts.TemplateLiteral): { expressions: ts.E
     return { expressions, literals };
 };
 
-const findHtmlTemplates = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker): TemplateInfo[] => {
+const findHtmlTemplates = (sourceFile: ts.SourceFile, checker?: ts.Checker): TemplateInfo[] => {
     let templates: TemplateInfo[] = [];
 
     visitTemplates(sourceFile, 0, templates, checker);
@@ -126,7 +126,7 @@ const findHtmlTemplates = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker):
     return templates.sort(byDepthThenStart);
 };
 
-const findReactiveCalls = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker): ReactiveCallInfo[] => {
+const findReactiveCalls = (sourceFile: ts.SourceFile, checker?: ts.Checker): ReactiveCallInfo[] => {
     let calls: ReactiveCallInfo[] = [];
 
     visitReactiveCalls(sourceFile, calls, checker);
@@ -136,7 +136,7 @@ const findReactiveCalls = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker):
 
 // One AST walk collecting both templates and reactive calls — the transform entrypoint's
 // path, replacing a separate findHtmlTemplates + findReactiveCalls pass over the same tree.
-const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.TypeChecker): { calls: ReactiveCallInfo[]; templates: TemplateInfo[] } => {
+const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker): { calls: ReactiveCallInfo[]; templates: TemplateInfo[] } => {
     let calls: ReactiveCallInfo[] = [],
         templates: TemplateInfo[] = [];
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ts } from '@esportsplus/typescript';
-import { ast } from '@esportsplus/typescript/compiler';
+import { ast, languageService } from '@esportsplus/typescript/compiler';
 import { generateCode, rewriteExpression } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findHtmlTemplates, findReactiveCalls } from '../../src/compiler/ts-parser';
@@ -20,7 +19,7 @@ function pipeline(source: string): TransformResult {
         imports: string[] = [],
         prepend: string[] = [],
         replacements: { code: string; end: number; start: number }[] = [],
-        sourceFile = ts.createSourceFile('test.ts', source, ts.ScriptTarget.Latest, true),
+        sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
         templates = findHtmlTemplates(sourceFile);
 
     let ranges: { end: number; start: number }[] = [];

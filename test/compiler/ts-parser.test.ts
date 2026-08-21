@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ts } from '@esportsplus/typescript';
+import { languageService } from '@esportsplus/typescript/compiler';
 import { extractTemplateParts, findHtmlTemplates, findReactiveCalls } from '../../src/compiler/ts-parser';
 
 
 function createSourceFile(code: string): ts.SourceFile {
-    return ts.createSourceFile('test.ts', code, ts.ScriptTarget.Latest, true);
+    return languageService.parse(process.cwd() + '/test.ts', code);
 }
 
 

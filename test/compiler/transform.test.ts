@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { ts } from '@esportsplus/typescript';
+import { languageService } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE } from '../../src/compiler/constants';
 
 import transform from '../../src/compiler';
 
 
+const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
+
+
 function createContext(source: string) {
-    let sourceFile = ts.createSourceFile('test.ts', source, ts.ScriptTarget.Latest, true);
+    let sourceFile = languageService.parse(process.cwd() + '/test.ts', source);
 
     return { checker: undefined, sourceFile };
 }
@@ -76,7 +79,7 @@ describe('compiler/transform', () => {
 
         it('replacement generates code for template', () => {
             let result = transform.transform(createContext("let x = html`<div>hello</div>`;"));
-            let sourceFile = ts.createSourceFile('', '', ts.ScriptTarget.Latest);
+            let sourceFile = EMPTY;
             let code = result.replacements![0].generate(sourceFile);
 
             expect(code).toBeTruthy();
@@ -84,7 +87,7 @@ describe('compiler/transform', () => {
 
         it('handles template with expression slot', () => {
             let result = transform.transform(createContext("let x = html`<div>${value}</div>`;"));
-            let sourceFile = ts.createSourceFile('', '', ts.ScriptTarget.Latest);
+            let sourceFile = EMPTY;
             let code = result.replacements![0].generate(sourceFile);
 
             expect(code).toContain(NAMESPACE + '.slot(');
@@ -127,7 +130,7 @@ describe('compiler/transform', () => {
             let result = transform.transform(createContext(
                 "let x = html.reactive(items, (item) => html`<li>${item}</li>`);"
             ));
-            let sourceFile = ts.createSourceFile('', '', ts.ScriptTarget.Latest);
+            let sourceFile = EMPTY;
             let code = result.replacements![0].generate(sourceFile);
 
             expect(code).toContain(NAMESPACE + '.ArraySlot');

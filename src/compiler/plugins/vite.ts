@@ -10,7 +10,7 @@ type VitePlugin = {
     enforce: 'pre';
     handleHotUpdate?: (ctx: { file: string; modules: any[] }) => void;
     name: string;
-    transform: (code: string, id: string) => { code: string; map: null } | null;
+    transform: (code: string, id: string) => { code: string; map: unknown } | null;
     watchChange: (id: string) => void;
 };
 

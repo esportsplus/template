@@ -22,7 +22,7 @@ const REGEX_FOLD_SAFE = /^[^&<>"'`]*$/;
 // A `read(sig)` call from @esportsplus/reactivity: exactly one argument, and — when a
 // checker is available — an identity match against the reactivity import; without a checker
 // (the checker-less transform harness) the guard degrades to a plain name match on `read`
-function isReadCall(expr: ts.Expression, checker?: ts.TypeChecker): expr is ts.CallExpression {
+function isReadCall(expr: ts.Expression, checker?: ts.Checker): expr is ts.CallExpression {
     return (
         ts.isCallExpression(expr) &&
         ts.isIdentifier(expr.expression) &&
@@ -34,26 +34,28 @@ function isReadCall(expr: ts.Expression, checker?: ts.TypeChecker): expr is ts.C
 
 // Union types that mix functions with non-functions (e.g., Renderable)
 // should fall through to runtime slot dispatch
-function isTypeFunction(type: ts.Type, checker: ts.TypeChecker): boolean {
-    if (type.isUnion()) {
-        for (let i = 0, n = type.types.length; i < n; i++) {
-            if (!isTypeFunction(type.types[i], checker)) {
+function isTypeFunction(type: ts.Type, checker: ts.Checker): boolean {
+    if (type.isUnionType()) {
+        let types = type.getTypes();
+
+        for (let i = 0, n = types.length; i < n; i++) {
+            if (!isTypeFunction(types[i], checker)) {
                 return false;
             }
         }
 
-        return type.types.length > 0;
+        return types.length > 0;
     }
 
-    return type.getCallSignatures().length > 0;
+    return checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0;
 }
 
 function literal(type: ts.Type): string | null {
-    if (type.isStringLiteral()) {
+    if (type.isStringLiteralType()) {
         return type.value;
     }
 
-    if (type.isNumberLiteral()) {
+    if (type.isNumberLiteralType()) {
         return String(type.value);
     }
 
@@ -61,7 +63,7 @@ function literal(type: ts.Type): string | null {
 }
 
 
-const analyze = (expr: ts.Expression, checker?: ts.TypeChecker): TYPES => {
+const analyze = (expr: ts.Expression, checker?: ts.Checker): TYPES => {
     while (ts.isParenthesizedExpression(expr)) {
         expr = expr.expression;
     }
@@ -118,7 +120,9 @@ const analyze = (expr: ts.Expression, checker?: ts.TypeChecker): TYPES => {
 
     if (checker && (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr) || ts.isCallExpression(expr))) {
         try {
-            if (isTypeFunction(checker.getTypeAtLocation(expr), checker)) {
+            let type = checker.getTypeAtLocation(expr);
+
+            if (type && isTypeFunction(type, checker)) {
                 return TYPES.Effect;
             }
         }
@@ -130,7 +134,7 @@ const analyze = (expr: ts.Expression, checker?: ts.TypeChecker): TYPES => {
     return TYPES.Unknown;
 };
 
-const fold = (expr: ts.Expression, checker?: ts.TypeChecker): string | null => {
+const fold = (expr: ts.Expression, checker?: ts.Checker): string | null => {
     while (ts.isAsExpression(expr) || ts.isParenthesizedExpression(expr) || ts.isSatisfiesExpression(expr)) {
         expr = expr.expression;
     }
@@ -147,13 +151,15 @@ const fold = (expr: ts.Expression, checker?: ts.TypeChecker): string | null => {
         value = 'false';
     }
     else if (checker && (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr))) {
-        value = literal(checker.getTypeAtLocation(expr));
+        let type = checker.getTypeAtLocation(expr);
+
+        value = type ? literal(type) : null;
     }
 
     return (value !== null && REGEX_FOLD_SAFE.test(value)) ? value : null;
 };
 
-const selectorComparison = (expr: ts.Expression, checker?: ts.TypeChecker): SelectorComparison | null => {
+const selectorComparison = (expr: ts.Expression, checker?: ts.Checker): SelectorComparison | null => {
     if (
         !ts.isBinaryExpression(expr) ||
         (expr.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken &&
