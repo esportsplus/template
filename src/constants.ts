@@ -14,14 +14,39 @@ const ATTRIBUTE_DELIMITERS: Record<string, string> = {
 const CLEANUP = Symbol('template.cleanup');
 
 const DIRECT_ATTACH_EVENTS = new Set<string>([
+    'onabort',
     'onblur',
+    'oncancel',
+    'oncanplay',
+    'oncanplaythrough',
+    'onclose',
+    'ondurationchange',
+    'onemptied',
+    'onended',
     'onerror',
     'onfocus', 'onfocusin', 'onfocusout',
+    'oninvalid',
+    'onloadeddata',
+    'onloadedmetadata',
     'onload',
+    'onloadstart',
     'onmouseenter', 'onmouseleave',
-    'onplay', 'onpause', 'onended', 'ontimeupdate',
+    'onpause',
+    'onplay',
+    'onplaying',
+    'onpointerenter', 'onpointerleave',
+    'onprogress',
+    'onratechange',
     'onreset',
-    'onscroll', 'onsubmit'
+    'onscroll',
+    'onseeked', 'onseeking',
+    'onstalled',
+    'onsubmit',
+    'onsuspend',
+    'ontimeupdate',
+    'ontoggle',
+    'onvolumechange',
+    'onwaiting'
 ]);
 
 const LIFECYCLE_EVENTS = new Set<string>([

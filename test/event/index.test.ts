@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { delegate, on, ondisconnect, onrender, runtime } from '../../src/event';
 import { CLEANUP } from '../../src/constants';
+import { remove } from '../../src/slot/cleanup';
 import type { Element } from '../../src/types';
 
 
@@ -219,14 +220,13 @@ describe('event/index', () => {
             expect(thisValue).toBe(element);
         });
 
-        it('registers cleanup function for removal', () => {
+        it('does not register cleanup for removal', () => {
             let element = document.createElement('input') as HTMLElement & { [key: symbol]: unknown };
 
             container.appendChild(element);
             on(element as unknown as Element, 'focus', () => {});
 
-            expect(element[CLEANUP]).toBeInstanceOf(Array);
-            expect((element[CLEANUP] as unknown[]).length).toBeGreaterThan(0);
+            expect(element[CLEANUP]).toBeUndefined();
         });
     });
 
@@ -376,6 +376,17 @@ describe('event/index', () => {
 
             expect(submitted).toBe(true);
         });
+
+        it('routes pointerenter to direct attach', () => {
+            let element = document.createElement('div') as Element,
+                entered = false;
+
+            container.appendChild(element as unknown as Node);
+            runtime(element, 'onpointerenter', () => { entered = true; });
+            element.dispatchEvent(new Event('pointerenter'));
+
+            expect(entered).toBe(true);
+        });
     });
 
     describe('event delegation storage', () => {
@@ -396,7 +407,7 @@ describe('event/index', () => {
         });
     });
 
-    describe('delegate cleanup and currentTarget', () => {
+    describe('delegate lifecycle and currentTarget', () => {
         it('sets currentTarget to the element with the handler during delegation', () => {
             let element = document.createElement('button') as Element,
                 capturedTarget: EventTarget | null = null;
@@ -411,38 +422,27 @@ describe('event/index', () => {
             expect(capturedTarget).toBe(element);
         });
 
-        it('registers cleanup via ondisconnect for controlled events', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown };
+        it('keeps delegated listeners after another element disconnects', () => {
+            let a = document.createElement('div') as Element,
+                b = document.createElement('div') as Element,
+                c = document.createElement('div') as Element,
+                calls: string[] = [];
 
-            container.appendChild(element);
+            container.append(a as unknown as Node, b as unknown as Node);
+            delegate(a, 'mousemove', () => calls.push('a'));
+            delegate(b, 'mousemove', () => calls.push('b'));
+            remove([{ head: a, tail: a }]);
+            b.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            container.appendChild(c as unknown as Node);
+            delegate(c, 'mousemove', () => calls.push('c'));
+            c.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 
-            // Use 'mousemove' which has an AbortController pre-registered in controllers map.
-            // First delegate call for this event triggers register(), which creates the
-            // controller and registers cleanup via ondisconnect.
-            delegate(element as unknown as Element, 'mousemove', () => {});
-
-            let cleanups = element[CLEANUP] as VoidFunction[];
-
-            expect(cleanups).toBeDefined();
-            expect(cleanups.length).toBeGreaterThan(0);
-
-            // Trigger cleanup — enters the ondisconnect callback which decrements
-            // controller.listeners. When it reaches 0, it attempts abort().
-            // Note: In jsdom, destructured AbortController.abort() throws due to
-            // private field access, but the decrement/branch logic is still executed.
-            try {
-                for (let i = 0, n = cleanups.length; i < n; i++) {
-                    cleanups[i]();
-                }
-            }
-            catch {
-                // Expected in jsdom due to destructured abort() losing context
-            }
+            expect(calls).toEqual(['b', 'c']);
         });
     });
 
-    describe('on() cleanup', () => {
-        it('on() registers cleanup that removes listener on disconnect', () => {
+    describe('on() lifecycle', () => {
+        it('keeps direct listeners without disconnect cleanup', () => {
             let element = document.createElement('input') as HTMLElement & { [key: symbol]: unknown },
                 callCount = 0;
 
@@ -453,17 +453,7 @@ describe('event/index', () => {
 
             expect(callCount).toBe(1);
 
-            // Trigger cleanup
-            let cleanups = element[CLEANUP] as VoidFunction[];
-
-            for (let i = 0, n = cleanups.length; i < n; i++) {
-                cleanups[i]();
-            }
-
-            // After cleanup, listener should be removed
-            element.dispatchEvent(new Event('input'));
-
-            expect(callCount).toBe(1);
+            expect(element[CLEANUP]).toBeUndefined();
         });
     });
 

@@ -8,10 +8,7 @@ import onresize from './onresize';
 import ontick from './ontick';
 
 
-let controllers = new Map<string, (AbortController & { listeners: number }) | null>(
-        ['mousemove', 'scroll', 'touchend', 'touchmove', 'touchstart', 'wheel'].map(key => [key, null])
-    ),
-    dataKeys: Record<string, symbol> = {},
+let dataKeys: Record<string, symbol> = {},
     host = window.document,
     keys: Record<string, symbol> = {},
     passive = new Set<string>([
@@ -24,37 +21,7 @@ let controllers = new Map<string, (AbortController & { listeners: number }) | nu
     ]);
 
 
-function register(element: Element, event: string) {
-    let controller = controllers.get(event),
-        signal: AbortController['signal'] | undefined;
-
-    if (controller === null) {
-        let c = new AbortController();
-
-        controllers.set(
-            event,
-            controller = {
-                abort: c.abort.bind(c),
-                signal: c.signal,
-                listeners: 0,
-            }
-        );
-    }
-
-    if (controller) {
-        controller.listeners++;
-
-        ondisconnect(element, () => {
-            if (--controller.listeners) {
-                return;
-            }
-
-            controller.abort();
-            controllers.set(event, null);
-        });
-        signal = controller.signal;
-    }
-
+function register(event: string) {
     let dataKey = dataKeys[event] = Symbol(),
         key = keys[event] = Symbol();
 
@@ -82,8 +49,7 @@ function register(element: Element, event: string) {
             node = node.parentElement as Element | null;
         }
     }, {
-        passive: passive.has(event),
-        signal
+        passive: passive.has(event)
     });
 
     return key;
@@ -91,7 +57,7 @@ function register(element: Element, event: string) {
 
 
 const delegate = <E extends string>(element: Element, event: E, listener: Attributes[`on${E}`], data?: unknown): void => {
-    element[ keys[event] || register(element, event) ] = listener;
+    element[ keys[event] || register(event) ] = listener;
 
     if (data !== undefined) {
         element[ dataKeys[event] ] = data;
@@ -106,9 +72,6 @@ const on = <E extends string>(element: Element, event: E, listener: Attributes[`
         passive: passive.has(event)
     });
 
-    ondisconnect(element, () => {
-        element.removeEventListener(event, handler);
-    });
 };
 
 const ondisconnect = (element: Element, listener: NonNullable<Attributes[`ondisconnect`]>) => {

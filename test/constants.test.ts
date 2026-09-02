@@ -82,6 +82,14 @@ describe('constants', () => {
             expect(DIRECT_ATTACH_EVENTS.has('onmouseleave')).toBe(true);
         });
 
+        it('contains non-bubbling events', () => {
+            expect(DIRECT_ATTACH_EVENTS.has('onpointerenter')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('onpointerleave')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('ontoggle')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('oninvalid')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('onclose')).toBe(true);
+        });
+
         it('contains scroll event', () => {
             expect(DIRECT_ATTACH_EVENTS.has('onscroll')).toBe(true);
         });
