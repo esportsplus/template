@@ -1,15 +1,9 @@
 import { ts } from '@esportsplus/typescript';
 import { ast, imports as sourceImports } from '@esportsplus/typescript/compiler';
 import type { ImportIntent, ReplacementIntent, TransformContext } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME } from './constants';
+import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME, PACKAGE_REACTIVITY, SIGNAL } from './constants';
 import { generateCode, rewriteExpression } from './codegen';
 import { findTemplateArtifacts } from './ts-parser';
-
-
-const PACKAGE_REACTIVITY = '@esportsplus/reactivity';
-
-const SIGNAL = 'signal';
-
 
 function hasSignalImport(sourceFile: ts.SourceFile): boolean {
     let infos = sourceImports.all(sourceFile, PACKAGE_REACTIVITY);
@@ -39,7 +33,13 @@ export default {
             remove: string[] = [],
             replacements: ReplacementIntent[] = [],
             selectorFired = false,
-            templates = artifacts.templates;
+            templates = artifacts.templates,
+            codegenContext = {
+                checker: ctx.checker,
+                selectorFired: false,
+                sourceFile: ctx.sourceFile,
+                templates: callTemplates
+            };
 
         for (let i = 0, n = templates.length; i < n; i++) {
             ranges.push({
@@ -64,13 +64,7 @@ export default {
             });
 
             // Pre-compute the rewritten callback to capture templates
-            let codegenContext = {
-                    checker: ctx.checker,
-                    selectorFired: false,
-                    sourceFile: ctx.sourceFile,
-                    templates: callTemplates
-                },
-                rewrittenCallback = rewriteExpression(codegenContext, call.callbackArg);
+            let rewrittenCallback = rewriteExpression(codegenContext, call.callbackArg);
 
             selectorFired ||= codegenContext.selectorFired;
 
@@ -83,18 +77,24 @@ export default {
             });
         }
 
-        // Add template definitions from reactive call callbacks
-        for (let [html, id] of callTemplates) {
-            prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
-        }
-
         if (templates.length > 0) {
-            let result = generateCode(templates, ctx.sourceFile, ctx.checker, callRanges);
+            let result = generateCode(templates, ctx.sourceFile, ctx.checker, callRanges, callTemplates);
 
             prepend.push(...result.prepend);
             replacements.push(...result.replacements);
             remove.push(ENTRYPOINT);
             selectorFired ||= result.selectorFired;
+
+            if (result.prepend.length === 0) {
+                for (let [html, id] of callTemplates) {
+                    prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
+                }
+            }
+        }
+        else {
+            for (let [html, id] of callTemplates) {
+                prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
+            }
         }
 
         if (replacements.length === 0 && prepend.length === 0) {

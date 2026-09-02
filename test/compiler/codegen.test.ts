@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { languageService } from '@esportsplus/typescript/compiler';
 import { generateCode, rewriteExpression } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
-import { findHtmlTemplates } from '../../src/compiler/ts-parser';
+import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 
 
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
@@ -10,7 +10,7 @@ const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
 
 function codegen(source: string) {
     let sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-        templates = findHtmlTemplates(sourceFile);
+        templates = findTemplateArtifacts(sourceFile).templates;
 
     return { result: generateCode(templates, sourceFile), sourceFile, templates };
 }
@@ -18,7 +18,7 @@ function codegen(source: string) {
 // Runs codegen with a real checker so fold() can resolve const identifiers to their literal types
 function codegenWithProgram(source: string) {
     let { checker, sourceFile } = languageService.scratch(process.cwd() + '/test.ts', source),
-        templates = findHtmlTemplates(sourceFile);
+        templates = findTemplateArtifacts(sourceFile).templates;
 
     return generateCode(templates, sourceFile, checker);
 }
@@ -52,6 +52,16 @@ describe('compiler/codegen', () => {
             let code = result.replacements[0].generate(EMPTY);
 
             expect(code).toMatch(/^[a-zA-Z_$][\w$]*\(\)$/);
+        });
+    });
+
+    describe('generateCode - primitive node bindings', () => {
+        it('generates text for template literals', () => {
+            let result = codegenWithProgram("let a = 'a', b = 'b'; let x = html`<div>${`${a}-${b}`}</div>`;"),
+                code = result.replacements[0].generate(EMPTY);
+
+            expect(code).toContain(`${NAMESPACE}.text(`);
+            expect(code).not.toContain(`${NAMESPACE}.slot(`);
         });
     });
 
@@ -328,7 +338,7 @@ describe('compiler/codegen', () => {
         it('rewrites nested html template in expression', () => {
             let source = `let x = html\`<div>\${html\`<span>inner</span>\`}</div>\`;`,
                 sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-                templates = findHtmlTemplates(sourceFile);
+                templates = findTemplateArtifacts(sourceFile).templates;
 
             let ctx = {
                 sourceFile,
@@ -344,7 +354,7 @@ describe('compiler/codegen', () => {
         it('prints plain expression as-is', () => {
             let source = `let x = html\`<div>\${value}</div>\`;`,
                 sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-                templates = findHtmlTemplates(sourceFile);
+                templates = findTemplateArtifacts(sourceFile).templates;
 
             let ctx = {
                 sourceFile,
@@ -485,12 +495,11 @@ describe('compiler/codegen', () => {
     });
 
     describe('generateCode - arrow function body optimization', () => {
-        it('generates template ID directly for parameterless arrow with static body', () => {
+        it('generates a template call for parameterless arrow with static body', () => {
             let { result } = codegen(`let fn = () => html\`<div>static</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).not.toContain('()');
-            expect(code).not.toContain('return');
+            expect(code).toMatch(/^\w+\(\)$/);
         });
 
         it('generates IIFE for arrow with slots', () => {

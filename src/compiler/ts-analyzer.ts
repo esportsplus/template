@@ -1,6 +1,6 @@
 import { ts } from '@esportsplus/typescript';
 import { imports } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, PACKAGE_NAME, TYPES } from './constants';
+import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, PACKAGE_NAME, PACKAGE_REACTIVITY, TYPES } from './constants';
 
 
 type SelectorComparison = {
@@ -8,9 +8,6 @@ type SelectorComparison = {
     negated: boolean;
     node: ts.Expression;
 };
-
-
-const PACKAGE_REACTIVITY = '@esportsplus/reactivity';
 
 const READ = 'read';
 

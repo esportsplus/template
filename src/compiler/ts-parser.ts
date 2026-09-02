@@ -82,21 +82,6 @@ function visitArtifacts(node: ts.Node, depth: number, templates: TemplateInfo[],
     node.forEachChild(child => visitArtifacts(child, d, templates, calls, checker));
 }
 
-function visitReactiveCalls(node: ts.Node, calls: ReactiveCallInfo[], checker: ts.Checker | undefined): void {
-    matchReactiveCall(node, calls, checker);
-
-    node.forEachChild(child => visitReactiveCalls(child, calls, checker));
-}
-
-function visitTemplates(node: ts.Node, depth: number, templates: TemplateInfo[], checker: ts.Checker | undefined): void {
-    matchTemplate(node, depth, templates, checker);
-
-    let d = nextDepth(node, depth);
-
-    node.forEachChild(child => visitTemplates(child, d, templates, checker));
-}
-
-
 const extractTemplateParts = (template: ts.TemplateLiteral): { expressions: ts.Expression[]; literals: string[] } => {
     let expressions: ts.Expression[] = [],
         literals: string[] = [];
@@ -118,24 +103,6 @@ const extractTemplateParts = (template: ts.TemplateLiteral): { expressions: ts.E
     return { expressions, literals };
 };
 
-const findHtmlTemplates = (sourceFile: ts.SourceFile, checker?: ts.Checker): TemplateInfo[] => {
-    let templates: TemplateInfo[] = [];
-
-    visitTemplates(sourceFile, 0, templates, checker);
-
-    return templates.sort(byDepthThenStart);
-};
-
-const findReactiveCalls = (sourceFile: ts.SourceFile, checker?: ts.Checker): ReactiveCallInfo[] => {
-    let calls: ReactiveCallInfo[] = [];
-
-    visitReactiveCalls(sourceFile, calls, checker);
-
-    return calls;
-};
-
-// One AST walk collecting both templates and reactive calls — the transform entrypoint's
-// path, replacing a separate findHtmlTemplates + findReactiveCalls pass over the same tree.
 const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker): { calls: ReactiveCallInfo[]; templates: TemplateInfo[] } => {
     let calls: ReactiveCallInfo[] = [],
         templates: TemplateInfo[] = [];
@@ -149,5 +116,5 @@ const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker):
 };
 
 
-export { extractTemplateParts, findHtmlTemplates, findReactiveCalls, findTemplateArtifacts };
+export { extractTemplateParts, findTemplateArtifacts };
 export type { ReactiveCallInfo, TemplateInfo };

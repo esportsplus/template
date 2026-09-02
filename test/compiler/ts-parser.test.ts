@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ts } from '@esportsplus/typescript';
 import { languageService } from '@esportsplus/typescript/compiler';
-import { extractTemplateParts, findHtmlTemplates, findReactiveCalls } from '../../src/compiler/ts-parser';
+import { extractTemplateParts, findTemplateArtifacts } from '../../src/compiler/ts-parser';
 
 
 function createSourceFile(code: string): ts.SourceFile {
@@ -34,11 +34,11 @@ describe('compiler/ts-parser', () => {
         });
     });
 
-    describe('findHtmlTemplates', () => {
+    describe('findTemplateArtifacts().templates', () => {
         it('single html`` call → returns 1 TemplateInfo with correct literals/expressions', () => {
             let source = `import { html } from '@esportsplus/template';\nlet x = html\`<div>\${value}</div>\`;`;
             let sourceFile = createSourceFile(source);
-            let templates = findHtmlTemplates(sourceFile);
+            let templates = findTemplateArtifacts(sourceFile).templates;
 
             expect(templates.length).toBe(1);
             expect(templates[0].literals).toEqual(['<div>', '</div>']);
@@ -49,7 +49,7 @@ describe('compiler/ts-parser', () => {
         it('template with no expressions → single literal, no expressions', () => {
             let source = `import { html } from '@esportsplus/template';\nlet x = html\`<div>hello</div>\`;`;
             let sourceFile = createSourceFile(source);
-            let templates = findHtmlTemplates(sourceFile);
+            let templates = findTemplateArtifacts(sourceFile).templates;
 
             expect(templates.length).toBe(1);
             expect(templates[0].literals).toEqual(['<div>hello</div>']);
@@ -59,7 +59,7 @@ describe('compiler/ts-parser', () => {
         it('no html import → still matched by tag name (no checker)', () => {
             let source = `let x = html\`<div>hello</div>\`;`;
             let sourceFile = createSourceFile(source);
-            let templates = findHtmlTemplates(sourceFile);
+            let templates = findTemplateArtifacts(sourceFile).templates;
 
             expect(templates.length).toBe(1);
         });
@@ -67,7 +67,7 @@ describe('compiler/ts-parser', () => {
         it('no html tagged templates at all → returns empty array', () => {
             let source = `let x = 'hello';`;
             let sourceFile = createSourceFile(source);
-            let templates = findHtmlTemplates(sourceFile);
+            let templates = findTemplateArtifacts(sourceFile).templates;
 
             expect(templates.length).toBe(0);
         });
@@ -80,7 +80,7 @@ describe('compiler/ts-parser', () => {
                 `let c = html\`<p>\${x}</p>\`;`
             ].join('\n');
             let sourceFile = createSourceFile(source);
-            let templates = findHtmlTemplates(sourceFile);
+            let templates = findTemplateArtifacts(sourceFile).templates;
 
             expect(templates.length).toBe(3);
         });
@@ -93,7 +93,7 @@ describe('compiler/ts-parser', () => {
                 `}`
             ].join('\n');
             let sourceFile = createSourceFile(source);
-            let templates = findHtmlTemplates(sourceFile);
+            let templates = findTemplateArtifacts(sourceFile).templates;
 
             expect(templates.length).toBe(1);
             expect(templates[0].depth).toBe(1);
@@ -106,7 +106,7 @@ describe('compiler/ts-parser', () => {
                 `let outer = html\`<div>\${() => html\`<span>inner</span>\`}</div>\`;`
             ].join('\n');
             let sourceFile = createSourceFile(source);
-            let templates = findHtmlTemplates(sourceFile);
+            let templates = findTemplateArtifacts(sourceFile).templates;
 
             expect(templates.length).toBe(2);
             expect(templates[0].depth).toBeGreaterThanOrEqual(templates[1].depth);
@@ -119,7 +119,7 @@ describe('compiler/ts-parser', () => {
                 `let b = html\`<p>shallow</p>\`;`
             ].join('\n');
             let sourceFile = createSourceFile(source);
-            let templates = findHtmlTemplates(sourceFile);
+            let templates = findTemplateArtifacts(sourceFile).templates;
 
             expect(templates.length).toBe(3);
             expect(templates[0].depth).toBeGreaterThan(templates[1].depth);
@@ -132,14 +132,14 @@ describe('compiler/ts-parser', () => {
         });
     });
 
-    describe('findReactiveCalls', () => {
+    describe('findTemplateArtifacts().calls', () => {
         it('html.reactive() → returns ReactiveCallInfo with array + callback args', () => {
             let source = [
                 `import { html } from '@esportsplus/template';`,
                 `let x = html.reactive(items, (item) => html\`<li>\${item}</li>\`);`
             ].join('\n');
             let sourceFile = createSourceFile(source);
-            let calls = findReactiveCalls(sourceFile);
+            let calls = findTemplateArtifacts(sourceFile).calls;
 
             expect(calls.length).toBe(1);
             expect(calls[0].arrayArg).toBeDefined();
@@ -150,7 +150,7 @@ describe('compiler/ts-parser', () => {
         it('no reactive calls → empty array', () => {
             let source = `import { html } from '@esportsplus/template';\nlet x = html\`<div>hello</div>\`;`;
             let sourceFile = createSourceFile(source);
-            let calls = findReactiveCalls(sourceFile);
+            let calls = findTemplateArtifacts(sourceFile).calls;
 
             expect(calls.length).toBe(0);
         });

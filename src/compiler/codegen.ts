@@ -2,7 +2,7 @@ import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compil
 import type { TemplateInfo } from './ts-parser';
 import { analyze, fold, selectorComparison } from './ts-analyzer';
 import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME, TYPES } from './constants';
+import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
 import { extractTemplateParts } from './ts-parser';
 import { ts } from '@esportsplus/typescript';
 import parser from './parser';
@@ -25,10 +25,6 @@ type CodegenResult = {
 };
 
 type ParseResult = ReturnType<typeof parser.parse>;
-
-
-const SIGNAL = 'signal';
-
 
 function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: { end: number; start: number; text: string }[], inObserver: boolean): void {
     if (isNestedHtmlTemplate(node as ts.Expression)) {
@@ -170,6 +166,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
             case TYPES.Effect:
                 return `new ${NAMESPACE}.EffectSlot(${anchor}, ${exprText}, ${flag});`;
 
+            case TYPES.Primitive:
             case TYPES.Static:
                 return `${anchor}.appendChild(${NAMESPACE}.text(${exprText}));`;
 
@@ -196,6 +193,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
         case TYPES.Effect:
             return `new ${NAMESPACE}.EffectSlot(${anchor}, ${exprText});`;
 
+        case TYPES.Primitive:
         case TYPES.Static:
             return `${anchor}.after(${NAMESPACE}.text(${exprText}));`;
 
@@ -285,11 +283,10 @@ function generateTemplateCode(
                 if (name === TYPES.Attributes) {
                     let exprNode = exprNodes[index];
 
-                    // Object literals can be expanded at compile time
-                    if (exprNode && ts.isObjectLiteralExpression(exprNode)) {
-                        let canExpand = true,
-                            props = exprNode.properties;
+                    let canExpand = exprNode !== undefined && ts.isObjectLiteralExpression(exprNode),
+                        props = canExpand ? (exprNode as ts.ObjectLiteralExpression).properties : [];
 
+                    if (canExpand) {
                         // Check if all properties can be statically analyzed
                         for (let k = 0, p = props.length; k < p; k++) {
                             let prop = props[k];
@@ -304,7 +301,9 @@ function generateTemplateCode(
                             }
                         }
 
-                        if (canExpand) {
+                    }
+
+                    if (canExpand) {
                             for (let k = 0, p = props.length; k < p; k++) {
                                 let prop = props[k];
 
@@ -343,12 +342,6 @@ function generateTemplateCode(
                                     throw new Error(`${PACKAGE_NAME}: method declarations are not supported in spread attribute object literals`);
                                 }
                             }
-                        }
-                        else {
-                            code.push(
-                                `${NAMESPACE}.setProperties(${element}, ${exprTexts[index] || 'undefined'});`
-                            );
-                        }
                     }
                     else {
                         code.push(
@@ -516,12 +509,12 @@ function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], e
 }
 
 
-const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, checker?: ts.Checker, callRanges: { end: number; start: number }[] = []): CodegenResult => {
+const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, checker?: ts.Checker, callRanges: { end: number; start: number }[] = [], templateMap?: Map<string, string>): CodegenResult => {
     let result: CodegenResult = {
             prepend: [],
             replacements: [],
             selectorFired: false,
-            templates: new Map()
+            templates: templateMap || new Map()
         };
 
     if (templates.length === 0) {
@@ -560,26 +553,12 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
             exprTexts.push(rewriteExpression(ctx, expressions[j]));
         }
 
-        if (
-            isArrowExpressionBody(template.node) &&
-            (template.node.parent as ts.ArrowFunction).parameters.length === 0 &&
-            (!parsed.slots || parsed.slots.length === 0)
-        ) {
-            let code = getTemplateID(ctx, parsed.html);
+        let code = generateTemplateCode(ctx, parsed, exprTexts, expressions, template.node);
 
-            result.replacements.push({
-                generate: () => code,
-                node: template.node
-            });
-        }
-        else {
-            let code = generateTemplateCode(ctx, parsed, exprTexts, expressions, template.node);
-
-            result.replacements.push({
-                generate: () => code,
-                node: template.node
-            });
-        }
+        result.replacements.push({
+            generate: () => code,
+            node: template.node
+        });
     }
 
     for (let i = 0, n = templates.length; i < n; i++) {

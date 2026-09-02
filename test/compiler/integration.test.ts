@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ast, languageService } from '@esportsplus/typescript/compiler';
 import { generateCode, rewriteExpression } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
-import { findHtmlTemplates, findReactiveCalls } from '../../src/compiler/ts-parser';
+import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 
 
 type TransformResult = {
@@ -20,7 +20,7 @@ function pipeline(source: string): TransformResult {
         prepend: string[] = [],
         replacements: { code: string; end: number; start: number }[] = [],
         sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-        templates = findHtmlTemplates(sourceFile);
+        templates = findTemplateArtifacts(sourceFile).templates;
 
     let ranges: { end: number; start: number }[] = [];
 
@@ -31,7 +31,7 @@ function pipeline(source: string): TransformResult {
         });
     }
 
-    let calls = findReactiveCalls(sourceFile);
+    let calls = findTemplateArtifacts(sourceFile).calls;
 
     for (let i = 0, n = calls.length; i < n; i++) {
         let call = calls[i];

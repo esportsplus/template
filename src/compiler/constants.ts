@@ -7,6 +7,10 @@ const ENTRYPOINT_REACTIVITY = 'reactive';
 
 const NAMESPACE = uid('template');
 
+const PACKAGE_REACTIVITY = '@esportsplus/reactivity';
+
+const SIGNAL = 'signal';
+
 
 const enum TYPES {
     ArraySlot = 'array-slot',
@@ -21,5 +25,5 @@ const enum TYPES {
 };
 
 
-export { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, TYPES };
+export { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_REACTIVITY, SIGNAL, TYPES };
 export { PACKAGE_NAME } from '~/constants';
