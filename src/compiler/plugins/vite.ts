@@ -8,7 +8,6 @@ import template from '..';
 type VitePlugin = {
     configResolved: (config: any) => void;
     enforce: 'pre';
-    handleHotUpdate?: (ctx: { file: string; modules: any[] }) => void;
     name: string;
     transform: (code: string, id: string) => { code: string; map: unknown } | null;
     watchChange: (id: string) => void;
@@ -29,7 +28,7 @@ let base = plugin.vite({
     });
 
 
-function injectHMR(code: string, id: string): string {
+const injectHMR = (code: string, id: string): string => {
     let hmrId = id.replace(/\\/g, '/'),
         hotReplace = NAMESPACE + '.createHotTemplate("' + hmrId + '", "',
         injected = code.replace(TEMPLATE_CALL_REGEX, function(_match: string, prefix: string, varName: string, backtick: string) {
@@ -43,7 +42,7 @@ function injectHMR(code: string, id: string): string {
     injected += '\nif (import.meta.hot) { import.meta.hot.accept(() => { ' + NAMESPACE + '.accept("' + hmrId + '"); }); }';
 
     return injected;
-}
+};
 
 
 export default ({ root }: { root?: string } = {}) => {
@@ -55,9 +54,6 @@ export default ({ root }: { root?: string } = {}) => {
         configResolved(config: any) {
             vitePlugin.configResolved(config);
             isDev = config?.command === 'serve' || config?.mode === 'development';
-        },
-        handleHotUpdate(_ctx: { file: string; modules: any[] }) {
-            // Let Vite handle the default HMR flow
         },
         transform(code: string, id: string) {
             let result = vitePlugin.transform(code, id);
@@ -72,8 +68,11 @@ export default ({ root }: { root?: string } = {}) => {
                 return result;
             }
 
-            return { code: injected, map: null };
+            return { code: injected, map: result.map };
         }
     } satisfies VitePlugin;
 };
+
+
+export { injectHMR };
 

@@ -23,7 +23,7 @@ const EMPTY_FRAGMENT = fragment('');
 
 const marker = fragment(SLOT_HTML).firstChild!;
 
-const raf = globalThis?.requestAnimationFrame;
+const raf = globalThis.requestAnimationFrame;
 
 // Factory that caches the fragment for repeated cloning; markup-free html skips the parse
 const template = (html: string): (() => DocumentFragment | Text) => {

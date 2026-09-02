@@ -1,16 +1,17 @@
-let clone = <T extends DocumentFragment | Node>(node: T, deep: boolean = true) => node.cloneNode(deep) as T,
-    modules = new Map<string, Map<string, HotTemplate>>(),
-    tmpl = typeof document !== 'undefined' ? document.createElement('template') : null;
+import { template } from './utilities';
 
 
 type HotTemplate = {
-    cached: DocumentFragment | undefined;
     factory: () => DocumentFragment;
     html: string;
+    template: () => DocumentFragment;
 };
 
 
-function invalidate(moduleId: string): void {
+let modules = new Map<string, Map<string, HotTemplate>>();
+
+
+const accept = (moduleId: string): void => {
     let templates = modules.get(moduleId);
 
     if (!templates) {
@@ -18,59 +19,36 @@ function invalidate(moduleId: string): void {
     }
 
     for (let [, entry] of templates) {
-        entry.cached = undefined;
+        entry.template = template(entry.html) as () => DocumentFragment;
     }
-}
+};
 
-function register(moduleId: string, templateId: string, html: string): () => DocumentFragment {
-    let entry: HotTemplate = {
-        cached: undefined,
-        factory: () => {
-            if (!entry.cached) {
-                let element = tmpl!.cloneNode() as HTMLTemplateElement;
+const createHotTemplate = (moduleId: string, templateId: string, html: string): (() => DocumentFragment) => {
+    let templates = modules.get(moduleId),
+        entry = templates?.get(templateId);
 
-                element.innerHTML = entry.html;
-                entry.cached = element.content;
-            }
+    if (entry) {
+        entry.html = html;
+        entry.template = template(html) as () => DocumentFragment;
 
-            return clone(entry.cached!, true) as DocumentFragment;
-        },
-        html
+        return entry.factory;
+    }
+
+    entry = {
+        factory: () => entry!.template(),
+        html,
+        template: template(html) as () => DocumentFragment
     };
 
-    let templates = modules.get(moduleId);
-
     if (!templates) {
-        modules.set(moduleId, templates = new Map());
+        templates = new Map();
+        modules.set(moduleId, templates);
     }
 
     templates.set(templateId, entry);
 
     return entry.factory;
-}
-
-
-const accept = (moduleId: string): void => {
-    invalidate(moduleId);
-};
-
-const createHotTemplate = (moduleId: string, templateId: string, html: string): () => DocumentFragment => {
-    let existing = modules.get(moduleId)?.get(templateId);
-
-    if (existing) {
-        existing.cached = undefined;
-        existing.html = html;
-
-        return existing.factory;
-    }
-
-    return register(moduleId, templateId, html);
-};
-
-// Test-only: reset state
-const hmrReset = (): void => {
-    modules.clear();
 };
 
 
-export { accept, createHotTemplate, hmrReset, modules };
+export { accept, createHotTemplate };
