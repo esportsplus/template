@@ -16,7 +16,7 @@ type Attributes<T extends HTMLElement = Element> = {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void;
 } & Record<PropertyKey, unknown>;
 
-type Effect<T> = () => T extends [] ? Renderable<T>[] : Renderable<T>;
+type Effect<T> = () => T extends unknown[] ? Renderable<T>[] : Renderable<T>;
 
 type Element = HTMLElement & Attributes<any>;
 

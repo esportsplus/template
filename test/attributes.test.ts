@@ -101,7 +101,8 @@ describe('attributes', () => {
         });
 
         it('merges static and dynamic classes', () => {
-            setList(element as unknown as Element, 'class', 'dynamic', { class: 'static' });
+            element.setAttribute('class', 'static');
+            setList(element as unknown as Element, 'class', 'dynamic');
 
             expect(element.className).toBe('static dynamic');
         });
@@ -113,7 +114,8 @@ describe('attributes', () => {
         });
 
         it('merges static and dynamic styles', () => {
-            setList(element as unknown as Element, 'style', 'font-size: 14px', { style: 'color: red' });
+            element.setAttribute('style', 'color: red');
+            setList(element as unknown as Element, 'style', 'font-size: 14px');
 
             expect(element.style.cssText).toContain('color: red');
             expect(element.style.cssText).toContain('font-size: 14px');
@@ -132,13 +134,6 @@ describe('attributes', () => {
 
             expect(element.style.cssText).toContain('color: red');
             expect(element.style.cssText).toContain('font-size: 14px');
-        });
-
-        it('prefers the statics param over the DOM attribute (existing callers unchanged)', () => {
-            element.setAttribute('class', 'from-dom');
-            setList(element as unknown as Element, 'class', 'dynamic', { class: 'static' });
-
-            expect(element.className).toBe('static dynamic');
         });
 
         it('handles null value', () => {
@@ -297,18 +292,6 @@ describe('attributes', () => {
             expect(element.getAttribute('data-two')).toBe('value2');
         });
 
-        it('handles static attributes merge with class', () => {
-            setProperties(element as unknown as Element, { class: 'dynamic' }, { class: 'static' });
-
-            expect(element.className).toBe('static dynamic');
-        });
-
-        it('handles static attributes merge with style', () => {
-            setProperties(element as unknown as Element, { style: 'font-size: 14px' }, { style: 'color: red' });
-
-            expect(element.getAttribute('style')).toContain('color: red');
-            expect(element.getAttribute('style')).toContain('font-size: 14px');
-        });
     });
 
     describe('property off-transition (B1)', () => {

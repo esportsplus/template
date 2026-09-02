@@ -215,6 +215,8 @@ const simpleAsync = () =>
 
 Events use delegation by default for efficiency:
 
+Delegated `mousedown`, `touchstart`, and `wheel` listeners are passive for scroll performance, so their handlers cannot call `preventDefault()`.
+
 ```typescript
 // Click
 const button = (handler: () => void) =>
@@ -310,14 +312,12 @@ const circle = (fill: string) =>
 | `ArraySlot` | Reactive array rendering |
 | `EffectSlot` | Reactive effect rendering |
 | `clone` | Clone a node (uses `importNode` on Firefox) |
-| `fragment` | Parse HTML string into DocumentFragment |
+| `EMPTY_FRAGMENT` | Shared empty document fragment |
 | `marker` | Slot position comment node |
 | `template` | Create cached template factory |
 | `text` | Create text node |
-| `raf` | `requestAnimationFrame` reference |
 | `accept` | HMR accept handler (dev only) |
 | `createHotTemplate` | HMR template factory (dev only) |
-| `hmrReset` | HMR state reset (test only) |
 
 ### Types
 
@@ -338,7 +338,7 @@ type Attributes<T extends HTMLElement = Element> = {
 
 ### render(parent, renderable)
 
-Mounts a renderable to a parent element.
+Clears the parent, then mounts a renderable to it.
 
 ```typescript
 import { html, render } from '@esportsplus/template';

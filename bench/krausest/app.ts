@@ -25,8 +25,6 @@ const ADJECTIVES = [
 
 const COLOURS = ['red', 'yellow', 'blue', 'green', 'pink', 'brown', 'purple', 'brown', 'white', 'black', 'orange'];
 
-const EMPTY_STATICS: Record<string, string> = {};
-
 const NOUNS = ['table', 'chair', 'house', 'bbq', 'desk', 'car', 'pony', 'cookie', 'sandwich', 'burger', 'pizza', 'mouse', 'keyboard'];
 
 // Hand-written equivalents of the compiler's template() hoists; sole-child slots elide their <!--$--> markers
@@ -82,7 +80,7 @@ const create = (container: HTMLElement) => {
             labelLink = labelCell.firstChild as Element,
             removeLink = (labelCell.nextSibling as Element).firstChild as Element;
 
-        setList(tr, 'class', () => signal.selector(selected, data.id) ? 'danger' : '', EMPTY_STATICS);
+        setList(tr, 'class', () => signal.selector(selected, data.id) ? 'danger' : '');
         idCell.appendChild(text(String(data.id)));
         delegate(labelLink, 'click', selectRow, data.id);
         new EffectSlot(labelLink, () => read(data.label), ANCHOR_SOLE);

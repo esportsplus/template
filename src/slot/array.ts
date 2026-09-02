@@ -4,8 +4,6 @@ import { Element, SlotGroup } from '../types';
 import { clone, EMPTY_FRAGMENT, marker, raf } from '../utilities';
 import { dispose, ondisconnect, remove } from './cleanup';
 
-import html from '../html';
-
 
 type ArraySlotOp<T> =
     | { items: T[]; op: 'concat' }
@@ -74,12 +72,12 @@ class ArraySlot<T> {
     private scheduled = false;
     private signal;
     private soleChild: boolean;
-    private template: (...args: Parameters<(value: Reactive<T[]>[number]) => ReturnType<typeof html>>) => SlotGroup;
+    private template: (value: T) => SlotGroup;
 
     readonly fragment: DocumentFragment;
 
 
-    constructor(private array: Reactive<T[]>, template: ((value: Reactive<T[]>[number]) => ReturnType<typeof html> | Text), soleChild: boolean = false) {
+    constructor(private array: Reactive<T[]>, template: (value: T) => DocumentFragment | Text, soleChild: boolean = false) {
         let fragment = this.fragment = clone(EMPTY_FRAGMENT);
 
         this.marker = marker.cloneNode() as unknown as Element;

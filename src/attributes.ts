@@ -8,8 +8,10 @@ import q from '@esportsplus/queue';
 
 
 type Context = {
+    cold?: Record<number, Record<PropertyKey, true>>;
     effect?: number,
     element: Element;
+    raw?: unknown[];
     store?: Record<string, unknown>;
     updates?: Record<PropertyKey, unknown>;
     updating?: boolean;
@@ -17,6 +19,11 @@ type Context = {
 };
 
 type State = typeof STATE_HYDRATING | typeof STATE_NONE | typeof STATE_WAITING;
+
+type ListState = {
+    dynamic: Set<string>;
+    static: string;
+};
 
 
 let queue = q<Context>(64),
@@ -68,21 +75,25 @@ function list(
     let changed = false,
         delimiter = ATTRIBUTE_DELIMITERS[name],
         store = (ctx ??= context(element)).store ??= {},
-        dynamic = store[name] as Set<string>;
+        listState = store[name] as ListState | undefined;
 
-    // Runtime fallback
-    if (!dynamic) {
-        store[name + '.static'] = (element.getAttribute(name) || '').trim();
-        store[name] = dynamic = new Set();
+    if (!listState) {
+        listState = {
+            dynamic: new Set(),
+            static: (element.getAttribute(name) || '').trim()
+        };
+        store[name] = listState;
     }
+
+    let dynamic = listState.dynamic;
 
     if (id === null) {
         if (value && typeof value === 'string') {
             changed = true;
-            store[name + '.static'] += (store[name + '.static'] ? delimiter : '') + value;
+            listState.static += (listState.static ? delimiter : '') + value;
         }
     }
-    else if (store[id + '.raw'] !== value) {
+    else if ((ctx.raw ??= [])[id] !== value) {
         let hot: Record<PropertyKey, true> = {};
 
         if (value && typeof value === 'string') {
@@ -105,7 +116,7 @@ function list(
             }
         }
 
-        let cold = store[id] as Record<PropertyKey, true>;
+        let cold = (ctx.cold ??= {})[id];
 
         if (cold !== undefined) {
             for (let part in cold) {
@@ -118,15 +129,15 @@ function list(
             }
         }
 
-        store[id + '.raw'] = value;
-        store[id] = hot;
+        ctx.raw[id] = value;
+        ctx.cold[id] = hot;
     }
 
     if (!changed) {
         return;
     }
 
-    value = store[name + '.static'];
+    value = listState.static;
 
     for (let key of dynamic) {
         value += (value ? delimiter : '') + key;
@@ -233,9 +244,9 @@ function task() {
 
         for (let name in updates) {
             apply(element, name, updates[name]);
+            delete updates[name];
         }
 
-        context.updates = {};
         context.updating = false;
     }
 
@@ -248,27 +259,12 @@ function task() {
 }
 
 
-const setList = (element: Element, name: 'class' | 'style', value: unknown, attributes: Record<string, string> = {}) => {
-    let ctx = context(element),
-        store = ctx.store ??= {};
-
-    store[name] ??= new Set<string>();
-
-    if (attributes[name]) {
-        store[name + '.static'] ??= '';
-        store[name + '.static'] += (store[name + '.static'] ? ATTRIBUTE_DELIMITERS[name] : '') + attributes[name];
-    }
-    else {
-        // Statics now ride the template clone, so seed from the element's own attribute
-        // (mirrors list()'s runtime fallback) instead of a compile-time static map
-        store[name + '.static'] ??= (element.getAttribute(name) || '').trim();
-    }
-
+const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
     if (typeof value === 'function') {
         reactive(element, name, STATE_HYDRATING, value);
     }
     else if (typeof value !== 'object') {
-        list(ctx, element, null, name, STATE_HYDRATING, value);
+        list(null, element, null, name, STATE_HYDRATING, value);
     }
     else if (isArray(value)) {
         for (let i = 0, n = value.length; i < n; i++) {
@@ -278,7 +274,7 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown, attr
                 continue;
             }
 
-            setList(element, name, v, attributes);
+            setList(element, name, v);
         }
     }
 };
@@ -294,8 +290,7 @@ const setProperty = (element: Element, name: string, value: unknown) => {
 
 const setProperties = function (
     element: Element,
-    properties: Attributes | Attributes[] | false | null | undefined,
-    attributes: Record<string, string> = {}
+    properties: Attributes | Attributes[] | false | null | undefined
 ) {
     if (!properties) {
         return;
@@ -309,7 +304,7 @@ const setProperties = function (
             }
 
             if (name === 'class' || name === 'style') {
-                setList(element, name, value, attributes);
+                setList(element, name, value);
             }
             else if (typeof value === 'function') {
                 if (name[0] === 'o' && name[1] === 'n') {
@@ -326,7 +321,7 @@ const setProperties = function (
     }
     else if (isArray(properties)) {
         for (let i = 0, n = properties.length; i < n; i++) {
-            setProperties(element, properties[i], attributes);
+            setProperties(element, properties[i]);
         }
     }
 };

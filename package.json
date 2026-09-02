@@ -30,6 +30,9 @@
             "default": "./build/index.js"
         }
     },
+    "files": [
+        "build"
+    ],
     "main": "./build/index.js",
     "name": "@esportsplus/template",
     "private": false,
