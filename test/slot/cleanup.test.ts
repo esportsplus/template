@@ -326,4 +326,48 @@ describe('slot/cleanup', () => {
         });
     });
 
+    describe('nested cleanup (B11)', () => {
+        it('fires cleanup registered on a descendant element', () => {
+            let outer = document.createElement('div') as Element,
+                inner = document.createElement('span') as Element,
+                cleanup = vi.fn();
+
+            outer.appendChild(inner as unknown as Node);
+            container.appendChild(outer as unknown as Node);
+            ondisconnect(inner, cleanup);
+
+            remove([{ head: outer, tail: outer }]);
+
+            expect(cleanup).toHaveBeenCalledTimes(1);
+            expect(container.children.length).toBe(0);
+        });
+
+        it('fires descendant cleanup before the parent cleanup', () => {
+            let outer = document.createElement('div') as Element,
+                inner = document.createElement('span') as Element,
+                callOrder: string[] = [];
+
+            outer.appendChild(inner as unknown as Node);
+            container.appendChild(outer as unknown as Node);
+            ondisconnect(outer, () => callOrder.push('outer'));
+            ondisconnect(inner, () => callOrder.push('inner'));
+
+            remove([{ head: outer, tail: outer }]);
+
+            expect(callOrder).toEqual(['inner', 'outer']);
+        });
+
+        it('skips the descendant query for elements without children', () => {
+            let element = document.createElement('div') as Element,
+                spy = vi.spyOn(element as unknown as HTMLElement, 'querySelectorAll');
+
+            container.appendChild(element as unknown as Node);
+            ondisconnect(element, vi.fn());
+
+            remove([{ head: element, tail: element }]);
+
+            expect(spy).not.toHaveBeenCalled();
+        });
+    });
+
 });
