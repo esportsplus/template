@@ -1,40 +1,33 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render } from '../../src/slot';
-import { fragment, marker, text } from '../../src/utilities';
-import type { Element } from '../../src/types';
+import { fragment, text } from '../../src/utilities';
 
 
 describe('slot/render', () => {
-    let anchor: Element;
-
-    beforeEach(() => {
-        anchor = marker.cloneNode() as unknown as Element;
-    });
-
     describe('null/undefined/false handling', () => {
         it('returns empty fragment for null', () => {
-            let result = render(anchor, null);
+            let result = render(null);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(0);
         });
 
         it('returns empty fragment for undefined', () => {
-            let result = render(anchor, undefined);
+            let result = render(undefined);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(0);
         });
 
         it('returns empty fragment for false', () => {
-            let result = render(anchor, false);
+            let result = render(false);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(0);
         });
 
         it('returns empty fragment for empty string', () => {
-            let result = render(anchor, '');
+            let result = render('');
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(0);
@@ -43,28 +36,28 @@ describe('slot/render', () => {
 
     describe('primitive handling', () => {
         it('renders string as text node', () => {
-            let result = render(anchor, 'Hello World');
+            let result = render('Hello World');
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
             expect(result.nodeValue).toBe('Hello World');
         });
 
         it('renders number as text node', () => {
-            let result = render(anchor, 42);
+            let result = render(42);
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
             expect(result.nodeValue).toBe('42');
         });
 
         it('renders true as text node', () => {
-            let result = render(anchor, true);
+            let result = render(true);
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
             expect(result.nodeValue).toBe('true');
         });
 
         it('renders bigint as text node', () => {
-            let result = render(anchor, BigInt(9007199254740991));
+            let result = render(BigInt(9007199254740991));
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
             expect(result.nodeValue).toBe('9007199254740991');
@@ -77,28 +70,28 @@ describe('slot/render', () => {
 
             div.textContent = 'Hello';
 
-            let result = render(anchor, div);
+            let result = render(div);
 
             expect(result).toBe(div);
         });
 
         it('returns DocumentFragment as-is', () => {
             let frag = fragment('<span>Test</span>');
-            let result = render(anchor, frag);
+            let result = render(frag);
 
             expect(result).toBe(frag);
         });
 
         it('returns Text node as-is', () => {
             let textNode = text('Hello');
-            let result = render(anchor, textNode);
+            let result = render(textNode);
 
             expect(result).toBe(textNode);
         });
 
         it('returns Comment node as-is', () => {
             let comment = document.createComment('test comment');
-            let result = render(anchor, comment);
+            let result = render(comment);
 
             expect(result).toBe(comment);
         });
@@ -106,21 +99,21 @@ describe('slot/render', () => {
 
     describe('array handling', () => {
         it('returns empty fragment for empty array', () => {
-            let result = render(anchor, []);
+            let result = render([]);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(0);
         });
 
         it('renders single-element array', () => {
-            let result = render(anchor, ['Hello']);
+            let result = render(['Hello']);
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
             expect(result.nodeValue).toBe('Hello');
         });
 
         it('renders multi-element string array as fragment', () => {
-            let result = render(anchor, ['One', 'Two', 'Three']);
+            let result = render(['One', 'Two', 'Three']);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(3);
@@ -134,7 +127,7 @@ describe('slot/render', () => {
 
             div.textContent = 'Div';
 
-            let result = render(anchor, ['Text', div, 42]);
+            let result = render(['Text', div, 42]);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(3);
@@ -144,14 +137,14 @@ describe('slot/render', () => {
         });
 
         it('handles nested arrays', () => {
-            let result = render(anchor, [['Nested', 'Array'], 'Flat']);
+            let result = render([['Nested', 'Array'], 'Flat']);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(3);
         });
 
         it('filters null/false/empty from arrays', () => {
-            let result = render(anchor, ['Keep', null, false, '', 'Also Keep']);
+            let result = render(['Keep', null, false, '', 'Also Keep']);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             // render does not filter — null/false/'' yield empty fragments, so only real values produce nodes
@@ -167,7 +160,7 @@ describe('slot/render', () => {
             container.innerHTML = '<span>One</span><span>Two</span>';
 
             let nodeList = container.childNodes,
-                result = render(anchor, nodeList);
+                result = render(nodeList);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(2);
@@ -176,59 +169,30 @@ describe('slot/render', () => {
         it('handles empty NodeList', () => {
             let container = document.createElement('div'),
                 nodeList = container.childNodes,
-                result = render(anchor, nodeList);
+                result = render(nodeList);
 
             expect(result).toBeInstanceOf(DocumentFragment);
             expect(result.childNodes.length).toBe(0);
         });
     });
 
-    describe('parent-element anchor (parent-mode insert)', () => {
-        it('returns a text node when the anchor is a parent element', () => {
-            let parent = document.createElement('div') as unknown as Element,
-                result = render(parent, 'Hello');
-
-            expect(result.nodeType).toBe(Node.TEXT_NODE);
-            expect(result.nodeValue).toBe('Hello');
-        });
-
-        it('returns the same fragment shape regardless of anchor kind', () => {
-            let parent = document.createElement('div') as unknown as Element,
-                viaMarker = render(anchor, ['One', 'Two', 'Three']),
-                viaParent = render(parent, ['One', 'Two', 'Three']);
-
-            expect(viaMarker).toBeInstanceOf(DocumentFragment);
-            expect(viaParent).toBeInstanceOf(DocumentFragment);
-            expect(viaParent.childNodes.length).toBe(viaMarker.childNodes.length);
-        });
-
-        it('appends a rendered text node into the parent element', () => {
-            let parent = document.createElement('div') as unknown as Element;
-
-            parent.appendChild(render(parent, 'child'));
-
-            expect(parent.textContent).toBe('child');
-            expect(parent.firstChild?.nodeType).toBe(Node.TEXT_NODE);
-        });
-    });
-
     describe('edge cases', () => {
         it('handles 0 as text node', () => {
-            let result = render(anchor, 0);
+            let result = render(0);
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
             expect(result.nodeValue).toBe('0');
         });
 
         it('handles NaN as text node', () => {
-            let result = render(anchor, NaN);
+            let result = render(NaN);
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
             expect(result.nodeValue).toBe('NaN');
         });
 
         it('handles Infinity as text node', () => {
-            let result = render(anchor, Infinity);
+            let result = render(Infinity);
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
             expect(result.nodeValue).toBe('Infinity');
@@ -236,7 +200,7 @@ describe('slot/render', () => {
 
         it('handles object without nodeType as text', () => {
             let obj = { toString: () => 'Custom Object' };
-            let result = render(anchor, obj);
+            let result = render(obj);
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
         });

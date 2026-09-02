@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { read, signal, write } from '@esportsplus/reactivity';
-import { ANCHOR_LAST, ANCHOR_SOLE } from '../../src/constants';
+import { ANCHOR_LAST, ANCHOR_MARKER, ANCHOR_SOLE } from '../../src/constants';
 import { ondisconnect } from '../../src/slot/cleanup';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
@@ -192,6 +192,50 @@ describe('slot/EffectSlot', () => {
 
             expect(slot.textnode).toBe(textnode);
             expect(slot.textnode?.nodeValue).toBe('Second');
+        });
+    });
+
+    describe('text to fragment transitions (B5)', () => {
+        it('removes detached text before inserting a fragment', () => {
+            let detached = document.createElement('div'),
+                detachedAnchor = marker.cloneNode() as unknown as Element,
+                fragment = document.createDocumentFragment(),
+                span = document.createElement('span');
+
+            detached.appendChild(detachedAnchor as unknown as Node);
+
+            let slot = new EffectSlot(detachedAnchor, () => 'text');
+
+            span.textContent = 'fragment';
+            fragment.appendChild(span);
+
+            slot.update(fragment);
+
+            expect(detached.innerHTML).toBe('<!--$--><span>fragment</span>');
+            expect(slot.textnode).toBeNull();
+        });
+
+        it.each([ANCHOR_MARKER, ANCHOR_SOLE])('removes all rendered content on dispose in mode %i', (mode) => {
+            let target = mode === ANCHOR_MARKER ? container : document.createElement('div'),
+                targetAnchor = mode === ANCHOR_MARKER ? anchor : target as unknown as Element,
+                slot = new EffectSlot(targetAnchor, () => 'text', mode),
+                fragment = document.createDocumentFragment(),
+                span = document.createElement('span');
+
+            if (mode === ANCHOR_SOLE) {
+                document.body.appendChild(target);
+            }
+
+            span.textContent = 'fragment';
+            fragment.appendChild(span);
+            slot.update(fragment);
+            slot.dispose();
+
+            expect(target.childNodes.length).toBe(0);
+
+            if (mode === ANCHOR_SOLE) {
+                document.body.removeChild(target);
+            }
         });
     });
 

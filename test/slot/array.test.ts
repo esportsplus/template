@@ -687,6 +687,57 @@ describe('slot/ArraySlot', () => {
             expect(spans[0].textContent).toBe('z');
             expect(spans[1].textContent).toBe('b');
         });
+
+        it('replaces exactly one item via the $set event (B3)', async () => {
+            let arr = reactive(['a', 'b', 'c', 'd', 'e'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.$set(2, 'x');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            let spans = container.querySelectorAll('span');
+
+            expect(spans.length).toBe(5);
+            expect(Array.from(spans).map(s => s.textContent)).toEqual(['a', 'b', 'x', 'd', 'e']);
+        });
+    });
+
+    describe('argument-limit safety (B9)', () => {
+        it('builds 200k groups without exceeding the call stack', async () => {
+            let arr = reactive([] as number[]),
+                slot = new ArraySlot(arr, () => {
+                    let frag = document.createDocumentFragment();
+
+                    frag.appendChild(document.createTextNode(''));
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            let items = new Array<number>(200000);
+
+            for (let i = 0; i < items.length; i++) {
+                items[i] = i;
+            }
+
+            expect(() => arr.concat(items)).not.toThrow();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(slot.length).toBe(200000);
+        });
     });
 
     describe('moveBefore API', () => {

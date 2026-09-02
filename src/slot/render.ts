@@ -1,11 +1,10 @@
 import { isArray } from '@esportsplus/utilities';
 import { ARRAY_SLOT } from '../constants';
-import { Element } from '../types';
 import { clone, EMPTY_FRAGMENT, text } from '../utilities';
 import { ArraySlot } from './array';
 
 
-export default function render(anchor: Element, value: unknown): Node {
+export default function render(value: unknown): Node {
     if (value == null || value === false || value === '') {
         return EMPTY_FRAGMENT;
     }
@@ -29,7 +28,7 @@ export default function render(anchor: Element, value: unknown): Node {
             return EMPTY_FRAGMENT;
         }
         else if (n === 1) {
-            return render(anchor, (value as any)[0]);
+            return render((value as any)[0]);
         }
     }
 
@@ -37,8 +36,7 @@ export default function render(anchor: Element, value: unknown): Node {
         let fragment = clone(EMPTY_FRAGMENT) as DocumentFragment;
 
         for (let i = 0; i < n; i++) {
-            fragment.append(render(anchor, value[i]));
-            anchor = fragment.lastChild as Element;
+            fragment.append(render(value[i]));
         }
 
         return fragment;

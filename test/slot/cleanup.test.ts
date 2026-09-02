@@ -58,7 +58,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: element, tail: element };
 
-            remove(group);
+            remove([group]);
 
             expect(container.children.length).toBe(0);
         });
@@ -72,7 +72,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
 
-            remove(group);
+            remove([group]);
 
             expect(cleanup).toHaveBeenCalledTimes(1);
         });
@@ -91,7 +91,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
 
-            remove(group);
+            remove([group]);
 
             expect(callOrder).toEqual([3, 2, 1]);
         });
@@ -107,7 +107,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: first, tail: last };
 
-            remove(group);
+            remove([group]);
 
             expect(container.children.length).toBe(0);
         });
@@ -130,7 +130,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: first as unknown as Element, tail: last as unknown as Element };
 
-            remove(group);
+            remove([group]);
 
             expect(cleanup1).toHaveBeenCalledTimes(1);
             expect(cleanup2).toHaveBeenCalledTimes(1);
@@ -148,10 +148,10 @@ describe('slot/cleanup', () => {
             container.appendChild(group2Head as unknown as Node);
             container.appendChild(group2Tail as unknown as Node);
 
-            remove(
+            remove([
                 { head: group1Head, tail: group1Tail },
                 { head: group2Head, tail: group2Tail }
-            );
+            ]);
 
             expect(container.children.length).toBe(0);
         });
@@ -165,7 +165,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: single as unknown as Element, tail: single as unknown as Element };
 
-            remove(group);
+            remove([group]);
 
             expect(container.children.length).toBe(0);
             expect(cleanup).toHaveBeenCalledTimes(1);
@@ -178,7 +178,7 @@ describe('slot/cleanup', () => {
 
             let group = { head: element as unknown as Element } as SlotGroup;
 
-            remove(group);
+            remove([group]);
 
             expect(container.children.length).toBe(0);
         });
@@ -190,7 +190,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: element, tail: element };
 
-            expect(() => remove(group)).not.toThrow();
+            expect(() => remove([group])).not.toThrow();
             expect(container.children.length).toBe(0);
         });
 
@@ -203,7 +203,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
 
-            remove(group);
+            remove([group]);
 
             expect((element[CLEANUP] as VoidFunction[]).length).toBe(0);
         });
@@ -219,7 +219,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: first, tail: last };
 
-            remove(group);
+            remove([group]);
 
             expect(container.childNodes.length).toBe(0);
         });
@@ -235,7 +235,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: first, tail: last };
 
-            remove(group);
+            remove([group]);
 
             expect(container.childNodes.length).toBe(0);
         });
@@ -251,7 +251,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
 
-            dispose(group);
+            dispose([group]);
 
             expect(cleanup).toHaveBeenCalledTimes(1);
             expect(container.children.length).toBe(1);
@@ -273,7 +273,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: first as unknown as Element, tail: last as unknown as Element };
 
-            dispose(group);
+            dispose([group]);
 
             expect(callOrder).toEqual([3, 2, 1]);
             expect(container.childNodes.length).toBe(3);
@@ -288,7 +288,7 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
 
-            dispose(group);
+            dispose([group]);
 
             expect((element[CLEANUP] as VoidFunction[]).length).toBe(0);
         });
@@ -304,10 +304,10 @@ describe('slot/cleanup', () => {
             ondisconnect(group1 as unknown as Element, cleanup1);
             ondisconnect(group2 as unknown as Element, cleanup2);
 
-            dispose(
+            dispose([
                 { head: group1 as unknown as Element, tail: group1 as unknown as Element },
                 { head: group2 as unknown as Element, tail: group2 as unknown as Element }
-            );
+            ]);
 
             expect(cleanup1).toHaveBeenCalledTimes(1);
             expect(cleanup2).toHaveBeenCalledTimes(1);
@@ -321,8 +321,9 @@ describe('slot/cleanup', () => {
 
             let group: SlotGroup = { head: element, tail: element };
 
-            expect(() => dispose(group)).not.toThrow();
+            expect(() => dispose([group])).not.toThrow();
             expect(container.children.length).toBe(1);
         });
     });
+
 });

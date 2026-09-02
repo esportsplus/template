@@ -166,28 +166,32 @@ class ArraySlot<T> {
             let parent = this.marker.parentNode;
 
             if (parent) {
-                dispose(...this.nodes.splice(0));
+                dispose(this.nodes.splice(0));
                 parent.textContent = '';
                 parent.append(this.marker);
                 return;
             }
         }
 
-        remove(...this.nodes.splice(0));
+        remove(this.nodes.splice(0));
     }
 
     private pop() {
         let group = this.nodes.pop();
 
         if (group) {
-            remove(group);
+            remove([group]);
         }
     }
 
     private push(items: T[]) {
-        let anchor = this.anchor();
+        let anchor = this.anchor(),
+            nodes = this.nodes;
 
-        this.nodes.push(...items.map(this.template));
+        for (let i = 0, n = items.length; i < n; i++) {
+            nodes.push(this.template(items[i]));
+        }
+
         anchor.after(this.fragment);
     }
 
@@ -228,7 +232,7 @@ class ArraySlot<T> {
                             this.sync();
                             break;
                         case 'set':
-                            this.splice(op.index, op.index + 1, [op.item]);
+                            this.splice(op.index, 1, [op.item]);
                             break;
                         case 'shift':
                             this.shift();
@@ -254,7 +258,7 @@ class ArraySlot<T> {
         let group = this.nodes.shift();
 
         if (group) {
-            remove(group);
+            remove([group]);
         }
     }
 
@@ -263,7 +267,7 @@ class ArraySlot<T> {
             n = nodes.length;
 
         if (n !== order.length) {
-            remove(...nodes.splice(0));
+            remove(nodes.splice(0));
 
             let m = this.array.length,
                 rebuilt = new Array<SlotGroup>(m);
@@ -321,13 +325,26 @@ class ArraySlot<T> {
         }
     }
 
-    private splice(start: number, stop: number = this.nodes.length, items: T[]) {
+    private splice(start: number, deleteCount: number = this.nodes.length, items: T[]) {
+        let nodes = this.nodes;
+
         if (!items.length) {
-            remove(...this.nodes.splice(start, stop));
+            remove(nodes.splice(start, deleteCount));
             return;
         }
 
-        remove(...this.nodes.splice(start, stop, ...items.map(this.template)));
+        remove(nodes.splice(start, deleteCount));
+
+        let rest = nodes.splice(start);
+
+        for (let i = 0, n = items.length; i < n; i++) {
+            nodes.push(this.template(items[i]));
+        }
+
+        for (let i = 0, n = rest.length; i < n; i++) {
+            nodes.push(rest[i]);
+        }
+
         this.anchor(start - 1).after(this.fragment);
     }
 
@@ -376,7 +393,13 @@ class ArraySlot<T> {
     }
 
     private unshift(items: T[]) {
-        this.nodes.unshift(...items.map(this.template));
+        let groups = new Array<SlotGroup>(items.length);
+
+        for (let i = 0, n = items.length; i < n; i++) {
+            groups[i] = this.template(items[i]);
+        }
+
+        this.nodes = groups.concat(this.nodes);
         this.marker.after(this.fragment);
     }
 

@@ -9,7 +9,7 @@ export default <T>(anchor: Element, renderable: Renderable<T>, mode: number = AN
         new EffectSlot(anchor, renderable, mode);
     }
     else {
-        let node = render(anchor, renderable);
+        let node = render(renderable);
 
         if (mode === ANCHOR_MARKER) {
             anchor.after(node);

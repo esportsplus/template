@@ -117,6 +117,20 @@ describe('render', () => {
         });
     });
 
+    describe('clearing parent (B10)', () => {
+        it('removes pre-existing children before rendering', () => {
+            let old = document.createElement('p');
+
+            old.textContent = 'old';
+            container.appendChild(old);
+
+            render(container, 'new');
+
+            expect(container.querySelector('p')).toBe(null);
+            expect(container.textContent).toContain('new');
+        });
+    });
+
     describe('falsy values', () => {
         it('handles null', () => {
             render(container, null);

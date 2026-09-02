@@ -69,22 +69,24 @@ class EffectSlot {
             return;
         }
 
-        if (mode === ANCHOR_MARKER) {
-            if (textnode) {
-                group = { head: anchor, tail: textnode as Element };
-            }
-            else if (group) {
-                group.head = anchor;
-            }
-        }
-        else if (textnode) {
-            group = { head: textnode as Element, tail: textnode as Element };
-        }
-
         disposer();
 
         if (group) {
-            remove(group);
+            if (mode === ANCHOR_MARKER) {
+                group.head = anchor;
+            }
+
+            remove([group]);
+        }
+        else if (textnode?.parentNode) {
+            remove([{
+                head: (mode === ANCHOR_MARKER ? anchor : textnode) as Element,
+                tail: textnode as Element
+            }]);
+            this.textnode = null;
+        }
+        else if (mode === ANCHOR_MARKER) {
+            remove([{ head: anchor, tail: anchor }]);
         }
     }
 
@@ -94,7 +96,7 @@ class EffectSlot {
         value = read(value);
 
         if (group) {
-            remove(group);
+            remove([group]);
             this.group = null;
         }
 
@@ -106,7 +108,7 @@ class EffectSlot {
             if (textnode) {
                 textnode.nodeValue = value as string;
 
-                if (!textnode.isConnected) {
+                if (textnode.parentNode === null) {
                     if (mode === ANCHOR_MARKER) {
                         anchor.after(textnode);
                     }
@@ -127,7 +129,7 @@ class EffectSlot {
             }
         }
         else {
-            let fragment = render(anchor, value),
+            let fragment = render(value),
                 head: Node | null,
                 tail: Node | null;
 
@@ -140,8 +142,9 @@ class EffectSlot {
                 tail = fragment;
             }
 
-            if (textnode?.isConnected) {
-                remove({ head: textnode as Element, tail: textnode as Element });
+            if (textnode?.parentNode) {
+                remove([{ head: textnode as Element, tail: textnode as Element }]);
+                this.textnode = null;
             }
 
             if (head) {
