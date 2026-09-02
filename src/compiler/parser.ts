@@ -28,11 +28,7 @@ const REGEX_CLEANUP_WHITESPACE = /\s+/g;
 
 const REGEX_CLOSING_TAGS_END = /(?:<\/[a-z][\w-]*>)+$/i;
 
-const REGEX_EMPTY_ATTRIBUTES = /\s+[\w:-]+\s*=\s*["']\s*["']|\s+(?=>)/g;
-
 const REGEX_EMPTY_TEXT_NODES = /(>|}|\s)\s+(<|{|\s)/g;
-
-const REGEX_EVENTS = /(?:\s*on[\w-:]+\s*=(?:\s*["'][^"']*["'])*)/g;
 
 const REGEX_SLOT_ATTRIBUTES = /<([\w-]+)([^><]*{{\$}}[^><]*)>/g;
 
@@ -58,7 +54,7 @@ const SLOT_MARKER = '{{$}}';
     'feMorphology', 'feOffset', 'fePointLight', 'feSpecularLighting', 'feSpotLight', 'feTile', 'feTurbulence',
     'hatch', 'hatchpath', 'image', 'line', 'mpath', 'path', 'polygon', 'polyline',
     'rect', 'set', 'stop', 'use', 'view'
-].map(tag => NODE_WHITELIST[tag] = NODE_VOID);
+].forEach(tag => { NODE_WHITELIST[tag] = NODE_VOID; });
 
 
 // Literal text abutting a slot marker belongs to that slot's value, never to the emitted clone:
@@ -77,6 +73,12 @@ function metadata(found: string): AttributeMetadata {
         pending = -1,
         quote = '',
         statics: Record<string, string> = {};
+
+    for (let match of found.matchAll(/\s(on[\w-:]*)\s*=\s*(["'])(.*?)\2/gi)) {
+        if (!match[3].includes(SLOT_MARKER)) {
+            throw new Error(`${PACKAGE_NAME}: inline event handlers are not supported`);
+        }
+    }
 
     // One past the end: the sentinel closes the trailing value without duplicating the flush
     for (let i = 0, n = found.length; i <= n; i++) {
@@ -349,8 +351,7 @@ const parse = (literals: string[]) => {
     }
 
     buffer = buffer
-        .replace(REGEX_EVENTS, '')
-        .replace(REGEX_EMPTY_ATTRIBUTES, '')
+        .replace(/\s+(?:class|id|style|on[\w-:]+)\s*=\s*(?:["']\s*["']|(?=>))/g, '')
         .replace(REGEX_CLEANUP_WHITESPACE, ' ');
 
     return {

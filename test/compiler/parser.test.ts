@@ -324,6 +324,33 @@ describe('compiler/parser', () => {
         });
     });
 
+    describe('parse - static and event attributes', () => {
+        it('preserves static empty attributes beside a slot', () => {
+            let result = parser.parse(['<input disabled="" required="" hidden="">', '']);
+
+            expect(result.html).toContain('disabled=""');
+            expect(result.html).toContain('required=""');
+            expect(result.html).toContain('hidden=""');
+        });
+
+        it('preserves static on-prefixed attributes', () => {
+            let result = parser.parse(['<x-element one="1">', '</x-element>']);
+
+            expect(result.html).toContain('one=1');
+        });
+
+        it('drops dynamic event attributes from the clone', () => {
+            let result = parser.parse(['<button onclick="', '"></button>']);
+
+            expect(result.html).not.toContain('onclick');
+        });
+
+        it('rejects inline event handlers', () => {
+            expect(() => parser.parse(['<button onclick="x()" class="', '"></button>']))
+                .toThrow('@esportsplus/template: inline event handlers are not supported');
+        });
+    });
+
     describe('parse - void elements', () => {
         it('handles input element', () => {
             let result = parser.parse(['<input type="', '">']);
