@@ -8,12 +8,13 @@ import q from '@esportsplus/queue';
 
 
 type Context = {
-    effect?: 0,
+    effect?: number,
     element: Element;
     store?: Record<string, unknown>;
     updates?: Record<PropertyKey, unknown>;
     updating?: boolean;
-} & Record<PropertyKey, unknown>;
+    values?: Record<string, unknown>;
+};
 
 type State = typeof STATE_HYDRATING | typeof STATE_NONE | typeof STATE_WAITING;
 
@@ -23,21 +24,29 @@ let queue = q<Context>(64),
 
 
 function apply(element: Element, name: string, value: unknown) {
-    if (value == null || value === false || value === '') {
-        element.removeAttribute(name);
-    }
-    else if (name === 'class') {
+    if (name === 'class') {
         element.className = value as string;
     }
     else if (name === 'style') {
         element.style.cssText = value as string;
     }
-    else if ((name[0] === 'd' && name.startsWith('data-')) || element['ownerSVGElement']) {
-        element.setAttribute(name, value as string);
+    else if (attribute(name, element)) {
+        if (value == null || value === false || value === '') {
+            element.removeAttribute(name);
+        }
+        else {
+            element.setAttribute(name, value as string);
+        }
     }
     else {
-        element[name] = value;
+        element[name] = value == null || value === false
+            ? (typeof element[name] === 'boolean' ? false : '')
+            : value;
     }
+}
+
+function attribute(name: string, element: Element) {
+    return name.indexOf('-') !== -1 || element['ownerSVGElement'] != null || !(name in element);
 }
 
 function context(element: Element) {
@@ -146,11 +155,13 @@ function property(
     if (id !== null) {
         ctx ??= context(element);
 
-        if (ctx[name] === value) {
+        let values = ctx.values ??= {};
+
+        if (values[name] === value) {
             return;
         }
 
-        ctx[name] = value as string;
+        values[name] = value;
     }
 
     if (state === STATE_HYDRATING) {
@@ -167,7 +178,7 @@ function reactive(element: Element, name: string, state: State, value: unknown) 
 
     ctx.effect ??= 0;
 
-    let id = (ctx.effect as number)++;
+    let id = ctx.effect++;
 
     effect(() => {
         let v = (value as Function)(element);

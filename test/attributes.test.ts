@@ -311,6 +311,117 @@ describe('attributes', () => {
         });
     });
 
+    describe('property off-transition (B1)', () => {
+        it('resets checked from true to false through the IDL property', () => {
+            let input = document.createElement('input') as HTMLInputElement & Record<symbol, unknown>;
+
+            input.type = 'checkbox';
+
+            setProperty(input as unknown as Element, 'checked', true);
+            expect(input.checked).toBe(true);
+
+            setProperty(input as unknown as Element, 'checked', false);
+            expect(input.checked).toBe(false);
+        });
+
+        it('clears value from a string back to empty through the IDL property', () => {
+            let input = document.createElement('input') as HTMLInputElement & Record<symbol, unknown>;
+
+            setProperty(input as unknown as Element, 'value', 'abc');
+            expect(input.value).toBe('abc');
+
+            setProperty(input as unknown as Element, 'value', '');
+            expect(input.value).toBe('');
+        });
+
+        it('resets disabled from true to false', () => {
+            let input = document.createElement('input') as HTMLInputElement & Record<symbol, unknown>;
+
+            setProperty(input as unknown as Element, 'disabled', true);
+            expect(input.disabled).toBe(true);
+
+            setProperty(input as unknown as Element, 'disabled', false);
+            expect(input.disabled).toBe(false);
+        });
+
+        it('resets hidden from true to false', () => {
+            setProperty(element as unknown as Element, 'hidden', true);
+            expect(element.hidden).toBe(true);
+
+            setProperty(element as unknown as Element, 'hidden', false);
+            expect(element.hidden).toBe(false);
+        });
+    });
+
+    describe('non-IDL attributes (B2)', () => {
+        it('renders aria-label as an attribute', () => {
+            setProperty(element as unknown as Element, 'aria-label', 'hi');
+
+            expect(element.getAttribute('aria-label')).toBe('hi');
+        });
+
+        it('renders tabindex as an attribute', () => {
+            setProperty(element as unknown as Element, 'tabindex', 3);
+
+            expect(element.getAttribute('tabindex')).toBe('3');
+        });
+
+        it('renders for as an attribute', () => {
+            let label = document.createElement('label') as HTMLElement & Record<symbol, unknown>;
+
+            setProperty(label as unknown as Element, 'for', 'field');
+
+            expect(label.getAttribute('for')).toBe('field');
+        });
+
+        it('renders a custom hyphenated attribute', () => {
+            setProperty(element as unknown as Element, 'foo-bar', 'baz');
+
+            expect(element.getAttribute('foo-bar')).toBe('baz');
+        });
+
+        it('still routes value through the IDL property', () => {
+            let input = document.createElement('input') as HTMLInputElement & Record<symbol, unknown>;
+
+            setProperty(input as unknown as Element, 'value', 'abc');
+
+            expect(input.value).toBe('abc');
+            expect(input.getAttribute('value')).toBe(null);
+        });
+
+        it('still routes checked through the IDL property', () => {
+            let input = document.createElement('input') as HTMLInputElement & Record<symbol, unknown>;
+
+            input.type = 'checkbox';
+
+            setProperty(input as unknown as Element, 'checked', true);
+
+            expect(input.checked).toBe(true);
+            expect(input.getAttribute('checked')).toBe(null);
+        });
+    });
+
+    describe('context collision (B12)', () => {
+        it('applies a reactive attribute named "updating" without breaking batching', async () => {
+            let s1 = signal('a'),
+                s2 = signal('x');
+
+            setProperty(element as unknown as Element, 'updating', () => read(s1));
+            setProperty(element as unknown as Element, 'id', () => read(s2));
+
+            expect(element.getAttribute('updating')).toBe('a');
+            expect(element.id).toBe('x');
+
+            write(s1, 'b');
+            write(s2, 'y');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(element.getAttribute('updating')).toBe('b');
+            expect(element.id).toBe('y');
+        });
+    });
+
     describe('reactive functions', () => {
         it('setProperty handles reactive function', async () => {
             let value = 'initial';
