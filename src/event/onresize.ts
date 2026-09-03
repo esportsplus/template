@@ -1,8 +1,9 @@
-import { onCleanup } from '@esportsplus/reactivity';
+import { dispose, ondisconnect } from '../slot';
 import { Attributes, Element } from '../types';
 
 
-let listeners = new Map<Element, Function>(),
+let counter = 0,
+    listeners = new Map<Element, Function>(),
     registered = false;
 
 
@@ -12,26 +13,35 @@ function onresize() {
             fn(element);
         }
         else {
+            counter--;
             listeners.delete(element);
+            dispose([{ head: element, tail: element }]);
         }
     }
 
     if (listeners.size === 0) {
-        window.removeEventListener('resize', onresize);
         registered = false;
+        window.removeEventListener('resize', onresize);
     }
 }
 
 
 export default (element: Element, listener: NonNullable<Attributes['onresize']>) => {
+    counter++;
     listeners.set(element, listener);
 
-    onCleanup(() => {
-        listeners.delete(element);
-    });
-
     if (!registered) {
-        window.addEventListener('resize', onresize);
         registered = true;
+        window.addEventListener('resize', onresize);
     }
+
+    ondisconnect(element, () => {
+        counter--;
+        listeners.delete(element);
+
+        if (!counter && registered) {
+            registered = false;
+            window.removeEventListener('resize', onresize);
+        }
+    });
 };

@@ -220,13 +220,17 @@ describe('event/index', () => {
             expect(thisValue).toBe(element);
         });
 
-        it('does not register cleanup for removal', () => {
-            let element = document.createElement('input') as HTMLElement & { [key: symbol]: unknown };
+        it('registers cleanup to remove the listener', () => {
+            let element = document.createElement('input') as HTMLElement & { [key: symbol]: unknown },
+                focused = false;
 
             container.appendChild(element);
-            on(element as unknown as Element, 'focus', () => {});
+            on(element as unknown as Element, 'focus', () => { focused = true; });
 
-            expect(element[CLEANUP]).toBeUndefined();
+            remove([{ head: element as unknown as Element, tail: element as unknown as Element }]);
+            element.dispatchEvent(new FocusEvent('focus'));
+
+            expect(focused).toBe(false);
         });
     });
 
@@ -442,7 +446,7 @@ describe('event/index', () => {
     });
 
     describe('on() lifecycle', () => {
-        it('keeps direct listeners without disconnect cleanup', () => {
+        it('registers direct listeners with disconnect cleanup', () => {
             let element = document.createElement('input') as HTMLElement & { [key: symbol]: unknown },
                 callCount = 0;
 
@@ -453,7 +457,7 @@ describe('event/index', () => {
 
             expect(callCount).toBe(1);
 
-            expect(element[CLEANUP]).toBeUndefined();
+            expect(element[CLEANUP]).toBeInstanceOf(Array);
         });
     });
 

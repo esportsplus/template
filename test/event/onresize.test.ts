@@ -1,26 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Element } from '../../src/types';
+import type { Element, SlotGroup } from '../../src/types';
 
 
-let cleanups: VoidFunction[] = [];
-
-vi.mock('@esportsplus/reactivity', async (importOriginal) => {
-    let original = await importOriginal<typeof import('@esportsplus/reactivity')>();
-
-    return {
-        ...original,
-        onCleanup: (fn: VoidFunction) => { cleanups.push(fn); return fn; }
-    };
-});
-
-
-let { default: onresize } = await import('../../src/event/onresize');
+let dispose: (groups: SlotGroup[]) => void,
+    onresize: (element: Element, listener: (element: Element) => void) => void;
 
 
 function createElement(connected = true): Element {
     let element = document.createElement('div') as unknown as Element;
 
-    Object.defineProperty(element, 'isConnected', { get: () => connected, configurable: true });
+    Object.defineProperty(element, 'isConnected', { configurable: true, get: () => connected });
 
     return element;
 }
@@ -31,25 +20,38 @@ function fireResize() {
 
 
 describe('event/onresize', () => {
-    let addSpy: ReturnType<typeof vi.spyOn>;
-    let removeSpy: ReturnType<typeof vi.spyOn>;
+    let addSpy: ReturnType<typeof vi.spyOn>,
+        removeSpy: ReturnType<typeof vi.spyOn>;
 
-    beforeEach(() => {
-        cleanups = [];
+    // The module keeps its listener/counter state at module scope; reset the graph
+    // per test so it cannot leak, then re-import onresize and the slot `dispose` it
+    // registers cleanups through from the SAME fresh graph (shared CLEANUP symbol).
+    beforeEach(async () => {
+        vi.resetModules();
+
+        ({ dispose } = await import('../../src/slot'));
+        onresize = (await import('../../src/event/onresize')).default;
+
         addSpy = vi.spyOn(window, 'addEventListener');
         removeSpy = vi.spyOn(window, 'removeEventListener');
     });
 
     afterEach(() => {
-        // Run all captured cleanups to reset module state
-        for (let i = 0, n = cleanups.length; i < n; i++) {
-            cleanups[i]();
-        }
-
-        cleanups = [];
         addSpy.mockRestore();
         removeSpy.mockRestore();
     });
+
+    function disconnect(element: Element) {
+        dispose([{ head: element, tail: element }]);
+    }
+
+    function resizeAdds() {
+        return addSpy.mock.calls.filter((args) => args[0] === 'resize').length;
+    }
+
+    function resizeRemoves() {
+        return removeSpy.mock.calls.filter((args) => args[0] === 'resize').length;
+    }
 
     it('single element receives resize callback', () => {
         let called = false,
@@ -78,12 +80,9 @@ describe('event/onresize', () => {
     it('disconnected element is auto-removed during next resize', () => {
         let connected = true,
             count = 0,
-            element = document.createElement('div') as unknown as Element;
+            element = createElement();
 
-        Object.defineProperty(element, 'isConnected', {
-            get: () => connected,
-            configurable: true
-        });
+        Object.defineProperty(element, 'isConnected', { configurable: true, get: () => connected });
 
         onresize(element, () => { count++; });
         fireResize();
@@ -93,28 +92,19 @@ describe('event/onresize', () => {
         connected = false;
         fireResize();
 
-        // Should not have incremented — disconnected elements skipped
         expect(count).toBe(1);
 
         connected = true;
         fireResize();
 
-        // Already removed from listeners map, should stay at 1
         expect(count).toBe(1);
     });
 
     it('dedup: only one window resize listener registered', () => {
-        let elementA = createElement(),
-            elementB = createElement();
+        onresize(createElement(), () => {});
+        onresize(createElement(), () => {});
 
-        onresize(elementA, () => {});
-        onresize(elementB, () => {});
-
-        let resizeCalls = addSpy.mock.calls.filter(
-            (args) => args[0] === 'resize'
-        );
-
-        expect(resizeCalls.length).toBe(1);
+        expect(resizeAdds()).toBe(1);
     });
 
     it('listener receives element as argument', () => {
@@ -127,7 +117,7 @@ describe('event/onresize', () => {
         expect(received).toBe(element);
     });
 
-    it('onCleanup removes element from listeners', () => {
+    it('cleanup removes element from listeners', () => {
         let count = 0,
             element = createElement();
 
@@ -136,52 +126,31 @@ describe('event/onresize', () => {
 
         expect(count).toBe(1);
 
-        // Simulate reactive cleanup
-        for (let i = 0, n = cleanups.length; i < n; i++) {
-            cleanups[i]();
-        }
-
-        cleanups = [];
+        disconnect(element);
         fireResize();
 
         expect(count).toBe(1);
     });
 
     it('window listener removed when all elements gone', () => {
-        let element = createElement(false);
+        let element = createElement();
 
         onresize(element, () => {});
-        fireResize();
+        disconnect(element);
 
-        let removeCalls = removeSpy.mock.calls.filter(
-            (args) => args[0] === 'resize'
-        );
-
-        expect(removeCalls.length).toBe(1);
+        expect(resizeRemoves()).toBe(1);
     });
 
     it('re-registers window listener after all removed and new element added', () => {
-        let element = createElement(false);
+        let element = createElement();
 
         onresize(element, () => {});
-        fireResize();
+        disconnect(element);
 
-        // Window listener should be removed
-        let removeCalls = removeSpy.mock.calls.filter(
-            (args) => args[0] === 'resize'
-        );
+        expect(resizeRemoves()).toBe(1);
 
-        expect(removeCalls.length).toBe(1);
+        onresize(createElement(), () => {});
 
-        // Add new element — should re-register
-        let element2 = createElement();
-
-        onresize(element2, () => {});
-
-        let addCalls = addSpy.mock.calls.filter(
-            (args) => args[0] === 'resize'
-        );
-
-        expect(addCalls.length).toBe(2);
+        expect(resizeAdds()).toBe(2);
     });
 });

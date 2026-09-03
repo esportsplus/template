@@ -8,9 +8,7 @@ import onresize from './onresize';
 import ontick from './ontick';
 
 
-let dataKeys: Record<string, symbol> = {},
-    host = window.document,
-    keys: Record<string, symbol> = {},
+let host = window.document,
     passive = new Set<string>([
         'animationend', 'animationiteration', 'animationstart',
         'mousedown', 'mouseenter', 'mouseleave', 'mousemove', 'mouseout', 'mouseover', 'mouseup',
@@ -18,50 +16,71 @@ let dataKeys: Record<string, symbol> = {},
         'scroll',
         'touchcancel', 'touchend', 'touchleave', 'touchmove', 'touchstart', 'transitionend',
         'wheel'
-    ]);
+    ]),
+    registrations: Record<string, { counter: number, key: symbol; ondisconnect: VoidFunction } | null> = {},
+    symbols: Record<string, symbol> = {};
 
 
 function register(event: string) {
-    let dataKey = dataKeys[event] = Symbol(),
-        key = keys[event] = Symbol();
+    let key = Symbol(),
+        handler = (e: Event) => {
+            let data,
+                fn,
+                node = e.target as Element | null;
 
-    host.addEventListener(event, (e) => {
-        let data,
-            fn,
-            node = e.target as Element | null;
+            while (node) {
+                fn = node[key];
 
-        while (node) {
-            fn = node[key];
+                if (typeof fn === 'function') {
+                    defineProperty(e, 'currentTarget', {
+                        configurable: true,
+                        get() {
+                            return node || window.document;
+                        }
+                    });
 
-            if (typeof fn === 'function') {
-                defineProperty(e, 'currentTarget', {
-                    configurable: true,
-                    get() {
-                        return node || window.document;
-                    }
-                });
+                    data = node[symbol];
 
-                data = node[dataKey];
+                    return data !== undefined ? fn.call(node, data, e) : fn.call(node, e);
+                }
 
-                return data !== undefined ? fn.call(node, data, e) : fn.call(node, e);
+                node = node.parentElement as Element | null;
             }
+        },
+        symbol = symbols[event] = Symbol();
 
-            node = node.parentElement as Element | null;
-        }
-    }, {
+    host.addEventListener(event, handler, {
         passive: passive.has(event)
     });
 
-    return key;
+    let registration = {
+            counter: 0,
+            key,
+            ondisconnect: () => {
+                if (--registration.counter) {
+                    return;
+                }
+
+                host.removeEventListener(event, handler);
+                registrations[event] = null;
+            }
+        };
+
+    return registration;
 }
 
 
 const delegate = <E extends string>(element: Element, event: E, listener: Attributes[`on${E}`], data?: unknown): void => {
-    element[ keys[event] || register(event) ] = listener;
+    let registration = registrations[event] ??= register(event);
+
+    registration.counter++;
+    element[registration.key] = listener;
 
     if (data !== undefined) {
-        element[ dataKeys[event] ] = data;
+        element[ symbols[event] ] = data;
     }
+
+    disconnect(element, registration.ondisconnect);
 };
 
 // DIRECT_ATTACH_EVENTS in ./constants.ts tells compiler to use this function
@@ -72,6 +91,7 @@ const on = <E extends string>(element: Element, event: E, listener: Attributes[`
         passive: passive.has(event)
     });
 
+    disconnect(element, () => element.removeEventListener(event, handler));
 };
 
 const ondisconnect = (element: Element, listener: NonNullable<Attributes[`ondisconnect`]>) => {
