@@ -4,3 +4,7 @@ minimumReleaseAgeExclude:
   - '@esportsplus/*'
   - tsc-alias
   - '@types/node@26.4.1'
+  - '@vitest/coverage-v8@5.0.0'
+  - '@vitest/mocker@5.0.0'
+  - '@vitest/spy@5.0.0'
+  - vitest@5.0.0
