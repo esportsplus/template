@@ -4,5 +4,5 @@
             { "transform": "@esportsplus/reactivity/compiler/tsc" }
         ]
     },
-    "extends": "@esportsplus/typescript/tsconfig.package.dev.json"
+    "extends": "@esportsplus/typescript/tsconfig.package.json"
 }

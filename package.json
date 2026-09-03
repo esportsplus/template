@@ -2,8 +2,8 @@
     "author": "ICJR",
     "dependencies": {
         "@esportsplus/queue": "^0.4.2",
-        "@esportsplus/reactivity": "^0.36.0",
-        "@esportsplus/typescript": "^0.32.0",
+        "@esportsplus/reactivity": "^0.36.2",
+        "@esportsplus/typescript": "^0.33.2",
         "@esportsplus/utilities": "^0.28.0"
     },
     "devDependencies": {
@@ -45,7 +45,7 @@
         "bench:krausest": "vitest run --config vitest.krausest.config.ts",
         "bench:krausest:browser": "node bench/krausest/run-browser.mjs",
         "bench:run": "vitest bench --config vitest.bench.config.ts",
-        "build": "tsc",
+        "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
