@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { reactive } from '@esportsplus/reactivity';
+import { onCleanup, reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../../src/constants';
 import { ArraySlot } from '../../src/slot/array';
 import { ondisconnect } from '../../src/slot/cleanup';
@@ -1219,5 +1219,43 @@ describe('slot/ArraySlot', () => {
             expect(slot.fragment.childNodes.length).toBe(1);
             expect(slot.fragment.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
+    });
+
+    describe('disposal hardening', () => {
+        it('dispose cancels pending work, disposes row roots, and detaches subscriptions', async () => {
+            let disposed = 0,
+                arr = reactive(['a', 'b'] as string[]),
+                slot = new ArraySlot(arr, () => {
+                    onCleanup(() => disposed++);
+
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = 'x';
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            expect(container.querySelectorAll('span').length).toBe(2);
+
+            arr.push('c');
+            slot.dispose();
+
+            expect(disposed).toBe(2);
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(container.querySelectorAll('span').length).toBe(2);
+
+            arr.push('d');
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(container.querySelectorAll('span').length).toBe(2);
+        });
+
     });
 });

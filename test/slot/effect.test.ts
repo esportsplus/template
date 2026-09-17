@@ -496,4 +496,37 @@ describe('slot/EffectSlot', () => {
             expect(parent.textContent).toBe('b');
         });
     });
+
+    describe('disposal hardening', () => {
+        it('repeated disposal is a no-op', () => {
+            let slot = new EffectSlot(anchor, () => 'Content');
+
+            expect(container.textContent).toContain('Content');
+
+            slot.dispose();
+            slot.dispose();
+
+            expect(container.textContent).not.toContain('Content');
+        });
+
+        it('mutating a removed signal does not touch detached nodes', async () => {
+            let s = signal('before'),
+                slot = new EffectSlot(anchor, () => read(s)),
+                textnode = slot.textnode!;
+
+            expect(container.textContent).toContain('before');
+
+            slot.dispose();
+
+            expect(textnode.isConnected).toBe(false);
+
+            write(s, 'after');
+
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            await Promise.resolve();
+
+            expect(textnode.nodeValue).toBe('before');
+            expect(textnode.isConnected).toBe(false);
+        });
+    });
 });

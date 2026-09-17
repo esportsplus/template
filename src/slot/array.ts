@@ -2,7 +2,8 @@ import { read, root, signal, write, Reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
 import { clone, EMPTY_FRAGMENT, marker, raf } from '../utilities';
-import { dispose, ondisconnect, remove } from './cleanup';
+import { dispose as disposeGroups, ondisconnect, remove } from './cleanup';
+import { subscribeArray } from './subscriptions';
 
 
 type ArraySlotOp<T> =
@@ -66,6 +67,8 @@ function lis(arr: number[]): Set<number> {
 
 
 class ArraySlot<T> {
+    private disposed = false;
+    private frame: number | null = null;
     private marker: Element;
     private nodes: SlotGroup[] = [];
     private queue: ArraySlotOp<T>[] = [];
@@ -73,6 +76,7 @@ class ArraySlot<T> {
     private signal;
     private soleChild: boolean;
     private template: (value: T) => SlotGroup;
+    private unsubscribers: VoidFunction[] = [];
 
     readonly fragment: DocumentFragment;
 
@@ -101,6 +105,7 @@ class ArraySlot<T> {
         };
 
         fragment.append(this.marker);
+        ondisconnect(this.marker as unknown as Element, () => this.dispose());
 
         if (array.length) {
             root(() => {
@@ -115,37 +120,39 @@ class ArraySlot<T> {
             });
         }
 
-        array.on('clear', () => {
-            this.queue.length = 0;
-            this.schedule({ op: 'clear' });
-        });
-        array.on('concat', ({ items }) => {
-            this.schedule({ items, op: 'concat' });
-        });
-        array.on('pop', () => {
-            this.schedule({ op: 'pop' });
-        });
-        array.on('push', ({ items }) => {
-            this.schedule({ items, op: 'push' });
-        });
-        array.on('reverse', () => {
-            this.schedule({ op: 'reverse' });
-        });
-        array.on('set', ({ index, item }) => {
-            this.schedule({ op: 'set', item, index });
-        });
-        array.on('shift', () => {
-            this.schedule({ op: 'shift' });
-        });
-        array.on('sort', ({ order }) => {
-            this.schedule({ op: 'sort', order });
-        });
-        array.on('splice', ({ deleteCount, items, start }) => {
-            this.schedule({ deleteCount, items, op: 'splice', start });
-        });
-        array.on('unshift', ({ items }) => {
-            this.schedule({ items, op: 'unshift' });
-        });
+        this.unsubscribers.push(
+            subscribeArray(array, 'clear', () => {
+                this.queue.length = 0;
+                this.schedule({ op: 'clear' });
+            }),
+            subscribeArray(array, 'concat', ({ items }) => {
+                this.schedule({ items, op: 'concat' });
+            }),
+            subscribeArray(array, 'pop', () => {
+                this.schedule({ op: 'pop' });
+            }),
+            subscribeArray(array, 'push', ({ items }) => {
+                this.schedule({ items, op: 'push' });
+            }),
+            subscribeArray(array, 'reverse', () => {
+                this.schedule({ op: 'reverse' });
+            }),
+            subscribeArray(array, 'set', ({ index, item }) => {
+                this.schedule({ op: 'set', item, index });
+            }),
+            subscribeArray(array, 'shift', () => {
+                this.schedule({ op: 'shift' });
+            }),
+            subscribeArray(array, 'sort', ({ order }) => {
+                this.schedule({ op: 'sort', order });
+            }),
+            subscribeArray(array, 'splice', ({ deleteCount, items, start }) => {
+                this.schedule({ deleteCount, items, op: 'splice', start });
+            }),
+            subscribeArray(array, 'unshift', ({ items }) => {
+                this.schedule({ items, op: 'unshift' });
+            })
+        );
     }
 
 
@@ -164,7 +171,7 @@ class ArraySlot<T> {
             let parent = this.marker.parentNode;
 
             if (parent) {
-                dispose(this.nodes.splice(0));
+                disposeGroups(this.nodes.splice(0));
                 parent.textContent = '';
                 parent.append(this.marker);
                 return;
@@ -172,6 +179,32 @@ class ArraySlot<T> {
         }
 
         remove(this.nodes.splice(0));
+    }
+
+    dispose() {
+        if (this.disposed) {
+            return;
+        }
+
+        this.disposed = true;
+
+        this.queue = [];
+        this.scheduled = false;
+
+        if (this.frame !== null) {
+            globalThis.cancelAnimationFrame(this.frame);
+            this.frame = null;
+        }
+
+        let unsubscribers = this.unsubscribers;
+
+        this.unsubscribers = [];
+
+        for (let i = 0, n = unsubscribers.length; i < n; i++) {
+            unsubscribers[i]();
+        }
+
+        disposeGroups(this.nodes.splice(0));
     }
 
     private pop() {
@@ -202,11 +235,18 @@ class ArraySlot<T> {
 
         this.scheduled = true;
 
-        raf(() => {
+        this.frame = raf(() => {
+            this.frame = null;
+            this.scheduled = false;
+
+            if (this.disposed) {
+                this.queue = [];
+                return;
+            }
+
             let queue = this.queue;
 
             this.queue = [];
-            this.scheduled = false;
 
             root(() => {
                 for (let i = 0, n = queue.length; i < n; i++) {

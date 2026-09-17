@@ -1,55 +1,91 @@
-import { CLEANUP } from '../constants';
+import { CLEANUP, PACKAGE_NAME } from '../constants';
 import { Element, SlotGroup } from '../types';
 
 
-const DESCENDANTS = Symbol(),
-    MARKER = 'data-template-cleanup';
+function drain(calls: VoidFunction[]): unknown[] {
+    let errors: unknown[] = [];
 
-
-function cleanup(node: Element) {
-    let fn, fns;
-
-    if (node.nodeType === 1 && node.firstElementChild !== null && (node as any)[DESCENDANTS]) {
-        let marked = node.querySelectorAll('[' + MARKER + ']');
-
-        for (let i = 0, n = marked.length; i < n; i++) {
-            if (fns = (marked[i] as unknown as Element)[CLEANUP] as VoidFunction[] | undefined) {
-                while (fn = fns.pop()) {
-                    fn();
-                }
-            }
+    for (let i = 0, n = calls.length; i < n; i++) {
+        try {
+            calls[i]();
+        }
+        catch (e) {
+            errors.push(e);
         }
     }
 
-    if (fns = node[CLEANUP] as VoidFunction[] | undefined) {
-        while (fn = fns.pop()) {
-            fn();
+    return errors;
+}
+
+function snapshot(node: Node, calls: VoidFunction[]) {
+    let fns = (node as any)[CLEANUP] as VoidFunction[] | undefined;
+
+    if (fns !== undefined) {
+        while (fns.length) {
+            calls.push(fns.pop()!);
         }
     }
 }
 
+function collect(node: Node, calls: VoidFunction[]) {
+    let walker = document.createTreeWalker(
+            node,
+            NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT
+        ),
+        child = walker.firstChild();
+
+    while (child) {
+        snapshot(child, calls);
+        child = walker.nextNode();
+    }
+
+    snapshot(node, calls);
+}
+
 function walk(groups: SlotGroup[], detach: boolean) {
+    let calls: VoidFunction[] = [],
+        removals: ChildNode[] = [];
+
     for (let i = 0, n = groups.length; i < n; i++) {
         let group = groups[i],
             head = group.head,
-            next,
-            tail = group.tail || head;
+            tail = group.tail || head,
+            nodes: Node[] = [],
+            node: Node | null = tail as Node | null;
 
-        while (tail) {
-            cleanup(tail);
+        while (node) {
+            nodes.push(node);
 
-            next = tail.previousSibling as unknown as Element;
-
-            if (detach) {
-                tail.remove();
-            }
-
-            if (head === tail) {
+            if (node === head) {
                 break;
             }
 
-            tail = next;
+            node = node.previousSibling;
         }
+
+        for (let j = 0, o = nodes.length; j < o; j++) {
+            collect(nodes[j], calls);
+        }
+
+        if (detach) {
+            for (let j = 0, o = nodes.length; j < o; j++) {
+                removals.push(nodes[j] as ChildNode);
+            }
+        }
+    }
+
+    let errors = drain(calls);
+
+    if (detach) {
+        for (let i = 0, n = removals.length; i < n; i++) {
+            removals[i].remove();
+        }
+    }
+
+    if (errors.length) {
+        throw errors.length === 1
+            ? errors[0]
+            : new AggregateError(errors, `${PACKAGE_NAME}: cleanup produced multiple errors`);
     }
 }
 
@@ -59,20 +95,6 @@ const dispose = (groups: SlotGroup[]) => {
 };
 
 const ondisconnect = (element: Element, fn: VoidFunction) => {
-    let parent = element.parentNode;
-
-    if (element.nodeType === 1 && !element.hasAttribute(MARKER)) {
-        element.setAttribute(MARKER, '');
-    }
-
-    while (parent) {
-        if (parent.nodeType === 1) {
-            (parent as any)[DESCENDANTS] = true;
-        }
-
-        parent = parent.parentNode;
-    }
-
     ((element as any)[CLEANUP] ??= []).push(fn);
 };
 

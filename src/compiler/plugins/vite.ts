@@ -1,25 +1,26 @@
-import { NAMESPACE, PACKAGE_NAME } from '../constants';
+import { readFileSync } from 'node:fs';
 import { plugin } from '@esportsplus/typescript/compiler';
-
 import reactivity from '@esportsplus/reactivity/compiler';
 import template from '..';
+import { transform as transformHMR } from '../hmr';
+import { PACKAGE_NAME } from '../constants';
 
 
 type VitePlugin = {
     configResolved: (config: any) => void;
     enforce: 'pre';
+    handleHotUpdate: (ctx: any) => any;
     name: string;
-    transform: (code: string, id: string) => { code: string; map: unknown } | null;
+    transform: (code: string, id: string, options?: { ssr?: boolean }) => { code: string; map: unknown } | null;
     watchChange: (id: string) => void;
 };
 
 
-const TEMPLATE_SEARCH = NAMESPACE + '.template(';
+const FILE_REGEX = /\.[tj]sx?$/;
 
-const TEMPLATE_CALL_REGEX = new RegExp(
-    '(const\\s+(\\w+)\\s*=\\s*' + NAMESPACE + '\\.template\\()(`)',
-    'g'
-);
+const RELOAD_WINDOW = 100;
+
+const TEMPLATE_PATTERNS = ['html`', 'html.reactive'];
 
 
 let base = plugin.vite({
@@ -28,51 +29,73 @@ let base = plugin.vite({
     });
 
 
-const injectHMR = (code: string, id: string): string => {
-    let hmrId = id.replace(/\\/g, '/'),
-        hotReplace = NAMESPACE + '.createHotTemplate("' + hmrId + '", "',
-        injected = code.replace(TEMPLATE_CALL_REGEX, function(_match: string, prefix: string, varName: string, backtick: string) {
-            return prefix.replace(TEMPLATE_SEARCH, hotReplace + varName + '", ') + backtick;
-        });
-
-    if (injected === code) {
-        return code;
-    }
-
-    injected += '\nif (import.meta.hot) { import.meta.hot.accept(() => { ' + NAMESPACE + '.accept("' + hmrId + '"); }); }';
-
-    return injected;
-};
-
-
 export default ({ root }: { root?: string } = {}) => {
     let isDev = false,
+        lastReload = 0,
         vitePlugin = base({ root });
+
+    const reload = (server: any) => {
+        let now = Date.now();
+
+        if (now - lastReload < RELOAD_WINDOW) {
+            return;
+        }
+
+        lastReload = now;
+        (server.hot ?? server.ws).send({ type: 'full-reload' });
+    };
 
     return {
         ...vitePlugin,
         configResolved(config: any) {
             vitePlugin.configResolved(config);
-            isDev = config?.command === 'serve' || config?.mode === 'development';
+            isDev = config?.command === 'serve' && config?.server?.hmr !== false;
         },
-        transform(code: string, id: string) {
+        async handleHotUpdate(ctx: any) {
+            let { file, modules, server } = ctx;
+
+            // CSS/SCSS and non-script assets keep Vite's default HMR path.
+            if (!FILE_REGEX.test(file) || file.includes('node_modules')) {
+                return;
+            }
+
+            // A supported component self-accepts; let Vite apply the update normally.
+            for (let i = 0, n = modules.length; i < n; i++) {
+                if (modules[i].isSelfAccepting) {
+                    return;
+                }
+            }
+
+            // Unsupported/unsafe template modules must not be re-imported blindly: request one
+            // full reload and stop Vite from walking the import chain.
+            try {
+                let source = readFileSync(file, 'utf8');
+
+                for (let i = 0, n = TEMPLATE_PATTERNS.length; i < n; i++) {
+                    if (source.includes(TEMPLATE_PATTERNS[i])) {
+                        reload(server);
+                        return [];
+                    }
+                }
+            }
+            catch {
+                return;
+            }
+        },
+        transform(code: string, id: string, options?: { ssr?: boolean }) {
             let result = vitePlugin.transform(code, id);
 
-            if (!result || !isDev) {
+            if (result === null || !isDev || options?.ssr === true) {
                 return result;
             }
 
-            let injected = injectHMR(result.code, id);
+            let hmr = transformHMR(result.code, id.replace(/\\/g, '/'));
 
-            if (injected === result.code) {
+            if (!hmr.selfAccept) {
                 return result;
             }
 
-            return { code: injected, map: result.map };
+            return { code: hmr.code, map: result.map };
         }
     } satisfies VitePlugin;
 };
-
-
-export { injectHMR };
-

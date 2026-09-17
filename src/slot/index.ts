@@ -23,3 +23,4 @@ export * from './array';
 export * from './cleanup';
 export * from './effect';
 export { default as render } from './render';
+export * from './subscriptions';

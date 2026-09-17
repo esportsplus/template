@@ -1,6 +1,5 @@
 export * from './attributes';
 export * from './event';
-export * from './hmr';
 export { clone, EMPTY_FRAGMENT, marker, template, text } from './utilities';
 
 export { default as html } from './html';
