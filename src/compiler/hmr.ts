@@ -140,6 +140,32 @@ function isRenderableType(type: ts.Type, checker: ts.Checker): boolean {
     );
 }
 
+// A component factory is a function whose (possibly nested) return value is a
+// Renderable — e.g. `(attributes) => html`` ` or `factory('checkbox')`. Route
+// registration factories like `(r) => r.get(...)` return a Router, not a
+// Renderable, so they must NOT be wrapped as HMR components.
+function producesRenderable(type: ts.Type, checker: ts.Checker, depth: number): boolean {
+    if (isRenderableType(type, checker)) {
+        return true;
+    }
+
+    if (depth <= 0 || !isFunctionType(type, checker)) {
+        return false;
+    }
+
+    let signatures = checker.getSignaturesOfType(type, ts.SignatureKind.Call);
+
+    for (let i = 0, n = signatures.length; i < n; i++) {
+        let returnType = checker.getReturnTypeOfSignature(signatures[i]);
+
+        if (returnType !== undefined && producesRenderable(returnType, checker, depth - 1)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function pickName(code: string, base: string): string {
     let name = base,
         index = 1;
@@ -179,7 +205,7 @@ const transform = (code: string, moduleId: string): { code: string; selfAccept: 
                 let expression = statement.expression,
                     type = checker.getTypeAtLocation(expression);
 
-                if (type !== undefined && isFunctionType(type, checker)) {
+                if (type !== undefined && isFunctionType(type, checker) && producesRenderable(type, checker, 2)) {
                     edits.push({
                         end: expression.end,
                         start: expression.getStart(sourceFile),
@@ -202,11 +228,18 @@ const transform = (code: string, moduleId: string): { code: string; selfAccept: 
                 hasModifier(statement, ts.SyntaxKind.ExportKeyword) &&
                 hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
             ) {
-                edits.push({
-                    end: statement.end,
-                    start: statement.getStart(sourceFile),
-                    text: `export default ${HMR_NAMESPACE}.factory(${JSON.stringify(moduleId)}, "default", () => (${extractFunctionExpression(statement)}));`
-                });
+                let type = checker.getTypeAtLocation(statement);
+
+                if (type !== undefined && producesRenderable(type, checker, 2)) {
+                    edits.push({
+                        end: statement.end,
+                        start: statement.getStart(sourceFile),
+                        text: `export default ${HMR_NAMESPACE}.factory(${JSON.stringify(moduleId)}, "default", () => (${extractFunctionExpression(statement)}));`
+                    });
+                }
+                else {
+                    supported = false;
+                }
             }
             else if (
                 ts.isExportDeclaration(statement) &&
@@ -225,7 +258,7 @@ const transform = (code: string, moduleId: string): { code: string; selfAccept: 
 
                     let type = checker.getTypeAtLocation(local);
 
-                    if (type === undefined || !isFunctionType(type, checker)) {
+                    if (type === undefined || !isFunctionType(type, checker) || !producesRenderable(type, checker, 3)) {
                         supported = false;
                         break;
                     }

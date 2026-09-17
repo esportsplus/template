@@ -27,6 +27,12 @@ const UNSUPPORTED = [
     `let el = html\`<div>hello</div>\`;`
 ].join('\n');
 
+const ROUTE_FACTORY = [
+    `import { html } from '@esportsplus/template';`,
+    `type Router = { get(config: object): Router };`,
+    `export default (r: Router) => r.get({ path: '/x', handler: () => html\`<div>page</div>\` });`
+].join('\n');
+
 
 function id(root: string, name: string): string {
     return root + '/src/' + name;
@@ -78,6 +84,16 @@ describe('compiler/vite-hmr', () => {
             expect(result!.code).not.toContain('import.meta.hot');
             expect(result!.code).not.toContain('@esportsplus/template/hmr');
             expect(result!.code).not.toContain('__hmr');
+        });
+
+        it('does not wrap a route factory whose default returns a non-renderable', () => {
+            let instance = plugin(root, { command: 'serve', server: {} }),
+                result = instance.transform(ROUTE_FACTORY, id(root, '__hmr_route.ts'));
+
+            expect(result).not.toBeNull();
+            expect(result!.code).not.toContain('.factory(');
+            expect(result!.code).not.toContain('@esportsplus/template/hmr');
+            expect(result!.code).not.toContain('import.meta.hot');
         });
     });
 
