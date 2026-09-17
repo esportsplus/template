@@ -10,8 +10,8 @@ type Attributes<T extends HTMLElement = Element> = {
     onrender?: (element: T) => void;
     ontick?: (dispose: VoidFunction, element: T) => void;
     style?: Attribute | Attribute[];
-    [key: `aria-${string}`]: Primitive;
-    [key: `data-${string}`]: ((element: T) => Primitive) | string | undefined;
+    [key: `aria-${string}`]: ((element: T) => Primitive) | Primitive;
+    [key: `data-${string}`]: ((element: T) => Primitive) | Primitive;
 } & {
     [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void;
 } & Record<PropertyKey, unknown>;
