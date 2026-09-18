@@ -95,6 +95,42 @@ describe('compiler/vite-hmr', () => {
             expect(result!.code).not.toContain('@esportsplus/template/hmr');
             expect(result!.code).not.toContain('import.meta.hot');
         });
+
+        it.each([
+            `export default (r: Router<Renderable<unknown>>) => r.get({ responder: () => html\`<div>page</div>\` });`,
+            `export default function route(r: Router<Renderable<unknown>>) { return r.get({ responder: () => html\`<div>page</div>\` }); }`,
+            `const route = (r: Router<Renderable<unknown>>) => r.get({ responder: () => html\`<div>page</div>\` }); export { route as default };`,
+            `export default (element: Element): number => element.childNodes.length;`,
+            `export default (): TextController => ({ value: 'text' });`
+        ])('does not classify nested type arguments or parameter types as renderable: %s', (declaration) => {
+            let code = [
+                    `import { html, type Renderable } from '@esportsplus/template';`,
+                    `type Router<T> = { get(config: { responder: () => T }): Router<T> };`,
+                    `type TextController = { value: string };`,
+                    `const page = () => html\`<div>page</div>\`;`,
+                    declaration
+                ].join('\n'),
+                instance = plugin(root, { command: 'serve', server: {} }),
+                result = instance.transform(code, id(root, '__hmr_generic_route.ts'));
+
+            expect(result).not.toBeNull();
+            expect(result!.code).not.toContain('@esportsplus/template/hmr');
+            expect(result!.code).not.toContain('import.meta.hot');
+        });
+
+        it.each(['DocumentFragment', 'HTMLDivElement', 'Text', 'Renderable<unknown>', 'Node | null', 'NodeList', 'DocumentFragment[]'])(
+            'still wraps a component returning %s', (returnType) => {
+                let code = [
+                        `import { html, type Renderable } from '@esportsplus/template';`,
+                        `export default (): ${returnType} => html\`<div>page</div>\` as ${returnType};`
+                    ].join('\n'),
+                    instance = plugin(root, { command: 'serve', server: {} }),
+                    result = instance.transform(code, id(root, '__hmr_return_type.ts'));
+
+                expect(result!.code).toContain('.factory(');
+                expect(result!.code).toContain('import.meta.hot.accept(');
+            }
+        );
     });
 
     describe('handleHotUpdate', () => {

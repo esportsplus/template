@@ -128,16 +128,31 @@ function isFunctionType(type: ts.Type, checker: ts.Checker): boolean {
 }
 
 function isRenderableType(type: ts.Type, checker: ts.Checker): boolean {
-    let text = checker.typeToString(type);
+    // Inspect the outer type, not its printed signature: Router<Renderable<T>>
+    // and (element: Element) => number are not renderable values.
+    if (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.Never)) {
+        return false;
+    }
 
-    return (
-        text.includes('ArraySlot') ||
-        text.includes('DocumentFragment') ||
-        text.includes('Element') ||
-        text.includes('Node') ||
-        text.includes('Renderable') ||
-        text.includes('Text')
-    );
+    if (type.getAliasSymbol()?.name === 'Renderable' || type.getSymbol()?.name === 'ArraySlot') {
+        return true;
+    }
+
+    if (type.isUnionType()) {
+        let types = type.getTypes().filter((member) => !(member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)));
+
+        return types.length > 0 && types.every((member) => isRenderableType(member, checker));
+    }
+
+    if (type.isTypeReference() && type.getSymbol()?.name === 'Array') {
+        return checker.getTypeArguments(type).every((member) => isRenderableType(member, checker));
+    }
+
+    let node = checker.resolveName('Node', ts.SymbolFlags.Type),
+        list = checker.resolveName('NodeList', ts.SymbolFlags.Type);
+
+    return (node !== undefined && checker.isTypeAssignableTo(type, checker.getDeclaredTypeOfSymbol(node))) ||
+        (list !== undefined && checker.isTypeAssignableTo(type, checker.getDeclaredTypeOfSymbol(list)));
 }
 
 // A component factory is a function whose (possibly nested) return value is a
