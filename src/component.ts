@@ -4,7 +4,7 @@ import { isObject, EMPTY_OBJECT } from '@esportsplus/utilities';
 
 export default <
     A extends Attributes,
-    C extends Renderable<any> = Renderable<any>,
+    C = Renderable<any>,
     Context = { attributes?: A, content?: C }
 >(
     template: (this: Context, attributes: Readonly<A>, content: C) => Renderable<any>
