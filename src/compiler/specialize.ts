@@ -109,7 +109,9 @@ function specialize(expressions: ts.Expression[], checker?: ts.Checker): Variant
         if (combinations.length * parameter.values.length > LIMIT) return [];
         combinations = combinations.flatMap(combination => parameter.values.map(value => ({
             environment: new Map([...combination.environment, [symbol, value]]),
-            conditions: [...combination.conditions, `${parameter.name} === ${JSON.stringify(value)}`]
+            // Dispatch must not narrow the original parameter inside emitted
+            // branches: its unchanged body may still compare other union members.
+            conditions: [...combination.conditions, `(${parameter.name} as unknown) === ${JSON.stringify(value)}`]
         })));
     }
 

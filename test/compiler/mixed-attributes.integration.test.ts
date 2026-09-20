@@ -17,7 +17,7 @@ const factorySource = [
     "const factory = (type: 'checkbox' | 'radio' | 'switch') => {",
     '    function component() {',
     '        const state = reactive({ active: false });',
-    '        return html`<button class="${type === "radio" ? "checkbox checkbox--radio" : type} ${() => state.active && "--active"}" title="${type} ${() => state.active ? "on" : "off"}" onclick=${() => { state.active = !state.active; }}>${type}</button>`;',
+    '        return html`<button class="${type === "radio" ? "checkbox checkbox--radio" : type} ${() => state.active && "--active"}" title="${type} ${() => state.active ? "on" : "off"}" onclick=${() => { state.active = !state.active; }}>${type}${type === "checkbox" && html`<span data-indicator="check"></span>`}</button>`;',
     '    }',
     '    return component;',
     '};',
@@ -108,6 +108,7 @@ describe('mixed attributes through compiler plugins', () => {
             expect(element.className.trim()).toBe(base);
             expect(element.title).toBe(type + ' off');
             expect(element.textContent).toBe(type);
+            expect(element.querySelector('[data-indicator]') !== null).toBe(type === 'checkbox');
             element.click(); await new Promise(resolve => requestAnimationFrame(resolve));
             expect(element.classList.contains('--active')).toBe(true);
             expect(element.title).toBe(type + ' on');

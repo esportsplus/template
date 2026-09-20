@@ -181,8 +181,8 @@ describe('compiled mixed attribute values', () => {
         '({ type } = { type: "radio" });',
         'for (type of ["radio"] as const) {}'
     ])('does not specialize a mutated parameter: %s', mutation => {
-        let { value, output } = compile('const factory = (type: "checkbox" | "radio") => { ' + mutation + ' return () => html`<div class="${type} ${() => "ready"}"></div>`; }; let value = factory("checkbox")();');
-        expect(output).not.toContain('type ===');
+        let { value, result } = compile('const factory = (type: "checkbox" | "radio") => { ' + mutation + ' return () => html`<div class="${type} ${() => "ready"}"></div>`; }; let value = factory("checkbox")();');
+        expect(result.templates.size).toBe(1);
         expect(value.firstChild.className).toBe('radio ready');
     });
 
