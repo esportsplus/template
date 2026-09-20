@@ -40,6 +40,29 @@ const REGEX_UNQUOTED_ATTRIBUTE = /([\w:-]+)="([\w./:-]+)"(?=[\s>])/g;
 
 const SLOT_MARKER = '{{$}}';
 
+// Whitespace inside an attribute is data, not an empty child text node. Shield it
+// while applying the existing child-text and clone cleanup rules.
+function outsideAttributeValues(html: string, transform: (html: string) => string): string {
+    let values: string[] = [],
+        marker = '\0';
+
+    while (html.includes(marker)) {
+        marker += '\0';
+    }
+
+    let masked = html.replace(/<[\w!/?-]+(?:"[^"]*"|'[^']*'|[^'">])*>/g, tag =>
+        tag.replace(/(["'])([\s\S]*?)\1/g, (quoted, quote, value) => {
+            if (!value) return quoted;
+            let id = values.push(value) - 1;
+            return quote + marker + id + marker + quote;
+        })
+    );
+
+    masked = transform(masked);
+
+    return masked.replace(new RegExp(marker + '(\\d+)' + marker, 'g'), (_, id) => values[Number(id)]);
+}
+
 
 [
     // html
@@ -132,7 +155,7 @@ function metadata(found: string): AttributeMetadata {
                 close = true;
             }
         }
-        else if (char === ' ') {
+        else if (/[\t\n\f\r ]/.test(char)) {
             if (!quote) {
                 close = true;
             }
@@ -208,11 +231,10 @@ function minify(html: string) {
 
 
 const parse = (literals: string[]) => {
-    let html = literals
-            .join(SLOT_MARKER)
+    let html = outsideAttributeValues(literals.join(SLOT_MARKER), value => value
             .replace(REGEX_EMPTY_TEXT_NODES, '$1$2')
             .replace(REGEX_CLEANUP_WHITESPACE, ' ')
-            .trim(),
+            .trim()),
         n = literals.length - 1;
 
     if (n === 0) {
@@ -350,9 +372,9 @@ const parse = (literals: string[]) => {
         }
     }
 
-    buffer = buffer
+    buffer = outsideAttributeValues(buffer, value => value
         .replace(/\s+(?:class|id|style|on[\w-:]+)\s*=\s*(?:["']\s*["']|(?=>))/g, '')
-        .replace(REGEX_CLEANUP_WHITESPACE, ' ');
+        .replace(REGEX_CLEANUP_WHITESPACE, ' '));
 
     return {
         html: minify(buffer),

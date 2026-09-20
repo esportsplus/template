@@ -6,9 +6,12 @@ import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME, SIGNAL, TYP
 import { extractTemplateParts } from './ts-parser';
 import { ts } from '@esportsplus/typescript';
 import parser from './parser';
+import { specialize } from './specialize';
 
 
 type CodegenContext = {
+    forceExpression?: boolean;
+    staticValues?: Map<ts.Expression, string>;
     checker?: ts.Checker;
     parseCache?: Map<string, ParseResult>;
     prefoldCache?: WeakMap<ts.Node, { expressions: ts.Expression[]; literals: string[] }>;
@@ -125,8 +128,26 @@ function generateAttributeBinding(ctx: CodegenContext, element: string, name: st
 }
 
 function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplateExpression): string {
-    let parts = extractTemplateParts(node.template),
-        { expressions, literals } = prefoldCached(ctx, node, parts.literals, parts.expressions),
+    let parts = extractTemplateParts(node.template);
+
+    if (!ctx.staticValues) {
+        let variants = specialize(parts.expressions, ctx.checker);
+        if (variants.length) {
+            let branch = (values: Map<ts.Expression, string>) => {
+                let variantContext = { ...ctx, forceExpression: true, staticValues: values, prefoldCache: new WeakMap() },
+                    code = generateNestedTemplateCode(variantContext, node);
+                ctx.selectorFired ||= variantContext.selectorFired;
+                return code;
+            };
+            let code = '(';
+            for (let variant of variants) {
+                code += `${variant.condition} ? ${branch(variant.values)} : `;
+            }
+            return code + branch(new Map()) + ')';
+        }
+    }
+
+    let { expressions, literals } = prefoldCached(ctx, node, parts.literals, parts.expressions),
         exprTexts: string[] = [];
 
     for (let i = 0, n = expressions.length; i < n; i++) {
@@ -216,7 +237,7 @@ function generateTemplateCode(
     let code: string[] = [],
         declarations: string[] = [],
         index = 0,
-        isArrowBody = isArrowExpressionBody(templateNode),
+        isArrowBody = !ctx.forceExpression && isArrowExpressionBody(templateNode),
         nodes = new Map<string, string>(),
         root = uid('root');
 
@@ -365,8 +386,8 @@ function generateTemplateCode(
                 }
                 else {
                     // Markers sharing a value (or a class/style token) with each other or with
-                    // literal text emit ONE binding, concatenated at compile time. Concatenation
-                    // is a primitive contract: a function value stringifies, as it should
+                    // literal text emit ONE binding. Resolve callback parts reactively,
+                    // preserving independent bindings for separate class/style groups.
                     let group = parts[j].group,
                         last = j;
 
@@ -402,7 +423,7 @@ function generateTemplateCode(
                         }
 
                         code.push(
-                            generateAttributeBinding(ctx, element, name, values.join(' + '))
+                            generateAttributeBinding(ctx, element, name, `${NAMESPACE}.interpolate([${values.join(', ')}])`)
                         );
                         j = last;
                     }
@@ -471,7 +492,7 @@ function parseCached(ctx: CodegenContext, literals: string[]): ParseResult {
 // rides the template clone (as text or a static attribute token) instead of a runtime binding.
 // This is the only safe splice point — post-parse HTML rewriting would invalidate the
 // sibling-count-derived node paths of later slots.
-function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.Checker): { expressions: ts.Expression[]; literals: string[] } {
+function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.Checker, values?: Map<ts.Expression, string>): { expressions: ts.Expression[]; literals: string[] } {
     if (expressions.length === 0) {
         return { expressions, literals };
     }
@@ -480,7 +501,7 @@ function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.
         foldedLiterals: string[] = [literals[0]];
 
     for (let i = 0, n = expressions.length; i < n; i++) {
-        let folded = fold(expressions[i], checker);
+        let folded = values?.get(expressions[i]) ?? fold(expressions[i], checker);
 
         if (folded === null) {
             foldedExpressions.push(expressions[i]);
@@ -501,7 +522,7 @@ function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], e
         result = cache.get(node);
 
     if (result === undefined) {
-        result = prefold(literals, expressions, ctx.checker);
+        result = prefold(literals, expressions, ctx.checker, ctx.staticValues);
         cache.set(node, result);
     }
 
@@ -545,15 +566,7 @@ const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, chec
 
     for (let i = 0, n = root.length; i < n; i++) {
         let template = root[i],
-            { expressions, literals } = prefoldCached(ctx, template.node, template.literals, template.expressions),
-            exprTexts: string[] = [],
-            parsed = parseCached(ctx, literals);
-
-        for (let j = 0, m = expressions.length; j < m; j++) {
-            exprTexts.push(rewriteExpression(ctx, expressions[j]));
-        }
-
-        let code = generateTemplateCode(ctx, parsed, exprTexts, expressions, template.node);
+            code = generateNestedTemplateCode(ctx, template.node);
 
         result.replacements.push({
             generate: () => code,

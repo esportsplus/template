@@ -103,6 +103,15 @@ const attrs = (id: string, cls: string, style: string) =>
 const data = (value: string) => html`<div data-value="${value}"></div>`;
 ```
 
+Each whitespace-separated class interpolation keeps its own binding, including effects:
+
+```typescript
+const control = (type: 'checkbox' | 'radio' | 'switch', state: { active: boolean }) =>
+    html`<div class="${type === 'radio' ? 'checkbox checkbox--radio' : type} ${() => state.active && '--active'}"></div>`;
+```
+
+Safe constants are folded into the template HTML. Immutable string/number literal-union parameters can select precompiled static variants (up to 16 combinations); unknown or mutable values retain runtime bindings. Callbacks are never evaluated during compilation. Effects also work inside composed values such as `class="item-${() => state.id}"` and `style="width: ${() => state.width}px"`. Literal whitespace in quoted attributes is preserved.
+
 ### Spread Attributes
 
 ```typescript

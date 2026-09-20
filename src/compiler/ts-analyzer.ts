@@ -1,6 +1,7 @@
 import { ts } from '@esportsplus/typescript';
 import { imports } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, PACKAGE_NAME, PACKAGE_REACTIVITY, TYPES } from './constants';
+import { constant } from './specialize';
 
 
 type SelectorComparison = {
@@ -148,9 +149,36 @@ const fold = (expr: ts.Expression, checker?: ts.Checker): string | null => {
         value = 'false';
     }
     else if (checker && (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr))) {
-        let type = checker.getTypeAtLocation(expr);
+        let declaration = checker.getSymbolAtLocation(ts.isPropertyAccessExpression(expr) ? expr.name : expr)?.valueDeclaration?.resolve();
 
-        value = type ? literal(type) : null;
+        // A literal return type is not evidence that reading a getter is pure.
+        // Factory parameters are folded only under a guarded specialization.
+        if (!declaration || (ts.isIdentifier(expr)
+            ? !ts.isVariableDeclaration(declaration) || !declaration.initializer ||
+                !ts.isVariableDeclarationList(declaration.parent) || !(declaration.parent.flags & ts.NodeFlags.Const)
+            : !ts.isPropertyAssignment(declaration))) {
+            return null;
+        }
+
+        if (ts.isIdentifier(expr)) {
+            value = constant(expr, checker);
+        }
+        else {
+            // Preserve folding for a directly declared readonly literal object,
+            // but never eliminate an object-producing call or getter chain.
+            if (!ts.isIdentifier(expr.expression)) return null;
+            let owner = checker.getSymbolAtLocation(expr.expression)?.valueDeclaration?.resolve();
+            if (!owner || !ts.isVariableDeclaration(owner) || !owner.initializer ||
+                !ts.isVariableDeclarationList(owner.parent) || !(owner.parent.flags & ts.NodeFlags.Const)) return null;
+            let initializer = owner.initializer;
+            while (ts.isAsExpression(initializer) || ts.isParenthesizedExpression(initializer) || ts.isSatisfiesExpression(initializer)) initializer = initializer.expression;
+            if (!ts.isObjectLiteralExpression(initializer)) return null;
+            let type = checker.getTypeAtLocation(expr);
+            value = type && literal(type) !== null ? constant((declaration as ts.PropertyAssignment).initializer, checker) : null;
+        }
+    }
+    else if (checker && (ts.isConditionalExpression(expr) || ts.isBinaryExpression(expr))) {
+        value = constant(expr, checker);
     }
 
     return (value !== null && REGEX_FOLD_SAFE.test(value)) ? value : null;

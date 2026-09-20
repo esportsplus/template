@@ -517,21 +517,21 @@ describe('compiler/codegen', () => {
             let code = result.replacements[0].generate(EMPTY);
 
             expect(code).toContain(`${NAMESPACE}.setList(`);
-            expect(code).toContain(`"button--" + (modifier)`);
+            expect(code).toContain(`.interpolate(["button--", (modifier)])`);
         });
 
         it('binds a property attribute with its prefix and suffix', () => {
             let { result } = codegen(`let x = html\`<a href="/users/\${id}/edit">x</a>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`"/users/" + (id) + "/edit"`);
+            expect(code).toContain(`.interpolate(["/users/", (id), "/edit"])`);
         });
 
         it('emits one binding for several markers in one value', () => {
             let { result } = codegen(`let x = html\`<a href="/users/\${id}/edit/\${tab}">x</a>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`"/users/" + (id) + "/edit/" + (tab)`);
+            expect(code).toContain(`.interpolate(["/users/", (id), "/edit/", (tab)])`);
             expect(code.match(/setProperty\(/g)).toHaveLength(1);
         });
 
@@ -539,15 +539,15 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let x = html\`<div class="a-\${one} b-\${two}">x</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`"a-" + (one)`);
-            expect(code).toContain(`"b-" + (two)`);
+            expect(code).toContain(`.interpolate(["a-", (one)])`);
+            expect(code).toContain(`.interpolate(["b-", (two)])`);
         });
 
         it('parenthesizes a concatenated expression so precedence holds', () => {
             let { result } = codegen(`let x = html\`<div class="tab-\${active ? "on" : "off"}">x</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`"tab-" + (active ? "on" : "off")`);
+            expect(code).toContain(`.interpolate(["tab-", (active ? "on" : "off")])`);
         });
 
         it('leaves a slot owning the whole value unwrapped', () => {
