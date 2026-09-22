@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { onCleanup, reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../../src/constants';
 import { ArraySlot } from '../../src/slot/array';
@@ -1257,5 +1257,61 @@ describe('slot/ArraySlot', () => {
             expect(container.querySelectorAll('span').length).toBe(2);
         });
 
+    });
+
+    describe('flush', () => {
+        it('applies queued operations synchronously, cancels the scheduled frame, and is a no-op when idle', () => {
+            let rendered: string[] = [],
+                arr = reactive(['a'] as string[]),
+                slot = new ArraySlot(arr, (s) => {
+                    rendered.push(s);
+
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = s;
+                    frag.appendChild(span);
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            arr.push('b', 'c');
+
+            expect(rendered).toEqual(['a']);
+
+            let cancel = vi.spyOn(globalThis, 'cancelAnimationFrame');
+
+            slot.flush();
+
+            expect(rendered).toEqual(['a', 'b', 'c']);
+            expect(container.querySelectorAll('span').length).toBe(3);
+            expect(slot.length).toBe(3);
+            expect(cancel).toHaveBeenCalledTimes(1);
+
+            slot.flush();
+
+            expect(cancel).toHaveBeenCalledTimes(1);
+
+            cancel.mockRestore();
+        });
+
+        it('is a no-op after dispose', () => {
+            let arr = reactive(['a'] as string[]),
+                slot = new ArraySlot(arr, () => {
+                    let frag = document.createDocumentFragment();
+
+                    frag.appendChild(document.createElement('span'));
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+            arr.push('b');
+            slot.dispose();
+
+            expect(() => slot.flush()).not.toThrow();
+        });
     });
 });

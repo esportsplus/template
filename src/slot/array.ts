@@ -207,6 +207,19 @@ class ArraySlot<T> {
         disposeGroups(this.nodes.splice(0));
     }
 
+    flush() {
+        if (this.disposed || !this.scheduled) {
+            return;
+        }
+
+        if (this.frame !== null) {
+            globalThis.cancelAnimationFrame(this.frame);
+            this.frame = null;
+        }
+
+        this.run();
+    }
+
     private pop() {
         let group = this.nodes.pop();
 
@@ -226,6 +239,61 @@ class ArraySlot<T> {
         anchor.after(this.fragment);
     }
 
+    private run() {
+        this.scheduled = false;
+
+        if (this.disposed) {
+            this.queue = [];
+            return;
+        }
+
+        let queue = this.queue;
+
+        this.queue = [];
+
+        root(() => {
+            for (let i = 0, n = queue.length; i < n; i++) {
+                let op = queue[i];
+
+                switch (op.op) {
+                    case 'clear':
+                        this.clear();
+                        break;
+                    case 'concat':
+                        this.push(op.items);
+                        break;
+                    case 'pop':
+                        this.pop();
+                        break;
+                    case 'push':
+                        this.push(op.items);
+                        break;
+                    case 'reverse':
+                        this.nodes.reverse();
+                        this.sync();
+                        break;
+                    case 'set':
+                        this.splice(op.index, 1, [op.item]);
+                        break;
+                    case 'shift':
+                        this.shift();
+                        break;
+                    case 'sort':
+                        this.sort(op.order);
+                        break;
+                    case 'splice':
+                        this.splice(op.start, op.deleteCount, op.items);
+                        break;
+                    case 'unshift':
+                        this.unshift(op.items);
+                        break;
+                }
+            }
+        });
+
+        write(this.signal, this.nodes.length);
+    }
+
     private schedule(op: ArraySlotOp<T>) {
         this.queue.push(op);
 
@@ -237,58 +305,7 @@ class ArraySlot<T> {
 
         this.frame = raf(() => {
             this.frame = null;
-            this.scheduled = false;
-
-            if (this.disposed) {
-                this.queue = [];
-                return;
-            }
-
-            let queue = this.queue;
-
-            this.queue = [];
-
-            root(() => {
-                for (let i = 0, n = queue.length; i < n; i++) {
-                    let op = queue[i];
-
-                    switch (op.op) {
-                        case 'clear':
-                            this.clear();
-                            break;
-                        case 'concat':
-                            this.push(op.items);
-                            break;
-                        case 'pop':
-                            this.pop();
-                            break;
-                        case 'push':
-                            this.push(op.items);
-                            break;
-                        case 'reverse':
-                            this.nodes.reverse();
-                            this.sync();
-                            break;
-                        case 'set':
-                            this.splice(op.index, 1, [op.item]);
-                            break;
-                        case 'shift':
-                            this.shift();
-                            break;
-                        case 'sort':
-                            this.sort(op.order);
-                            break;
-                        case 'splice':
-                            this.splice(op.start, op.deleteCount, op.items);
-                            break;
-                        case 'unshift':
-                            this.unshift(op.items);
-                            break;
-                    }
-                }
-            });
-
-            write(this.signal, this.nodes.length);
+            this.run();
         });
     }
 
