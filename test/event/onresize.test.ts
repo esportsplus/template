@@ -3,7 +3,7 @@ import type { Element, SlotGroup } from '../../src/types';
 
 
 let dispose: (groups: SlotGroup[]) => void,
-    onresize: (element: Element, listener: (element: Element) => void) => void;
+    onresize: typeof import('../../src/event/onresize').default;
 
 
 function createElement(connected = true): Element {

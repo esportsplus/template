@@ -116,11 +116,19 @@ Safe constants are folded into the template HTML. Immutable string/number litera
 
 ```typescript
 // Spread object as attributes
-const spread = (attrs: Record<string, unknown>) => html`<div ${attrs}></div>`;
+const spread = (attrs: Attributes) => html`<div ${attrs}></div>`;
 
 // With static attributes
-const spreadMixed = (attrs: Record<string, unknown>) =>
+const spreadMixed = (attrs: Attributes) =>
     html`<div class="base" ${attrs}></div>`;
+
+// Inline objects are typed: DOM properties accept a value or an effect
+const field = (state: { name: string; locked: boolean }) =>
+    html`<input ${{
+        disabled: () => state.locked,
+        oninput: (e) => (state.name = (e.target as HTMLInputElement).value),
+        value: () => state.name
+    }}>`;
 ```
 
 ### Nested Templates
@@ -403,20 +411,25 @@ const circle = (fill: string) =>
 
 ```typescript
 type Renderable<T> = ArraySlot<T> | DocumentFragment | Effect<T> | Node | NodeList | Primitive | Renderable<T>[];
-type Element = HTMLElement & Attributes<any>;
-type Attributes<T extends HTMLElement = Element> = {
+type Element<T extends HTMLElement = HTMLElement> = T & Attributes<T>;
+type Attributes<T extends HTMLElement = HTMLElement> = {
     class?: Attribute | Attribute[];
     style?: Attribute | Attribute[];
     onconnect?: (element: T) => void;
     ondisconnect?: (element: T) => void;
     onrender?: (element: T) => void;
+    onresize?: (element: T) => void;
     ontick?: (dispose: VoidFunction, element: T) => void;
-    [key: `aria-${string}`]: string | number | boolean | undefined;
-    [key: `data-${string}`]: string | undefined;
-} & { [K in keyof GlobalEventHandlersEventMap as `on${string & K}` | `once${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
-  & { [K in keyof DocumentEventMap as `ondocument${string & K}` | `oncedocument${string & K}`]?: (this: Document, event: DocumentEventMap[K]) => void }
-  & { [K in keyof WindowEventMap as `onwindow${string & K}` | `oncewindow${string & K}`]?: (this: Window, event: WindowEventMap[K]) => void };
+    [key: `aria-${string}`]: Primitive | ((element: T) => Primitive);
+    [key: `data-${string}`]: Primitive | ((element: T) => Primitive);
+} & { [K in WritableProperty<T>]?: T[K] | false | null | undefined | ((element: T) => T[K] | false | null | undefined) }
+  & { [K in keyof GlobalEventHandlersEventMap as `on${K}` | `once${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
+  & { [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: (this: Document, event: DocumentEventMap[K]) => void }
+  & { [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: (this: Window, event: WindowEventMap[K]) => void }
+  & Record<PropertyKey, unknown>;
 ```
+
+`WritableProperty<T>` is every writable, primitive-valued DOM property of `T` (`value`, `checked`, `href`, `disabled`, ...). Templates cannot name their element, so the default `Attributes` offers the properties of every `HTMLElementTagNameMap` element; `Attributes<HTMLInputElement>` narrows to one element. Listener and effect parameters are checked bivariantly, so `(el: HTMLInputElement) => ...` is accepted where `HTMLElement` is expected. Unlisted keys (SVG attributes, `for`, custom attributes) fall through to `Record<PropertyKey, unknown>`.
 
 ### render(parent, renderable)
 

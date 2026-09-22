@@ -4,7 +4,7 @@ import { ArraySlot } from './slot';
 import type { VirtualOptions, VirtualSlot } from './virtual';
 
 
-type Values<T> = ArraySlot<T extends unknown[] ? T : never> | Attribute | Attributes<any> | Renderable<T>;
+type Values<T> = ArraySlot<T extends unknown[] ? T : never> | Attribute | Attributes | Renderable<T>;
 
 
 const html = <T>(_literals: TemplateStringsArray, ..._values: (Values<T> | Values<T>[])[]): DocumentFragment => {
