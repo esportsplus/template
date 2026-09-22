@@ -2,7 +2,8 @@ import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compil
 import type { TemplateInfo } from './ts-parser';
 import { analyze, fold, selectorComparison } from './ts-analyzer';
 import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
+import { ENTRYPOINT, ENTRYPOINT_VIRTUAL, isEntrypoint, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
+import type { Entrypoint } from './constants';
 import { extractTemplateParts } from './ts-parser';
 import { ts } from '@esportsplus/typescript';
 import parser from './parser';
@@ -40,17 +41,20 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
         return;
     }
 
-    if (isReactiveCall(node as ts.Expression)) {
-        let call = node as ts.CallExpression;
+    let entrypoint = callEntrypoint(node as ts.Expression);
 
-        // ArraySlots nested in arbitrary expressions have no provable parent element,
-        // so they always emit today's unflagged 2-arg construction
+    if (entrypoint) {
+        let call = node as ts.CallExpression,
+            options = call.arguments[2];
+
+        // Slots nested in arbitrary expressions have no provable parent element,
+        // so they never receive the sole-child flag
         replacements.push({
             end: node.end,
             start: node.getStart(ctx.sourceFile),
-            text: `new ${NAMESPACE}.ArraySlot(
+            text: `new ${NAMESPACE}.${entrypointClass(entrypoint)}(
                 ${rewriteExpression(ctx, call.arguments[0] as ts.Expression)},
-                ${rewriteExpression(ctx, call.arguments[1] as ts.Expression)}
+                ${rewriteExpression(ctx, call.arguments[1] as ts.Expression)}${options ? ',\n                ' + rewriteExpression(ctx, options) : ''}
             )`
         });
 
@@ -198,6 +202,9 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
             case TYPES.ArraySlot:
                 return `${anchor}.appendChild(new ${NAMESPACE}.ArraySlot(${exprText}${mode === 'sole' ? ', true' : ''}).fragment);`;
 
+            case TYPES.VirtualSlot:
+                return `${anchor}.appendChild(new ${NAMESPACE}.VirtualSlot(${exprText}).fragment);`;
+
             case TYPES.DocumentFragment:
                 return `${anchor}.appendChild(${exprText});`;
 
@@ -224,6 +231,9 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: stri
     switch (analyze(exprNode, ctx.checker)) {
         case TYPES.ArraySlot:
             return `${anchor}.parentNode!.insertBefore(new ${NAMESPACE}.ArraySlot(${exprText}).fragment, ${anchor});`;
+
+        case TYPES.VirtualSlot:
+            return `${anchor}.parentNode!.insertBefore(new ${NAMESPACE}.VirtualSlot(${exprText}).fragment, ${anchor});`;
 
         case TYPES.DocumentFragment:
             return `${anchor}.parentNode!.insertBefore(${exprText}, ${anchor});`;
@@ -478,14 +488,26 @@ function isNestedHtmlTemplate(expr: ts.Expression): expr is ts.TaggedTemplateExp
     return ts.isTaggedTemplateExpression(expr) && ts.isIdentifier(expr.tag) && expr.tag.text === ENTRYPOINT;
 }
 
-function isReactiveCall(expr: ts.Expression): expr is ts.CallExpression {
-    return (
+function callEntrypoint(expr: ts.Expression): Entrypoint | null {
+    if (
         ts.isCallExpression(expr) &&
         ts.isPropertyAccessExpression(expr.expression) &&
         ts.isIdentifier(expr.expression.expression) &&
         expr.expression.expression.text === ENTRYPOINT &&
-        expr.expression.name.text === ENTRYPOINT_REACTIVITY
-    );
+        isEntrypoint(expr.expression.name.text)
+    ) {
+        return expr.expression.name.text;
+    }
+
+    return null;
+}
+
+function entrypointClass(entrypoint: Entrypoint): string {
+    return entrypoint === ENTRYPOINT_VIRTUAL ? 'VirtualSlot' : 'ArraySlot';
+}
+
+function isReactiveCall(expr: ts.Expression): expr is ts.CallExpression {
+    return callEntrypoint(expr) !== null;
 }
 
 // Each distinct template is parsed once per transform: the root emission, the trailing
@@ -613,7 +635,9 @@ const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => 
     }
 
     if (isReactiveCall(expr)) {
-        return `${rewriteExpression(ctx, expr.arguments[0] as ts.Expression)}, ${rewriteExpression(ctx, expr.arguments[1] as ts.Expression)}`;
+        let options = expr.arguments[2];
+
+        return `${rewriteExpression(ctx, expr.arguments[0] as ts.Expression)}, ${rewriteExpression(ctx, expr.arguments[1] as ts.Expression)}${options ? ', ' + rewriteExpression(ctx, options) : ''}`;
     }
 
     let replacements: { end: number; start: number; text: string }[] = [],
@@ -640,5 +664,5 @@ const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => 
 }
 
 
-export { generateCode, rewriteExpression };
+export { entrypointClass, generateCode, rewriteExpression };
 export type { CodegenResult };

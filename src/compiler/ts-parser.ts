@@ -1,13 +1,16 @@
 import { ts } from '@esportsplus/typescript';
 import { imports } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, PACKAGE_NAME } from './constants';
+import { ENTRYPOINT, isEntrypoint, PACKAGE_NAME } from './constants';
+import type { Entrypoint } from './constants';
 
 
 type ReactiveCallInfo = {
     arrayArg: ts.Expression;
     callbackArg: ts.Expression;
     end: number;
+    entrypoint: Entrypoint;
     node: ts.CallExpression;
+    optionsArg: ts.Expression | undefined;
     start: number;
 };
 
@@ -32,8 +35,8 @@ function matchReactiveCall(node: ts.Node, calls: ReactiveCallInfo[], checker: ts
         ts.isCallExpression(node) &&
         ts.isPropertyAccessExpression(node.expression) &&
         ts.isIdentifier(node.expression.expression) &&
-        node.expression.name.text === ENTRYPOINT_REACTIVITY &&
-        node.arguments.length === 2 &&
+        isEntrypoint(node.expression.name.text) &&
+        (node.arguments.length === 2 || node.arguments.length === 3) &&
         node.expression.expression.text === ENTRYPOINT &&
         (!checker || imports.includes(checker, node.expression.expression, PACKAGE_NAME, ENTRYPOINT))
     ) {
@@ -41,7 +44,9 @@ function matchReactiveCall(node: ts.Node, calls: ReactiveCallInfo[], checker: ts
             arrayArg: node.arguments[0],
             callbackArg: node.arguments[1],
             end: node.end,
+            entrypoint: node.expression.name.text,
             node,
+            optionsArg: node.arguments[2],
             start: node.getStart()
         });
     }

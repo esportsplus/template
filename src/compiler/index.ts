@@ -1,8 +1,8 @@
 import { ts } from '@esportsplus/typescript';
 import { ast, imports as sourceImports } from '@esportsplus/typescript/compiler';
 import type { ImportIntent, ReplacementIntent, TransformContext } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE, PACKAGE_NAME, PACKAGE_REACTIVITY, SIGNAL } from './constants';
-import { generateCode, rewriteExpression } from './codegen';
+import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, PACKAGE_REACTIVITY, SIGNAL } from './constants';
+import { entrypointClass, generateCode, rewriteExpression } from './codegen';
 import { findTemplateArtifacts } from './ts-parser';
 
 function hasSignalImport(sourceFile: ts.SourceFile): boolean {
@@ -21,7 +21,8 @@ function hasSignalImport(sourceFile: ts.SourceFile): boolean {
 export default {
     patterns: [
         `${ENTRYPOINT}\``,
-        `${ENTRYPOINT}.${ENTRYPOINT_REACTIVITY}`
+        `${ENTRYPOINT}.${ENTRYPOINT_REACTIVITY}`,
+        `${ENTRYPOINT}.${ENTRYPOINT_VIRTUAL}`
     ],
     transform: (ctx: TransformContext) => {
         let artifacts = findTemplateArtifacts(ctx.sourceFile, ctx.checker),
@@ -69,9 +70,9 @@ export default {
             selectorFired ||= codegenContext.selectorFired;
 
             replacements.push({
-                generate: (sourceFile) => `new ${NAMESPACE}.ArraySlot(
+                generate: (sourceFile) => `new ${NAMESPACE}.${entrypointClass(call.entrypoint)}(
                     ${call.arrayArg.getText(sourceFile)},
-                    ${rewrittenCallback}
+                    ${rewrittenCallback}${call.optionsArg ? ',\n                    ' + call.optionsArg.getText(sourceFile) : ''}
                 )`,
                 node: call.node
             });

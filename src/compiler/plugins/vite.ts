@@ -22,7 +22,7 @@ const REGEX_PATH_SEPARATOR = /\\/g;
 
 const RELOAD_WINDOW = 100;
 
-const TEMPLATE_PATTERNS = ['html`', 'html.reactive'];
+const TEMPLATE_PATTERNS = ['html`', 'html.reactive', 'html.virtual'];
 
 
 let base = plugin.vite({

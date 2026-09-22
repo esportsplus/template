@@ -1,6 +1,6 @@
 import { ts } from '@esportsplus/typescript';
 import { imports } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, PACKAGE_NAME, PACKAGE_REACTIVITY, TYPES } from './constants';
+import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, PACKAGE_NAME, PACKAGE_REACTIVITY, TYPES } from './constants';
 import { constant } from './specialize';
 
 
@@ -70,15 +70,19 @@ const analyze = (expr: ts.Expression, checker?: ts.Checker): TYPES => {
         return TYPES.Effect;
     }
 
-    // Only html.reactive() calls become ArraySlot - handled by generateReactiveInlining
+    // html.reactive() and html.virtual() calls are inlined by the compiler into slot constructions
     if (
         ts.isCallExpression(expr) &&
         ts.isPropertyAccessExpression(expr.expression) &&
         ts.isIdentifier(expr.expression.expression) &&
-        expr.expression.expression.text === ENTRYPOINT &&
-        expr.expression.name.text === ENTRYPOINT_REACTIVITY
+        expr.expression.expression.text === ENTRYPOINT
     ) {
-        return TYPES.ArraySlot;
+        switch (expr.expression.name.text) {
+            case ENTRYPOINT_REACTIVITY:
+                return TYPES.ArraySlot;
+            case ENTRYPOINT_VIRTUAL:
+                return TYPES.VirtualSlot;
+        }
     }
 
     if (ts.isTaggedTemplateExpression(expr) && ts.isIdentifier(expr.tag) && expr.tag.text === ENTRYPOINT) {

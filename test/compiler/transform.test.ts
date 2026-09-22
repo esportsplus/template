@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { languageService } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, NAMESPACE } from '../../src/compiler/constants';
+import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, NAMESPACE } from '../../src/compiler/constants';
 
 import transform from '../../src/compiler';
 
@@ -25,8 +25,12 @@ describe('compiler/transform', () => {
             expect(transform.patterns).toContain(`${ENTRYPOINT}.${ENTRYPOINT_REACTIVITY}`);
         });
 
-        it('has exactly 2 patterns', () => {
-            expect(transform.patterns).toHaveLength(2);
+        it('has html.virtual pattern', () => {
+            expect(transform.patterns).toContain(`${ENTRYPOINT}.${ENTRYPOINT_VIRTUAL}`);
+        });
+
+        it('has exactly 3 patterns', () => {
+            expect(transform.patterns).toHaveLength(3);
         });
     });
 
