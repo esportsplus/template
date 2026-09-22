@@ -720,3 +720,23 @@ describe('compiler/parser', () => {
         }
     });
 });
+
+describe('dynamic attribute clone cleanup', () => {
+    it.each(['aria-label', 'data-value', 'title', 'ondocumentkeydown', 'oncewindowload'])('strips dynamic %s while preserving neighboring attributes', name => {
+        for (let quote of ['', '"', "'"]) {
+            let result = parser.parse([`<button ${name}=${quote}`, `${quote} disabled aria-live="polite" data-empty="">text</button>`]);
+            expect(result.html).not.toContain(name + '=');
+            expect(result.html).toContain('disabled');
+            expect(result.html).toContain('aria-live=polite');
+            expect(result.html).toContain('data-empty=""');
+            expect((result.slots![0] as { attributes: AttributeMetadata }).attributes.names).toEqual([name]);
+        }
+    });
+
+    it('keeps slot names ordered across adjacent unquoted values and spreads', () => {
+        let result = parser.parse(['<button aria-label=', ' data-value=', ' ', '>text</button>']);
+        expect(result.html).not.toContain('aria-label=');
+        expect(result.html).not.toContain('data-value=');
+        expect((result.slots![0] as { attributes: AttributeMetadata }).attributes.names).toEqual(['aria-label', 'data-value', TYPES.Attributes]);
+    });
+});

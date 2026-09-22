@@ -24,21 +24,34 @@ const NODE_WHITELIST: Record<string, number> = {
     '/': NODE_CLOSING
 };
 
+const REGEX_ATTRIBUTE_WHITESPACE = /[\t\n\f\r ]/;
+
 const REGEX_CLEANUP_WHITESPACE = /\s+/g;
 
 const REGEX_CLOSING_TAGS_END = /(?:<\/[a-z][\w-]*>)+$/i;
 
+const REGEX_DYNAMIC_ATTRIBUTE = /\s+[^\s"'<>/=]+\s*=\s*(?:"((?:{{\$}})+)"|'((?:{{\$}})+)'|({{\$}}))/g;
+
+const REGEX_EMPTY_ATTRIBUTE = /\s+(?:class|id|style|on[\w-:]+)\s*=\s*(?:["']\s*["']|(?=>))/g;
+
 const REGEX_EMPTY_TEXT_NODES = /(>|}|\s)\s+(<|{|\s)/g;
+
+const REGEX_INLINE_EVENT = /\s(on[\w-:]*)\s*=\s*(["'])(.*?)\2/gi;
+
+const REGEX_QUOTED_VALUE = /(["'])([\s\S]*?)\1/g;
 
 const REGEX_SLOT_ATTRIBUTES = /<([\w-]+)([^><]*{{\$}}[^><]*)>/g;
 
 const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{{\$}}/g;
+
+const REGEX_TAG = /<[\w!/?-]+(?:"[^"]*"|'[^']*'|[^'">])*>/g;
 
 // Only unquote values in the HTML unquoted-attribute-safe subset AND followed by a proper
 // terminator ([\s>]); a value abutting '/>' would swallow the slash into the unquoted value
 const REGEX_UNQUOTED_ATTRIBUTE = /([\w:-]+)="([\w./:-]+)"(?=[\s>])/g;
 
 const SLOT_MARKER = '{{$}}';
+
 
 // Whitespace inside an attribute is data, not an empty child text node. Shield it
 // while applying the existing child-text and clone cleanup rules.
@@ -50,8 +63,8 @@ function outsideAttributeValues(html: string, transform: (html: string) => strin
         marker += '\0';
     }
 
-    let masked = html.replace(/<[\w!/?-]+(?:"[^"]*"|'[^']*'|[^'">])*>/g, tag =>
-        tag.replace(/(["'])([\s\S]*?)\1/g, (quoted, quote, value) => {
+    let masked = html.replace(REGEX_TAG, tag =>
+        tag.replace(REGEX_QUOTED_VALUE, (quoted, quote, value) => {
             if (!value) return quoted;
             let id = values.push(value) - 1;
             return quote + marker + id + marker + quote;
@@ -97,7 +110,7 @@ function metadata(found: string): AttributeMetadata {
         quote = '',
         statics: Record<string, string> = {};
 
-    for (let match of found.matchAll(/\s(on[\w-:]*)\s*=\s*(["'])(.*?)\2/gi)) {
+    for (let match of found.matchAll(REGEX_INLINE_EVENT)) {
         if (!match[3].includes(SLOT_MARKER)) {
             throw new Error(`${PACKAGE_NAME}: inline event handlers are not supported`);
         }
@@ -155,7 +168,7 @@ function metadata(found: string): AttributeMetadata {
                 close = true;
             }
         }
-        else if (/[\t\n\f\r ]/.test(char)) {
+        else if (REGEX_ATTRIBUTE_WHITESPACE.test(char)) {
             if (!quote) {
                 close = true;
             }
@@ -199,6 +212,10 @@ function metadata(found: string): AttributeMetadata {
 
         buffer += char;
     }
+
+    // Remove only attributes whose values belong to runtime bindings. Keep the
+    // markers for slot ordering, and preserve intentional static empty attributes.
+    clean = clean.replace(REGEX_DYNAMIC_ATTRIBUTE, (_, double, single, bare) => ' ' + (double || single || bare));
 
     return { clean, names, parts, static: statics };
 }
@@ -373,7 +390,7 @@ const parse = (literals: string[]) => {
     }
 
     buffer = outsideAttributeValues(buffer, value => value
-        .replace(/\s+(?:class|id|style|on[\w-:]+)\s*=\s*(?:["']\s*["']|(?=>))/g, '')
+        .replace(REGEX_EMPTY_ATTRIBUTE, '')
         .replace(REGEX_CLEANUP_WHITESPACE, ' '));
 
     return {
