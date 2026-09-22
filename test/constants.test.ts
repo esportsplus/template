@@ -117,10 +117,6 @@ describe('constants', () => {
             expect(LIFECYCLE_EVENTS.has('onrender')).toBe(true);
         });
 
-        it('contains onresize', () => {
-            expect(LIFECYCLE_EVENTS.has('onresize')).toBe(true);
-        });
-
         it('contains ontick', () => {
             expect(LIFECYCLE_EVENTS.has('ontick')).toBe(true);
         });

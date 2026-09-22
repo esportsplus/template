@@ -8,7 +8,6 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     onconnect?: Callback<[element: T]>;
     ondisconnect?: Callback<[element: T]>;
     onrender?: Callback<[element: T]>;
-    onresize?: Callback<[element: T]>;
     ontick?: Callback<[dispose: VoidFunction, element: T]>;
     style?: Attribute | Attribute[];
     [key: `aria-${string}`]: Property<T, Primitive>;
@@ -16,7 +15,7 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
 } & {
     [K in keyof Properties<T>]?: Property<T, Properties<T>[K] | false | null | undefined>;
 } & {
-    // 'onresize' is the lifecycle listener above; elements never fire a DOM resize event
+    // Elements never fire a DOM resize event; window resizes bind through 'onwindowresize'
     [K in Exclude<keyof GlobalEventHandlersEventMap, 'resize'> as `on${K}` | `once${K}`]?: Handler<T, GlobalEventHandlersEventMap[K]>;
 } & {
     [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: Handler<Document, DocumentEventMap[K]>;

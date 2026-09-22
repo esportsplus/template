@@ -169,13 +169,6 @@ describe('compiler/codegen', () => {
             expect(code).toContain(`${NAMESPACE}.onconnect(`);
         });
 
-        it('generates lifecycle call for onresize', () => {
-            let { result } = codegen(`let x = html\`<div onresize=\${handler}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
-
-            expect(code).toContain(`${NAMESPACE}.onresize(`);
-        });
-
         it('treats a bare spread after an event attribute as its own binding, not the event handler', () => {
             // Whitespace between markers collapses upstream, so `onanimationend=${h} ${rest}` reaches
             // the parser as two abutting markers. The spread must emit setProperties — it must not

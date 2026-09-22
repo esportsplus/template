@@ -8,7 +8,7 @@ High-performance, compiler-optimized HTML templating library for JavaScript/Type
 - **Zero runtime parsing** - No template parsing at runtime
 - **Reactive integration** - Works with `@esportsplus/reactivity` for dynamic updates
 - **Event delegation** - Efficient event handling with automatic delegation
-- **Lifecycle events** - `onconnect`, `ondisconnect`, `onrender`, `onresize`, `ontick`
+- **Lifecycle events** - `onconnect`, `ondisconnect`, `onrender`, `ontick`
 - **Async slots** - Async function support with fallback content in `EffectSlot`
 - **Non-destructive reordering** - Uses `moveBefore` DOM API for array sort/reverse when available
 - **HMR support** - Fine-grained hot module replacement for templates in development
@@ -337,10 +337,6 @@ const disconnect = (handler: (el: HTMLElement) => void) =>
 const render = (handler: (el: HTMLElement) => void) =>
     html`<div onrender="${handler}">Rendered</div>`;
 
-// Called on element resize
-const resize = (handler: (el: HTMLElement) => void) =>
-    html`<div onresize="${handler}">Resizable</div>`;
-
 // Called on animation frame (with dispose function)
 const tick = (handler: (dispose: () => void, el: HTMLElement) => void) =>
     html`<div ontick="${handler}">Animating</div>`;
@@ -392,7 +388,6 @@ const circle = (fill: string) =>
 | `onconnect` | Lifecycle: element connected to DOM |
 | `ondisconnect` | Lifecycle: element disconnected from DOM |
 | `onrender` | Lifecycle: after initial render |
-| `onresize` | Lifecycle: window resize |
 | `ontick` | Lifecycle: RAF animation loop |
 | `runtime` | Route event name to correct handler |
 | `slot` | Static slot rendering |
@@ -418,7 +413,6 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     onconnect?: (element: T) => void;
     ondisconnect?: (element: T) => void;
     onrender?: (element: T) => void;
-    onresize?: (element: T) => void;
     ontick?: (dispose: VoidFunction, element: T) => void;
     [key: `aria-${string}`]: Primitive | ((element: T) => Primitive);
     [key: `data-${string}`]: Primitive | ((element: T) => Primitive);

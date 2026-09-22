@@ -50,7 +50,7 @@ const DIRECT_ATTACH_EVENTS = new Set<string>([
 ]);
 
 const LIFECYCLE_EVENTS = new Set<string>([
-    'onconnect', 'ondisconnect', 'onrender', 'onresize', 'ontick'
+    'onconnect', 'ondisconnect', 'onrender', 'ontick'
 ]);
 
 const PACKAGE_NAME = '@esportsplus/template';
