@@ -18,6 +18,8 @@ type VitePlugin = {
 
 const FILE_REGEX = /\.[tj]sx?$/;
 
+const REGEX_PATH_SEPARATOR = /\\/g;
+
 const RELOAD_WINDOW = 100;
 
 const TEMPLATE_PATTERNS = ['html`', 'html.reactive'];
@@ -89,7 +91,7 @@ export default ({ root }: { root?: string } = {}) => {
                 return result;
             }
 
-            let hmr = transformHMR(result.code, id.replace(/\\/g, '/'));
+            let hmr = transformHMR(result.code, id.replace(REGEX_PATH_SEPARATOR, '/'));
 
             if (!hmr.selfAccept) {
                 return result;

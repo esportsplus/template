@@ -12,6 +12,8 @@ const HMR_PACKAGE = PACKAGE_NAME + '/hmr';
 
 const HMR_TOKEN = '__hmr';
 
+const REGEX_FUNCTION = /\b(async\s+)?function\b/;
+
 
 function applyEdits(code: string, edits: Edit[]): string {
     edits.sort((a, b) => b.start - a.start || b.end - a.end);
@@ -29,7 +31,7 @@ function applyEdits(code: string, edits: Edit[]): string {
 
 function extractFunctionExpression(statement: ts.FunctionDeclaration): string {
     let text = statement.getText(),
-        match = /\b(async\s+)?function\b/.exec(text);
+        match = REGEX_FUNCTION.exec(text);
 
     return match === null ? text : text.slice(match.index);
 }
