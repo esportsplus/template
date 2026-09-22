@@ -195,6 +195,39 @@ const todoList = (todos: string[]) =>
 
 Array sort and reverse operations use the `moveBefore` DOM API when available, preserving element state (focus, animations, iframe content) during reordering. Falls back to `insertBefore` in older browsers.
 
+### Virtual Slots
+
+For long lists, `html.virtual` renders only the rows near the viewport. Rows may have
+any height, heights may change after render, and the array is reactive: push, splice,
+sort, and the rest update the list in place without moving what the reader is looking at.
+
+```typescript
+import { html } from '@esportsplus/template';
+
+const feed = (posts: Post[]) =>
+    html`<div class="feed">${html.virtual(posts, post => html`<article>${post.body}</article>`)}</div>`;
+```
+
+The scroller is the nearest ancestor with `overflow-y: auto` or `scroll`, or the window.
+The one option is `anchor`. The default `'start'` is a feed: the list opens at the top and
+appends never move the viewport. `'end'` is a chat: the list opens at the last row, follows
+appends while the reader is at the end, releases as soon as the reader scrolls up, and
+re-engages when they return to the end.
+
+```typescript
+html`<div class="thread">${html.virtual(messages, message => html`<p>${message.text}</p>`, { anchor: 'end' })}</div>`
+``` Row heights are measured with `ResizeObserver` after layout
+and before paint, cached on the row element, and used to keep the scrollbar and the
+scroll position stable when rows above the viewport change size. Reactive array
+mutations work the same way as with `html.reactive`.
+
+Rows must not carry vertical margins, since `ResizeObserver` reports the border box;
+use padding on the row or `gap` on the container. The slot sets `overflow-anchor: none`
+on the scroller. Inside a `tbody` the spacers are `tr` elements.
+
+The runtime class is `VirtualSlot`; its instance exposes reactive `length` and `range`,
+`scrollTo(index, align)` with `start`, `center`, or `end`, and `dispose()`.
+
 ### Async Slots
 
 Async functions are supported in effect slots, with an optional fallback callback for loading states:
@@ -356,6 +389,7 @@ const circle = (fill: string) =>
 | `runtime` | Route event name to correct handler |
 | `slot` | Static slot rendering |
 | `ArraySlot` | Reactive array rendering |
+| `VirtualSlot` | Virtualized reactive array rendering |
 | `EffectSlot` | Reactive effect rendering |
 | `clone` | Clone a node (uses `importNode` on Firefox) |
 | `EMPTY_FRAGMENT` | Shared empty document fragment |
