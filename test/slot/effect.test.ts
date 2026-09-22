@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { read, signal, write } from '@esportsplus/reactivity';
+import { read, root, signal, write } from '@esportsplus/reactivity';
 import { ANCHOR_LAST, ANCHOR_MARKER, ANCHOR_SOLE } from '../../src/constants';
 import { ondisconnect } from '../../src/slot/cleanup';
 import { EffectSlot } from '../../src/slot/effect';
@@ -300,6 +300,40 @@ describe('slot/EffectSlot', () => {
 
             expect(container.textContent).toContain('d');
             expect(container.textContent).not.toContain('b');
+        });
+
+        it('skips a frame scheduled before dispose', async () => {
+            let s = signal('before'),
+                slot = new EffectSlot(anchor, () => read(s)),
+                textnode = slot.textnode!;
+
+            write(s, 'after');
+            slot.dispose();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(textnode.nodeValue).toBe('before');
+            expect(container.childNodes.length).toBe(0);
+        });
+
+        it('skips a frame scheduled before the owning root is disposed', async () => {
+            let dispose = () => {},
+                s = signal('before'),
+                slot = root(stop => {
+                    dispose = stop;
+
+                    return new EffectSlot(anchor, () => read(s));
+                }),
+                textnode = slot.textnode!;
+
+            write(s, 'after');
+            dispose();
+
+            expect(slot.disposed).toBe(true);
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(textnode.nodeValue).toBe('before');
         });
     });
 

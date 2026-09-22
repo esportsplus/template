@@ -1,4 +1,4 @@
-import { effect } from '@esportsplus/reactivity';
+import { effect, onCleanup } from '@esportsplus/reactivity';
 import { isAsyncFunction } from '@esportsplus/utilities';
 import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable, SlotGroup } from '../types';
@@ -22,6 +22,7 @@ function read(value: unknown): unknown {
 
 class EffectSlot {
     anchor: Element;
+    disposed = false;
     disposer: VoidFunction | null;
     group: SlotGroup | null = null;
     mode: number;
@@ -34,10 +35,27 @@ class EffectSlot {
         this.disposer = null;
         this.mode = mode;
 
+        // Owner disposal removes the DOM range wholesale; only the flag is needed so late
+        // frame and promise work cannot write into detached nodes or create orphan effects
+        onCleanup(() => {
+            this.disposed = true;
+        });
+
         if (isAsyncFunction(fn)) {
             (fn as (fallback: (content: Renderable<any>) => void) => Promise<Renderable<any>>)(
-                (content) => this.update(content)
-            ).then((value) => this.update(value), () => {});
+                (content) => {
+                    if (!this.disposed) {
+                        this.update(content);
+                    }
+                }
+            ).then(
+                (value) => {
+                    if (!this.disposed) {
+                        this.update(value);
+                    }
+                },
+                () => {}
+            );
         }
         else {
             let dispose = fn.length ? () => this.dispose() : undefined,
@@ -54,7 +72,10 @@ class EffectSlot {
 
                     raf(() => {
                         this.scheduled = false;
-                        this.update(value);
+
+                        if (!this.disposed) {
+                            this.update(value);
+                        }
                     });
                 }
             });
@@ -65,11 +86,15 @@ class EffectSlot {
     dispose() {
         let { anchor, disposer, group, mode, textnode } = this;
 
-        if (!disposer) {
+        if (this.disposed) {
             return;
         }
 
-        disposer();
+        this.disposed = true;
+
+        if (disposer) {
+            disposer();
+        }
 
         if (group) {
             if (mode === ANCHOR_MARKER) {

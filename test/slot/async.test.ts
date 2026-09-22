@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { root } from '@esportsplus/reactivity';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
 import type { Element, Renderable } from '../../src/types';
@@ -161,6 +162,61 @@ describe('slot/EffectSlot (async)', () => {
                 expect(container.lastChild?.nodeType).toBe(Node.TEXT_NODE);
                 expect(container.lastChild?.nodeValue).toBe('');
             });
+        });
+    });
+
+    describe('disposal', () => {
+        it('ignores a resolution that lands after dispose', async () => {
+            let resolve: (v: string) => void,
+                promise = new Promise<string>((r) => { resolve = r; }),
+                slot = new EffectSlot(anchor, async (fallback: any) => {
+                    fallback('Loading');
+                    return promise;
+                });
+
+            await vi.waitFor(() => {
+                expect(container.textContent).toContain('Loading');
+            });
+
+            slot.dispose();
+
+            expect(container.childNodes.length).toBe(0);
+
+            resolve!('Late');
+            await promise;
+            await Promise.resolve();
+
+            expect(container.childNodes.length).toBe(0);
+        });
+
+        it('ignores fallback and resolution after the owning root is disposed', async () => {
+            let dispose = () => {},
+                resolve: (v: string) => void,
+                promise = new Promise<string>((r) => { resolve = r; }),
+                step = () => {};
+
+            root(stop => {
+                dispose = stop;
+
+                new EffectSlot(anchor, async (fallback: any) => {
+                    await new Promise<void>(r => { step = r; });
+                    fallback('Loading');
+                    return promise;
+                });
+            });
+
+            dispose();
+            step();
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(container.textContent).toBe('');
+
+            resolve!('Late');
+            await promise;
+            await Promise.resolve();
+
+            expect(container.textContent).toBe('');
         });
     });
 
