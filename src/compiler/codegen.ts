@@ -102,7 +102,7 @@ function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void
     node.forEachChild(child => discoverTemplatesInExpression(ctx, child));
 }
 
-function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string): string {
+function generateAttributeBinding(_: CodegenContext, element: string, name: string, expr: string): string {
     if (name.startsWith('on') && name.length > 2) {
         let key = name.toLowerCase();
 
