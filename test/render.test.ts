@@ -1,4 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { read, signal, write } from '@esportsplus/reactivity';
+import { CLEANUP } from '../src/constants';
+import { ondisconnect } from '../src/slot/cleanup';
+import type { Element } from '../src/types';
 
 import render from '../src/render';
 
@@ -150,6 +154,58 @@ describe('render', () => {
             render(container, 0);
 
             expect(container.textContent).toContain('0');
+        });
+    });
+
+    describe('disposer', () => {
+        it('removes static content and the anchor', () => {
+            let dispose = render(container, ['One', 'Two']);
+
+            expect(container.textContent).toBe('OneTwo');
+
+            dispose();
+
+            expect(container.childNodes.length).toBe(0);
+        });
+
+        it('stops reactive content and ignores a pending frame', async () => {
+            let s = signal('before'),
+                dispose = render(container, () => read(s)),
+                textnode = container.lastChild!;
+
+            expect(textnode.nodeValue).toBe('before');
+
+            write(s, 'after');
+            dispose();
+
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(container.childNodes.length).toBe(0);
+            expect(textnode.nodeValue).toBe('before');
+        });
+
+        it('removes attribute bindings from the parent without touching its other cleanups', () => {
+            let clicks = 0,
+                other = vi.fn(),
+                s = signal('a');
+
+            ondisconnect(container as unknown as Element, other);
+
+            let dispose = render(container, { onclick: () => { clicks++; }, title: () => read(s) }, 'Content');
+
+            container.click();
+
+            expect(clicks).toBe(1);
+            expect(container.title).toBe('a');
+
+            dispose();
+            container.click();
+            write(s, 'b');
+
+            expect(clicks).toBe(1);
+            expect(container.title).toBe('a');
+            expect(other).not.toHaveBeenCalled();
+            expect((container as unknown as Element)[CLEANUP]).toEqual([other]);
         });
     });
 });
