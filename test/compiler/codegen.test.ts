@@ -190,22 +190,13 @@ describe('compiler/codegen', () => {
         });
     });
 
-    describe('generateCode - delegated tuple handlers', () => {
-        it('emits 4-argument delegate for [fn, data] handler', () => {
+    describe('generateCode - delegated handlers', () => {
+        it('passes an array expression through untouched', () => {
             let { result } = codegen(`let x = html\`<div onclick=\${[fn, data]}>text</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
             expect(code).toContain(`${NAMESPACE}.delegate(`);
-            expect(code).toContain("'click', fn, data)");
-        });
-
-        it('emits 3-argument delegate (whole array) for 3-element array handler', () => {
-            let { result } = codegen(`let x = html\`<div onclick=\${[fn, a, b]}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
-
-            expect(code).toContain(`${NAMESPACE}.delegate(`);
-            expect(code).toContain('[fn, a, b]');
-            expect(code).not.toContain("'click', fn, a");
+            expect(code).toContain("'click', [fn, data])");
         });
 
         it('emits 3-argument delegate for plain function handler', () => {

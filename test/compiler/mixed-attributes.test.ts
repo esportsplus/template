@@ -3,6 +3,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import { languageService } from '@esportsplus/typescript/compiler';
 import { read, root, signal, write } from '@esportsplus/reactivity';
 import * as runtime from '../../src';
+import { remove as cleanupRemove } from '../../src/slot/cleanup';
 import { generateCode } from '../../src/compiler/codegen';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 import { NAMESPACE } from '../../src/compiler/constants';
@@ -235,5 +236,105 @@ describe('compiled mixed attribute values', () => {
         expect([...result.templates.keys()].join('')).toContain('checkbox checkbox--radio');
         expect([...result.templates.keys()].join('')).not.toContain('ready');
         expect(value.firstChild.className).toBe('checkbox checkbox--radio ready');
+    });
+});
+
+describe('compiled host bindings and unquoted attributes', () => {
+    it.each([
+        '<button ondocumentkeydown=${handler} aria-label=${label} data-state=${() => "ready"}></button>',
+        '<button ondocumentkeydown="${handler}" aria-label=${label} data-state=${() => "ready"}></button>',
+        '<button ${{ ondocumentkeydown: handler }} aria-label=${label} data-state=${() => "ready"}></button>',
+        '<button ${properties} aria-label=${label} data-state=${() => "ready"}></button>'
+    ])('registers and cleans up %s', markup => {
+        let calls = 0,
+            handler = () => { calls++; },
+            { value, result } = compile(
+                'let value = html`' + markup + '`;',
+                { handler, label: 'Search', properties: { ondocumentkeydown: handler } }
+            ),
+            element = value.firstChild as runtime.Element;
+
+        document.body.append(value);
+
+        expect(calls).toBe(0);
+
+        for (let html of result.templates.keys()) {
+            expect(html).not.toContain('ondocumentkeydown');
+            expect(html).not.toContain('aria-label=');
+            expect(html).not.toContain('data-state=');
+        }
+
+        expect(element.getAttribute('aria-label')).toBe('Search');
+        expect(element.getAttribute('data-state')).toBe('ready');
+
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+
+        expect(calls).toBe(1);
+
+        cleanupRemove([{ head: element }]);
+        document.dispatchEvent(new KeyboardEvent('keydown'));
+
+        expect(calls).toBe(1);
+    });
+
+    it.each([
+        ['onceclick', "${NAMESPACE}.delegate(", ', true);'],
+        ['oncefocus', "${NAMESPACE}.on(", ', true);'],
+        ['oncedocumentkeydown', "${NAMESPACE}.ondocument(", ', true);'],
+        ['oncewindowresize', "${NAMESPACE}.onwindow(", ', true);'],
+        ['onwindowresize', "${NAMESPACE}.onwindow(", ');'],
+        ['onDocumentKeyDown', "${NAMESPACE}.ondocument(", ');'],
+        ['onDOMContentLoaded', "${NAMESPACE}.delegate(", ');']
+    ])('compiles %s through the matching helper', (name, call, tail) => {
+        let { output } = compile('let value = html`<button ' + name + '=${handler}></button>`;', { handler: () => {} });
+
+        expect(output).toContain(call.replace('${NAMESPACE}', NAMESPACE));
+        expect(output).toContain(tail);
+        expect(output).toContain("'" + name.toLowerCase().replace(/^once|^on|document|window/g, '') + "'");
+    });
+
+    it('once bindings fire a single time and window bindings receive the window', () => {
+        let clicks = 0,
+            self: unknown = null,
+            { value } = compile(
+                'let value = html`<button onceclick=${click} onwindowresize=${resize}></button>`;',
+                { click: () => { clicks++; }, resize: function (this: unknown) { self = this; } }
+            ),
+            element = value.firstChild as HTMLElement;
+
+        document.body.append(value);
+        element.click();
+        element.click();
+        window.dispatchEvent(new Event('resize'));
+
+        expect(clicks).toBe(1);
+        expect(self).toBe(window);
+
+        cleanupRemove([{ head: element as unknown as runtime.Element }]);
+    });
+
+    it('unquoted aria effects update without swallowing the next attribute', async () => {
+        let dispose = () => {},
+            state = signal('first'),
+            { value } = root(stop => {
+                dispose = stop;
+
+                return compile(
+                    'let value = html`<button aria-label=${() => state()} type="button" data-static="kept"></button>`;',
+                    { state: () => read(state) }
+                );
+            }),
+            element = value.firstChild as HTMLElement;
+
+        expect(element.getAttribute('aria-label')).toBe('first');
+        expect(element.getAttribute('type')).toBe('button');
+
+        write(state, 'second');
+        await tick();
+
+        expect(element.getAttribute('aria-label')).toBe('second');
+        expect(element.getAttribute('data-static')).toBe('kept');
+
+        dispose();
     });
 });

@@ -98,24 +98,41 @@ function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void
     node.forEachChild(child => discoverTemplatesInExpression(ctx, child));
 }
 
-function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string, exprNode?: ts.Expression): string {
+function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string): string {
     if (name.startsWith('on') && name.length > 2) {
-        let event = name.slice(2).toLowerCase(),
-            key = name.toLowerCase();
+        let key = name.toLowerCase();
 
         if (LIFECYCLE_EVENTS.has(key)) {
             return `${NAMESPACE}.${key}(${element}, ${expr});`;
         }
 
-        if (DIRECT_ATTACH_EVENTS.has(key)) {
-            return `${NAMESPACE}.on(${element}, '${event}', ${expr});`;
+        // Same character gates as runtime() in ../event: types reject DOM events starting with
+        // 'ce', 'doc' or 'wi', so a match can only be a prefix
+        let i = 2,
+            once = false;
+
+        if (key[2] === 'c' && key[3] === 'e') {
+            i = 4;
+            once = true;
         }
 
-        if (exprNode !== undefined && ts.isArrayLiteralExpression(exprNode) && exprNode.elements.length === 2) {
-            return `${NAMESPACE}.delegate(${element}, '${event}', ${rewriteExpression(ctx, exprNode.elements[0])}, ${rewriteExpression(ctx, exprNode.elements[1])});`;
+        let flag = once ? ', true' : '';
+
+        if (key[i] === 'd' && key[i + 1] === 'o' && key[i + 2] === 'c') {
+            return `${NAMESPACE}.ondocument(${element}, '${key.slice(i + 8)}', ${expr}${flag});`;
         }
 
-        return `${NAMESPACE}.delegate(${element}, '${event}', ${expr});`;
+        if (key[i] === 'w' && key[i + 1] === 'i') {
+            return `${NAMESPACE}.onwindow(${element}, '${key.slice(i + 6)}', ${expr}${flag});`;
+        }
+
+        let event = key.slice(i);
+
+        if (DIRECT_ATTACH_EVENTS.has('on' + event)) {
+            return `${NAMESPACE}.on(${element}, '${event}', ${expr}${flag});`;
+        }
+
+        return `${NAMESPACE}.delegate(${element}, '${event}', ${expr}${flag});`;
     }
 
     if (name === 'class' || name === 'style') {
@@ -341,8 +358,7 @@ function generateTemplateCode(
                                                 ctx,
                                                 element,
                                                 propName,
-                                                rewriteExpression(ctx, prop.initializer),
-                                                prop.initializer
+                                                rewriteExpression(ctx, prop.initializer)
                                             )
                                         );
                                     }
@@ -378,8 +394,7 @@ function generateTemplateCode(
                             ctx,
                             element,
                             name,
-                            exprTexts[index] || 'undefined',
-                            exprNodes[index]
+                            exprTexts[index] || 'undefined'
                         )
                     );
                     index++;
@@ -401,8 +416,7 @@ function generateTemplateCode(
                                 ctx,
                                 element,
                                 name,
-                                exprTexts[index] || 'undefined',
-                                exprNodes[index]
+                                exprTexts[index] || 'undefined'
                             )
                         );
                         index++;

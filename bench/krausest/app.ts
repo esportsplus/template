@@ -58,16 +58,6 @@ function random(max: number) {
     return seed % max;
 }
 
-// Shared handlers: one fn per table op (mirrors onclick=${[fn, data]}) so rows carry data instead of a closure each
-function removeRow(this: Element, data: Row) {
-    rows.splice(rows.indexOf(data), 1);
-}
-
-function selectRow(this: Element, data: number) {
-    write(selected, data);
-}
-
-
 const create = (container: HTMLElement) => {
     let flip = false;
 
@@ -82,9 +72,9 @@ const create = (container: HTMLElement) => {
 
         setList(tr, 'class', () => signal.selector(selected, data.id) ? 'danger' : '');
         idCell.appendChild(text(String(data.id)));
-        delegate(labelLink, 'click', selectRow, data.id);
+        delegate(labelLink, 'click', () => write(selected, data.id));
         new EffectSlot(labelLink, () => read(data.label), ANCHOR_SOLE);
-        delegate(removeLink, 'click', removeRow, data);
+        delegate(removeLink, 'click', () => { rows.splice(rows.indexOf(data), 1); });
 
         return fragment as DocumentFragment;
     }

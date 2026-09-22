@@ -13,7 +13,11 @@ type Attributes<T extends HTMLElement = Element> = {
     [key: `aria-${string}`]: ((element: T) => Primitive) | Primitive;
     [key: `data-${string}`]: ((element: T) => Primitive) | Primitive;
 } & {
-    [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void;
+    [K in keyof GlobalEventHandlersEventMap as `on${string & K}` | `once${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void;
+} & {
+    [K in keyof DocumentEventMap as `ondocument${string & K}` | `oncedocument${string & K}`]?: (this: Document, event: DocumentEventMap[K]) => void;
+} & {
+    [K in keyof WindowEventMap as `onwindow${string & K}` | `oncewindow${string & K}`]?: (this: Window, event: WindowEventMap[K]) => void;
 } & Record<PropertyKey, unknown>;
 
 type Effect<T> = () => T extends unknown[] ? Renderable<T>[] : Renderable<T>;

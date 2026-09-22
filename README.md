@@ -244,6 +244,41 @@ const interactive = (click: () => void, hover: () => void) =>
     html`<div onclick="${click}" onmouseenter="${hover}">Interact</div>`;
 ```
 
+### Document and Window Events
+
+Use `ondocument{event}` or `onwindow{event}` for a host-wide listener owned by a
+template element:
+
+```typescript
+const shortcut = (event: KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault();
+        openSearch();
+    }
+};
+
+html`<button ondocumentkeydown=${shortcut}>Search</button>`;
+html`<button ${{ ondocumentkeydown: shortcut }}>Search</button>`;
+html`<div onwindowresize=${() => layout()}></div>`;
+```
+
+Host events fire regardless of whether the event originated inside the owning
+element. Registration happens when the template binds the element, and template
+disposal removes it automatically. Native DOM removal alone does not run template
+cleanup. Multiple owners each receive the event in registration order; register
+shared shortcuts once. Handlers receive the document or window as `this`.
+Replacing an event binding on the same owner removes the previous registration.
+
+### Once Events
+
+Prefix any event with `once` to remove the binding before its first invocation:
+
+```typescript
+html`<button onceclick=${start}>Start</button>`;
+html`<dialog oncedocumentkeydown=${dismiss}></dialog>`;
+html`<div oncewindowload=${ready}></div>`;
+```
+
 ### Lifecycle Events
 
 Custom lifecycle events for DOM attachment:
@@ -311,6 +346,8 @@ const circle = (fill: string) =>
 | `setProperties` | Set multiple properties from an object |
 | `delegate` | Register delegated event handler |
 | `on` | Register direct-attach event handler |
+| `ondocument` | Register an owner-scoped document event handler |
+| `onwindow` | Register an owner-scoped window event handler |
 | `onconnect` | Lifecycle: element connected to DOM |
 | `ondisconnect` | Lifecycle: element disconnected from DOM |
 | `onrender` | Lifecycle: after initial render |
@@ -342,18 +379,24 @@ type Attributes<T extends HTMLElement = Element> = {
     ontick?: (dispose: VoidFunction, element: T) => void;
     [key: `aria-${string}`]: string | number | boolean | undefined;
     [key: `data-${string}`]: string | undefined;
-} & { [K in keyof GlobalEventHandlersEventMap as `on${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void };
+} & { [K in keyof GlobalEventHandlersEventMap as `on${string & K}` | `once${string & K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
+  & { [K in keyof DocumentEventMap as `ondocument${string & K}` | `oncedocument${string & K}`]?: (this: Document, event: DocumentEventMap[K]) => void }
+  & { [K in keyof WindowEventMap as `onwindow${string & K}` | `oncewindow${string & K}`]?: (this: Window, event: WindowEventMap[K]) => void };
 ```
 
 ### render(parent, renderable)
 
-Clears the parent, then mounts a renderable to it.
+Mounts a renderable into the parent and returns a disposer. Calling it removes the
+mounted content, stops its reactive bindings, and unbinds any attributes `render`
+set on the parent. Pending frame or async work from the mounted content is dropped.
 
 ```typescript
 import { html, render } from '@esportsplus/template';
 
 const app = html`<div>App</div>`;
-render(document.getElementById('root'), app);
+const dispose = render(document.getElementById('root'), app);
+
+dispose();
 ```
 
 ## Complete Example
