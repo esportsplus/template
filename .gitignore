@@ -7,3 +7,4 @@ node_modules
 tmpclaude*
 .claude/storage/
 .claude/worktrees/
+storage/virtual-demo/index.html
