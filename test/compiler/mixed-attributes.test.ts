@@ -293,7 +293,7 @@ describe('compiled host bindings and unquoted attributes', () => {
         expect(output).toContain("'" + name.toLowerCase().replace(/^once|^on|document|window/g, '') + "'");
     });
 
-    it('once bindings fire a single time and window bindings receive the window', () => {
+    it('once bindings fire a single time and window bindings receive the owner', () => {
         let clicks = 0,
             self: unknown = null,
             { value } = compile(
@@ -308,7 +308,7 @@ describe('compiled host bindings and unquoted attributes', () => {
         window.dispatchEvent(new Event('resize'));
 
         expect(clicks).toBe(1);
-        expect(self).toBe(window);
+        expect(self).toBe(element);
 
         cleanupRemove([{ head: element as unknown as runtime.Element }]);
     });

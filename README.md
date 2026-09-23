@@ -307,7 +307,8 @@ Host events fire regardless of whether the event originated inside the owning
 element. Registration happens when the template binds the element, and template
 disposal removes it automatically. Native DOM removal alone does not run template
 cleanup. Multiple owners each receive the event in registration order; register
-shared shortcuts once. Handlers receive the document or window as `this`.
+shared shortcuts once. Handlers receive the owning element as `this`; use
+`event.currentTarget` for the document or window.
 Replacing an event binding on the same owner removes the previous registration.
 
 ### Once Events
@@ -417,8 +418,8 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     onrender?: (element: T) => void;
     ontick?: (dispose: VoidFunction, element: T) => void;
 } & { [K in keyof GlobalEventHandlersEventMap as `on${K}` | `once${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
-  & { [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: (this: Document, event: DocumentEventMap[K]) => void }
-  & { [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: (this: Window, event: WindowEventMap[K]) => void }
+  & { [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: (this: T, event: DocumentEventMap[K]) => void }
+  & { [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: (this: T, event: WindowEventMap[K]) => void }
   & Record<PropertyKey, unknown>;
 
 type Factory<A, C, R> = {

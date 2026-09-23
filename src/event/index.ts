@@ -7,7 +7,7 @@ import onconnect from './onconnect';
 import ontick from './ontick';
 
 
-type Binding = { listener: Function | undefined; once: boolean; remove: VoidFunction };
+type Binding = { element: Element; listener: Function | undefined; once: boolean; remove: VoidFunction };
 
 type Host = Document | Window;
 
@@ -31,6 +31,7 @@ function attach(element: Element, registration: Registration, listener: Function
         members = registration.members,
         previous = element[key] as Binding | undefined,
         binding: Binding = {
+            element,
             listener,
             once,
             remove: () => {
@@ -98,7 +99,7 @@ function delegated(key: symbol) {
     };
 }
 
-function global(host: Host, members: Set<Binding>) {
+function global(members: Set<Binding>) {
     return (e: Event) => {
         let errors: unknown[] | null = null;
 
@@ -110,8 +111,9 @@ function global(host: Host, members: Set<Binding>) {
                 binding.remove();
             }
 
+            // Host listeners run with their owning element, matching element and delegated listeners
             try {
-                listener!.call(host, e);
+                listener!.call(binding.element, e);
             }
             catch (error) {
                 (errors ??= []).push(error);
@@ -129,7 +131,7 @@ function global(host: Host, members: Set<Binding>) {
 function register(host: Host, event: string, name: string): Registration {
     let key = Symbol(),
         members = name === event ? null : new Set<Binding>(),
-        handler = members ? global(host, members) : delegated(key),
+        handler = members ? global(members) : delegated(key),
         registration: Registration = {
             counter: 0,
             key,

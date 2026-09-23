@@ -22,28 +22,28 @@ describe('types', () => {
             expect(attributes).toBeDefined();
         });
 
-        it('types document events with document as this', () => {
-            let attributes: Attributes = {
+        it('types document events with the element as this', () => {
+            let attributes: Attributes<HTMLInputElement> = {
                     oncedocumentvisibilitychange(event) {
                         expectTypeOf(event).toEqualTypeOf<Event>();
                     },
                     ondocumentclick(event) {
                         expectTypeOf(event).toEqualTypeOf<PointerEvent>();
-                        expectTypeOf(this).toEqualTypeOf<Document>();
+                        expectTypeOf(this).toEqualTypeOf<HTMLInputElement>();
                     }
                 };
 
             expect(attributes).toBeDefined();
         });
 
-        it('types window events with window as this', () => {
-            let attributes: Attributes = {
+        it('types window events with the element as this', () => {
+            let attributes: Attributes<HTMLInputElement> = {
                     oncewindowstorage(event) {
                         expectTypeOf(event).toEqualTypeOf<StorageEvent>();
                     },
                     onwindowresize(event) {
                         expectTypeOf(event).toEqualTypeOf<UIEvent>();
-                        expectTypeOf(this).toEqualTypeOf<Window>();
+                        expectTypeOf(this).toEqualTypeOf<HTMLInputElement>();
                     }
                 };
 

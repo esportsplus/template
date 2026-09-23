@@ -15,9 +15,9 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     // Elements never fire a DOM resize event; window resizes bind through 'onwindowresize'
     [K in Exclude<keyof GlobalEventHandlersEventMap, 'resize'> as `on${K}` | `once${K}`]?: Handler<T, GlobalEventHandlersEventMap[K]>;
 } & {
-    [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: Handler<Document, DocumentEventMap[K]>;
+    [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: Handler<T, DocumentEventMap[K]>;
 } & {
-    [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: Handler<Window, WindowEventMap[K]>;
+    [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: Handler<T, WindowEventMap[K]>;
 } & Record<PropertyKey, unknown>;
 
 // Method signatures compare parameters bivariantly, so a listener may annotate a narrower element

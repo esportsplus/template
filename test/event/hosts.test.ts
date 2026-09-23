@@ -187,7 +187,7 @@ describe('event hosts', () => {
             expect(resizes(detach)).toBe(1);
         });
 
-        it('passes the host as this and restores currentTarget after delegated dispatch', () => {
+        it('passes the owner as this and restores currentTarget after delegated dispatch', () => {
             let element = owner(),
                 targets: unknown[] = [];
 
@@ -198,7 +198,7 @@ describe('event hosts', () => {
 
             element.click();
 
-            expect(targets).toEqual([element, document, document]);
+            expect(targets).toEqual([element, document, element]);
         });
 
         it('does not skip another handler when a once handler removes itself', () => {
