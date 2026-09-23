@@ -406,24 +406,33 @@ const circle = (fill: string) =>
 
 ```typescript
 type Renderable<T> = ArraySlot<T> | DocumentFragment | Effect<T> | Node | NodeList | Primitive | Renderable<T>[];
+type Effect<T> = (dispose: VoidFunction) => Renderable<T>;
 type Element<T extends HTMLElement = HTMLElement> = T & Attributes<T>;
+type Attribute<T extends HTMLElement = HTMLElement> = Primitive | ((element: T) => Primitive | Primitive[]);
 type Attributes<T extends HTMLElement = HTMLElement> = {
-    class?: Attribute | Attribute[];
-    style?: Attribute | Attribute[];
+    class?: Attribute<T> | Attribute<T>[];
+    style?: Attribute<T> | Attribute<T>[];
     onconnect?: (element: T) => void;
     ondisconnect?: (element: T) => void;
     onrender?: (element: T) => void;
     ontick?: (dispose: VoidFunction, element: T) => void;
-    [key: `aria-${string}`]: Primitive | ((element: T) => Primitive);
-    [key: `data-${string}`]: Primitive | ((element: T) => Primitive);
-} & { [K in WritableProperty<T>]?: T[K] | false | null | undefined | ((element: T) => T[K] | false | null | undefined) }
-  & { [K in keyof GlobalEventHandlersEventMap as `on${K}` | `once${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
+} & { [K in keyof GlobalEventHandlersEventMap as `on${K}` | `once${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
   & { [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: (this: Document, event: DocumentEventMap[K]) => void }
   & { [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: (this: Window, event: WindowEventMap[K]) => void }
   & Record<PropertyKey, unknown>;
+
+type Factory<A, C, R> = {
+    (): R;
+    <T extends A>(attributes: T): R;
+    <T extends C>(content: T): R;
+    (attributes: A, content?: C): R;
+    bind(context: { attributes?: Partial<A>, content?: C }): Factory<A, C, R>;
+};
 ```
 
-`WritableProperty<T>` is every writable, primitive-valued DOM property of `T` (`value`, `checked`, `href`, `disabled`, ...). Templates cannot name their element, so the default `Attributes` offers the properties of every `HTMLElementTagNameMap` element; `Attributes<HTMLInputElement>` narrows to one element. Listener and effect parameters are checked bivariantly, so `(el: HTMLInputElement) => ...` is accepted where `HTMLElement` is expected. Unlisted keys (SVG attributes, `for`, custom attributes) fall through to `Record<PropertyKey, unknown>`.
+`Attributes` types the keys the runtime treats specially: `class`/`style` lists, lifecycle hooks, and event listeners, whose `event` and `this` are typed per event. Every other key (DOM properties, `aria-*`, `data-*`, SVG attributes, custom attributes) falls through to `Record<PropertyKey, unknown>`, so components can declare their own props with any name. `Attributes<HTMLInputElement>` narrows the element passed to listeners, lifecycle hooks, and attribute effects; parameters are checked bivariantly, so `(el: HTMLInputElement) => ...` is accepted where `HTMLElement` is expected.
+
+Content effects receive a disposer that tears down their slot; attribute effects receive the element they are bound to. `component()` returns a `Factory`, whose `bind` presets a partial set of attributes.
 
 ### render(parent, renderable)
 
