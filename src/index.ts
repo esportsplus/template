@@ -7,5 +7,6 @@ export { default as html } from './html';
 export { default as render } from './render';
 export { default as slot, ArraySlot, EffectSlot } from './slot';
 export { VirtualSlot } from './virtual';
+export type { Factory } from './component';
 export type { Attribute, Attributes, Element, Renderable } from './types';
 export type { VirtualOptions } from './virtual';
