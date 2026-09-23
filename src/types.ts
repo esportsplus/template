@@ -13,7 +13,7 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     [key: `aria-${string}`]: Property<T, Primitive>;
     [key: `data-${string}`]: Property<T, Primitive>;
 } & {
-    [K in keyof Properties<T>]?: Property<T, Properties<T>[K] | false | null | undefined>;
+    [K in keyof Properties<T>]?: Property<T, Numeric<Properties<T>[K]> | false | null | undefined>;
 } & {
     // Elements never fire a DOM resize event; window resizes bind through 'onwindowresize'
     [K in Exclude<keyof GlobalEventHandlersEventMap, 'resize'> as `on${K}` | `once${K}`]?: Handler<T, GlobalEventHandlersEventMap[K]>;
@@ -56,6 +56,9 @@ type MutableKeys<E> = {
 
 // Template attributes cannot name their element, so the unnarrowed form offers every element's properties
 type Mutables = Merge<HTMLElementTagNameMap[keyof HTMLElementTagNameMap] extends infer E ? E extends unknown ? Mutable<E> : never : never>;
+
+// Properties are assigned directly and the DOM coerces numbers into string properties ('step', 'min', ...)
+type Numeric<V> = V extends string ? V | number : V;
 
 // Copied from '@esportsplus/utilities'
 // - Importing from ^ causes 'cannot be named without a reference to...' error
