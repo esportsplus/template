@@ -12,14 +12,14 @@ importers:
         specifier: ^0.4.6
         version: 0.4.6
       '@esportsplus/reactivity':
-        specifier: ^0.37.1
-        version: 0.37.1
+        specifier: ^0.37.2
+        version: 0.37.2
       '@esportsplus/typescript':
-        specifier: ^0.36.0
-        version: 0.36.0
+        specifier: ^0.36.1
+        version: 0.36.1
       '@esportsplus/utilities':
-        specifier: ^0.28.4
-        version: 0.28.4
+        specifier: ^0.28.6
+        version: 0.28.6
     devDependencies:
       '@types/node':
         specifier: ^26.4.1
@@ -267,15 +267,15 @@ packages:
   '@esportsplus/queue@0.4.6':
     resolution: {integrity: sha512-ccHPLFiM/unSYk6wBbDf92n9YyQdEf2FZ8J4s0Zq/TZZg3le0fmLsHIJO/jGlN6wNE51uuJp2iL5Xp2xElPXgQ==}
 
-  '@esportsplus/reactivity@0.37.1':
-    resolution: {integrity: sha512-gHx/bt2BH8JtmcXX+r+G1vuGAdSSRfgsrudokyr5YNPMO4QkjTCxqA1KcFioia6iTPUhkvFCXA9480qcIGZPxg==}
+  '@esportsplus/reactivity@0.37.2':
+    resolution: {integrity: sha512-umWVcrl1vYS6j0Y88UrPQY4c5ezpFqx+e+hy1ViqrWqiLgnGnOd+icjgcGtaMxlIgDNKul9ObbdC2e8xnskksw==}
 
-  '@esportsplus/typescript@0.36.0':
-    resolution: {integrity: sha512-h+FdoQaRZdVdWx+uKUSDxByjNN0jReb9Zg8xsR83o9pTOaMawzzRiIKW1afne06uD+vfSEg1KB3Z/ommNdwryw==}
+  '@esportsplus/typescript@0.36.1':
+    resolution: {integrity: sha512-rJeZpQOulnn1ANxlDkq7329g8oSq8YrThglPvVwBdBeJho6yK1I1tGOuV5LStVpeaAuLw6ttE6CAeb2xeT+tMw==}
     hasBin: true
 
-  '@esportsplus/utilities@0.28.4':
-    resolution: {integrity: sha512-OOr0RvSVx/ZF6f1qGNEeRYuuQQE4G1tlatkdUuMRRxkk6E1Yk2J8IE3jLEQBcXBM9Csn21zNnarX/Tt9xvXNJA==}
+  '@esportsplus/utilities@0.28.6':
+    resolution: {integrity: sha512-fO3Q6j1PUzW9whqjzGE9+T9Ytc2IoS+W4MoNJOkQGsjZ66om40wqaIFVoBdKosvTj0xqSG02a/cWhiVKwwqtgw==}
 
   '@exodus/bytes@1.15.1':
     resolution: {integrity: sha512-S6mL0yNB/Abt9Ei4tq8gDhcczc4S3+vQ4ra7vxnAf+YHC02srtqxKKZghx2Dq6p0e66THKwR6r8N6P95wEty7Q==}
@@ -1208,11 +1208,11 @@ snapshots:
 
   '@esportsplus/queue@0.4.6': {}
 
-  '@esportsplus/reactivity@0.37.1':
+  '@esportsplus/reactivity@0.37.2':
     dependencies:
-      '@esportsplus/utilities': 0.28.4
+      '@esportsplus/utilities': 0.28.6
 
-  '@esportsplus/typescript@0.36.0':
+  '@esportsplus/typescript@0.36.1':
     dependencies:
       '@esportsplus/cli-passthrough': 0.0.19
       '@types/node': 26.6.2
@@ -1221,7 +1221,7 @@ snapshots:
       vscode-languageserver: 10.1.1
       vscode-languageserver-textdocument: 1.0.14
 
-  '@esportsplus/utilities@0.28.4': {}
+  '@esportsplus/utilities@0.28.6': {}
 
   '@exodus/bytes@1.15.1': {}
 
