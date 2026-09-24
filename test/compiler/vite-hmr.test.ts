@@ -1,4 +1,4 @@
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import vite from '../../src/compiler/plugins/vite';
@@ -74,6 +74,17 @@ describe('compiler/vite-hmr', () => {
             expect(result!.code).toContain('as factory');
             expect(result!.code).toContain('import.meta.hot.accept(');
             expect(result!.code).toContain('__hmr');
+        });
+
+        // HMR edits land after the sourcemap is built: any line they add before user code would
+        // shift every later mapping, so dev output must keep build output's line layout
+        it('keeps the line layout of the non-HMR output', () => {
+            let source = FACTORY + '\nconst marker = 1;',
+                build = plugin(root, { command: 'build' }).transform(source, id(root, '__hmr_layout_build.ts'))!.code.split('\n'),
+                serve = plugin(root, { command: 'serve', server: {} }).transform(source, id(root, '__hmr_layout_serve.ts'))!.code.split('\n');
+
+            expect(serve.join('\n')).toContain('import.meta.hot.accept(');
+            expect(serve.findIndex(line => line.includes('const marker'))).toBe(build.findIndex(line => line.includes('const marker')));
         });
 
         it('does not self-accept unsupported modules', () => {
@@ -167,6 +178,7 @@ describe('compiler/vite-hmr', () => {
                     result = await instance.handleHotUpdate({
                         file,
                         modules: [{ isSelfAccepting: false }],
+                        read: () => readFileSync(file, 'utf8'),
                         server: { ws: { send } }
                     });
 

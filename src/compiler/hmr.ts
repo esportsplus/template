@@ -1,9 +1,22 @@
 import { ts } from '@esportsplus/typescript';
 import { languageService, uid } from '@esportsplus/typescript/compiler';
+import type { Plugin, SourceMapV3, TransformContext } from '@esportsplus/typescript/compiler';
+import { cached } from './checker';
 import { PACKAGE_NAME } from './constants';
+import { edit } from './sourcemap';
+import type { Edit } from './sourcemap';
+import { isFunctionType } from './ts-analyzer';
 
 
-type Edit = { end: number; start: number; text: string };
+// Per-plugin-instance handshake with the bundler integration: it sets `id` (null disables HMR,
+// e.g. for SSR or builds) before each transform, and applies the resulting `plan` after it
+type HmrState = { id: string | null; plan: Site[] | null };
+
+// One entry per export site, in source order; `apply` re-finds the sites in the lowered code
+type Site =
+    | { kind: 'assignment'; wrapper: 'eager' | 'factory' }
+    | { kind: 'function' }
+    | { exports: { exportId: string; local: string; wrapper: 'callable' | 'factory' }[]; kind: 'list' };
 
 
 const HMR_NAMESPACE = uid('hmr');
@@ -15,29 +28,89 @@ const HMR_TOKEN = '__hmr';
 const REGEX_FUNCTION = /\b(async\s+)?function\b/;
 
 
-function applyEdits(code: string, edits: Edit[]): string {
-    edits.sort((a, b) => b.start - a.start || b.end - a.end);
+// Decides which exports to wrap, on the original source with the project's checker. Returns null
+// when any export or top-level statement makes the module unsafe to re-evaluate in place.
+function analyze(ctx: TransformContext): Site[] | null {
+    let checker = cached(ctx.checker),
+        sites: Site[] = [],
+        statements = ctx.sourceFile.statements;
 
-    let output = code;
-
-    for (let i = 0, n = edits.length; i < n; i++) {
-        let edit = edits[i];
-
-        output = output.slice(0, edit.start) + edit.text + output.slice(edit.end);
+    if (hasUnsafeSideEffects(ctx.sourceFile)) {
+        return null;
     }
 
-    return output;
-}
+    for (let i = 0, n = statements.length; i < n; i++) {
+        let statement = statements[i];
 
-function extractFunctionExpression(statement: ts.FunctionDeclaration): string {
-    let text = statement.getText(),
-        match = REGEX_FUNCTION.exec(text);
+        switch (siteKind(statement)) {
+            case 'assignment': {
+                let expression = (statement as ts.ExportAssignment).expression,
+                    type = checker.getTypeAtLocation(expression),
+                    unwrapped = unwrap(expression);
 
-    return match === null ? text : text.slice(match.index);
+                if (type !== undefined && isFunctionType(type, checker) && producesRenderable(type, checker, 2)) {
+                    sites.push({ kind: 'assignment', wrapper: 'factory' });
+                }
+                else if (
+                    type !== undefined &&
+                    (ts.isCallExpression(unwrapped) || ts.isTaggedTemplateExpression(unwrapped)) &&
+                    isRenderableType(type, checker)
+                ) {
+                    sites.push({ kind: 'assignment', wrapper: 'eager' });
+                }
+                else {
+                    return null;
+                }
+
+                break;
+            }
+
+            case 'function': {
+                let type = checker.getTypeAtLocation(statement);
+
+                if (type === undefined || !producesRenderable(type, checker, 2)) {
+                    return null;
+                }
+
+                sites.push({ kind: 'function' });
+                break;
+            }
+
+            case 'list': {
+                let elements = ((statement as ts.ExportDeclaration).exportClause as ts.NamedExports).elements,
+                    exports: (Site & { kind: 'list' })['exports'] = [];
+
+                for (let j = 0, m = elements.length; j < m; j++) {
+                    let exportId = elements[j].name.text,
+                        local = elements[j].propertyName ?? elements[j].name,
+                        type = checker.getTypeAtLocation(local);
+
+                    if (type === undefined || !isFunctionType(type, checker) || !producesRenderable(type, checker, 3)) {
+                        return null;
+                    }
+
+                    exports.push({ exportId, local: local.text, wrapper: exportId === 'default' ? 'factory' : 'callable' });
+                }
+
+                sites.push({ exports, kind: 'list' });
+                break;
+            }
+
+            default:
+                if (
+                    (ts.isVariableStatement(statement) || ts.isClassDeclaration(statement)) &&
+                    hasModifier(statement, ts.SyntaxKind.ExportKeyword)
+                ) {
+                    return null;
+                }
+        }
+    }
+
+    return sites.length ? sites : null;
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
-    let modifiers = (node as any).modifiers as readonly { kind: ts.SyntaxKind }[] | undefined;
+    let modifiers = (node as { modifiers?: readonly { kind: ts.SyntaxKind }[] }).modifiers;
 
     return modifiers !== undefined && modifiers.some((modifier) => modifier.kind === kind);
 }
@@ -75,58 +148,17 @@ function hasUnsafeSideEffects(sourceFile: ts.SourceFile): boolean {
 }
 
 function hotBlock(moduleId: string): string {
-    let id = JSON.stringify(moduleId);
-
     return [
         `if (import.meta.hot) {`,
-        `    import.meta.hot.dispose(() => { ${HMR_NAMESPACE}.dispose(${id}); });`,
-        `    import.meta.hot.prune(() => { ${HMR_NAMESPACE}.prune(${id}); });`,
+        `    import.meta.hot.dispose(() => { ${HMR_NAMESPACE}.dispose(${moduleId}); });`,
+        `    import.meta.hot.prune(() => { ${HMR_NAMESPACE}.prune(${moduleId}); });`,
         `    import.meta.hot.accept((next) => {`,
-        `        if (next && next.${HMR_TOKEN} && ${HMR_NAMESPACE}.accept(${id})) {`,
-        `        }`,
-        `        else {`,
+        `        if (!next || !next.${HMR_TOKEN} || !${HMR_NAMESPACE}.accept(${moduleId})) {`,
         `            import.meta.hot.invalidate();`,
         `        }`,
         `    });`,
         `}`
     ].join('\n');
-}
-
-function importInsertPosition(sourceFile: ts.SourceFile): number {
-    let position = 0;
-
-    for (let i = 0, n = sourceFile.statements.length; i < n; i++) {
-        let statement = sourceFile.statements[i];
-
-        if (ts.isImportDeclaration(statement)) {
-            position = statement.end;
-        }
-        else {
-            break;
-        }
-    }
-
-    return position;
-}
-
-function isFunctionType(type: ts.Type, checker: ts.Checker): boolean {
-    if (type.isUnionType()) {
-        let types = type.getTypes();
-
-        if (types.length === 0) {
-            return false;
-        }
-
-        for (let i = 0, n = types.length; i < n; i++) {
-            if (!isFunctionType(types[i], checker)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    return checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0;
 }
 
 function isRenderableType(type: ts.Type, checker: ts.Checker): boolean {
@@ -157,6 +189,20 @@ function isRenderableType(type: ts.Type, checker: ts.Checker): boolean {
         (list !== undefined && checker.isTypeAssignableTo(type, checker.getDeclaredTypeOfSymbol(list)));
 }
 
+function pickName(code: string, base: string, taken: Set<string>): string {
+    let name = base,
+        index = 1;
+
+    while (code.includes(name) || taken.has(name)) {
+        name = base + '_' + index;
+        index++;
+    }
+
+    taken.add(name);
+
+    return name;
+}
+
 // A component factory is a function whose (possibly nested) return value is a
 // Renderable — e.g. `(attributes) => html`` ` or `factory('checkbox')`. Route
 // registration factories like `(r) => r.get(...)` return a Router, not a
@@ -183,16 +229,29 @@ function producesRenderable(type: ts.Type, checker: ts.Checker, depth: number): 
     return false;
 }
 
-function pickName(code: string, base: string): string {
-    let name = base,
-        index = 1;
-
-    while (code.includes(name)) {
-        name = base + '_' + index;
-        index++;
+function siteKind(statement: ts.Statement): Site['kind'] | null {
+    if (ts.isExportAssignment(statement)) {
+        return statement.isExportEquals ? null : 'assignment';
     }
 
-    return name;
+    if (
+        ts.isFunctionDeclaration(statement) &&
+        hasModifier(statement, ts.SyntaxKind.ExportKeyword) &&
+        hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
+    ) {
+        return 'function';
+    }
+
+    if (
+        ts.isExportDeclaration(statement) &&
+        statement.moduleSpecifier === undefined &&
+        statement.exportClause !== undefined &&
+        ts.isNamedExports(statement.exportClause)
+    ) {
+        return 'list';
+    }
+
+    return null;
 }
 
 function unwrap(expression: ts.Expression): ts.Expression {
@@ -209,130 +268,114 @@ function unwrap(expression: ts.Expression): ts.Expression {
 }
 
 
-const transform = (code: string, moduleId: string): { code: string; selfAccept: boolean } => {
-    let { checker, sourceFile } = languageService.scratch(moduleId, code),
-        edits: Edit[] = [],
-        supported = !hasUnsafeSideEffects(sourceFile);
+// Wraps each planned export site in the lowered code. Every edit stays on its line and every new
+// line goes after the last one, so the pipeline's sourcemap only needs its columns shifted.
+// Returns null (module keeps full-reload semantics) if the lowered code's sites no longer match.
+const apply = (code: string, map: SourceMapV3, id: string, plan: Site[]): { code: string; map: SourceMapV3 } | null => {
+    let edits: Edit[] = [],
+        index = 0,
+        moduleId = JSON.stringify(id),
+        sourceFile = languageService.parse(id, code),
+        tail: string[] = [],
+        taken = new Set<string>();
 
-    if (supported) {
-        for (let i = 0, n = sourceFile.statements.length; i < n; i++) {
-            let statement = sourceFile.statements[i];
+    for (let i = 0, n = sourceFile.statements.length; i < n; i++) {
+        let statement = sourceFile.statements[i],
+            kind = siteKind(statement);
 
-            if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
-                let expression = statement.expression,
-                    type = checker.getTypeAtLocation(expression);
+        if (kind === null) {
+            continue;
+        }
 
-                if (type !== undefined && isFunctionType(type, checker) && producesRenderable(type, checker, 2)) {
-                    edits.push({
-                        end: expression.end,
-                        start: expression.getStart(sourceFile),
-                        text: `${HMR_NAMESPACE}.factory(${JSON.stringify(moduleId)}, "default", () => (${expression.getText(sourceFile)}))`
-                    });
+        let site = plan[index++];
+
+        if (!site || site.kind !== kind) {
+            return null;
+        }
+
+        if (site.kind === 'assignment') {
+            let expression = (statement as ts.ExportAssignment).expression,
+                start = expression.getStart(sourceFile);
+
+            edits.push(
+                { end: start, start, text: `${HMR_NAMESPACE}.${site.wrapper}(${moduleId}, "default", () => (` },
+                { end: expression.end, start: expression.end, text: '))' }
+            );
+        }
+        else if (site.kind === 'function') {
+            let match = REGEX_FUNCTION.exec(statement.getText(sourceFile));
+
+            if (match === null) {
+                return null;
+            }
+
+            let start = statement.getStart(sourceFile) + match.index;
+
+            edits.push(
+                { end: start, start, text: `${HMR_NAMESPACE}.factory(${moduleId}, "default", () => (` },
+                { end: statement.end, start: statement.end, text: '));' }
+            );
+        }
+        else {
+            let elements = ((statement as ts.ExportDeclaration).exportClause as ts.NamedExports).elements;
+
+            if (elements.length !== site.exports.length) {
+                return null;
+            }
+
+            for (let j = 0, m = elements.length; j < m; j++) {
+                let element = elements[j],
+                    entry = site.exports[j];
+
+                if (element.name.text !== entry.exportId) {
+                    return null;
                 }
-                else if (type !== undefined && ts.isCallExpression(unwrap(expression)) && isRenderableType(type, checker)) {
-                    edits.push({
-                        end: expression.end,
-                        start: expression.getStart(sourceFile),
-                        text: `${HMR_NAMESPACE}.eager(${JSON.stringify(moduleId)}, "default", () => (${expression.getText(sourceFile)}))`
-                    });
+
+                let wrapper = pickName(code, '__hmr_' + entry.local, taken);
+
+                if (element.propertyName) {
+                    edits.push({ end: element.propertyName.end, start: element.propertyName.getStart(sourceFile), text: wrapper });
                 }
                 else {
-                    supported = false;
-                }
-            }
-            else if (
-                ts.isFunctionDeclaration(statement) &&
-                hasModifier(statement, ts.SyntaxKind.ExportKeyword) &&
-                hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
-            ) {
-                let type = checker.getTypeAtLocation(statement);
+                    let start = element.name.getStart(sourceFile);
 
-                if (type !== undefined && producesRenderable(type, checker, 2)) {
-                    edits.push({
-                        end: statement.end,
-                        start: statement.getStart(sourceFile),
-                        text: `export default ${HMR_NAMESPACE}.factory(${JSON.stringify(moduleId)}, "default", () => (${extractFunctionExpression(statement)}));`
-                    });
-                }
-                else {
-                    supported = false;
-                }
-            }
-            else if (
-                ts.isExportDeclaration(statement) &&
-                statement.moduleSpecifier === undefined &&
-                statement.exportClause !== undefined &&
-                ts.isNamedExports(statement.exportClause)
-            ) {
-                let elements = statement.exportClause.elements,
-                    lines: string[] = [],
-                    specifiers: string[] = [];
-
-                for (let j = 0, m = elements.length; j < m; j++) {
-                    let element = elements[j],
-                        local = element.propertyName ?? element.name,
-                        exportId = element.name.text;
-
-                    let type = checker.getTypeAtLocation(local);
-
-                    if (type === undefined || !isFunctionType(type, checker) || !producesRenderable(type, checker, 3)) {
-                        supported = false;
-                        break;
-                    }
-
-                    let wrapper = pickName(code, '__hmr_' + local.text),
-                        kind = exportId === 'default' ? 'factory' : 'callable';
-
-                    lines.push(`const ${wrapper} = ${HMR_NAMESPACE}.${kind}(${JSON.stringify(moduleId)}, ${JSON.stringify(exportId)}, () => ${local.text});`);
-                    specifiers.push(`${wrapper} as ${exportId}`);
+                    edits.push({ end: start, start, text: wrapper + ' as ' });
                 }
 
-                if (supported) {
-                    lines.push(`export { ${specifiers.join(', ')} };`);
-                    edits.push({
-                        end: statement.end,
-                        start: statement.getStart(sourceFile),
-                        text: lines.join('\n')
-                    });
-                }
-            }
-            else if (
-                (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword)) ||
-                (ts.isClassDeclaration(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword))
-            ) {
-                supported = false;
+                tail.push(`const ${wrapper} = ${HMR_NAMESPACE}.${entry.wrapper}(${moduleId}, ${JSON.stringify(entry.exportId)}, () => ${entry.local});`);
             }
         }
     }
 
-    if (!supported || edits.length === 0) {
-        return { code, selfAccept: false };
+    if (index !== plan.length) {
+        return null;
     }
 
-    let position = importInsertPosition(sourceFile),
-        token = pickName(code, HMR_TOKEN),
-        tokenExport = token === HMR_TOKEN ? `export { ${token} };` : `export { ${token} as ${HMR_TOKEN} };`,
-        header = [
-            `import * as ${HMR_NAMESPACE} from '${HMR_PACKAGE}';`,
-            `const ${token} = ${HMR_NAMESPACE}.revision(${JSON.stringify(moduleId)});`,
-            tokenExport,
-            ''
-        ].join('\n');
+    let token = pickName(code, HMR_TOKEN, taken),
+        result = edit(code, map, edits);
 
-    edits.push({
-        end: position,
-        start: position,
-        text: position > 0 ? '\n' + header : header
-    });
+    // Import declarations hoist and revision() is pure, so the header can trail the module
+    tail.unshift(
+        `import * as ${HMR_NAMESPACE} from '${HMR_PACKAGE}';`,
+        `const ${token} = ${HMR_NAMESPACE}.revision(${moduleId});`,
+        token === HMR_TOKEN ? `export { ${token} };` : `export { ${token} as ${HMR_TOKEN} };`
+    );
+    tail.push(hotBlock(moduleId));
 
-    edits.push({
-        end: code.length,
-        start: code.length,
-        text: `\n${hotBlock(moduleId)}`
-    });
-
-    return { code: applyEdits(code, edits), selfAccept: true };
+    return { code: result.code + '\n' + tail.join('\n'), map: result.map };
 };
 
+// Runs first in the compiler pipeline and never edits code there: an edit would force the
+// coordinator to re-sync the project program before the next plugin. It only records a plan.
+const plugin = (state: HmrState, patterns: string[]): Plugin => ({
+    patterns,
+    transform: (ctx) => {
+        state.plan = state.id === null ? null : analyze(ctx);
 
-export { transform };
+        return {};
+    }
+});
+
+
+export { apply, plugin };
+export type { HmrState };

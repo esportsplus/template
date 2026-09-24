@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs';
 import { plugin } from '@esportsplus/typescript/compiler';
+import type { SourceMapV3 } from '@esportsplus/typescript/compiler';
 import reactivity from '@esportsplus/reactivity/compiler';
 import template from '..';
-import { transform as transformHMR } from '../hmr';
+import { apply, plugin as hmr } from '../hmr';
+import type { HmrState } from '../hmr';
 import { PACKAGE_NAME } from '../constants';
 
 
@@ -18,23 +19,21 @@ type VitePlugin = {
 
 const FILE_REGEX = /\.[tj]sx?$/;
 
+const PATTERNS = [...(reactivity.patterns ?? []), ...template.patterns];
+
 const REGEX_PATH_SEPARATOR = /\\/g;
 
 const RELOAD_WINDOW = 100;
-
-const TEMPLATE_PATTERNS = ['html`', 'html.reactive', 'html.virtual'];
-
-
-let base = plugin.vite({
-        name: PACKAGE_NAME,
-        plugins: [reactivity, template]
-    });
 
 
 export default ({ root }: { root?: string } = {}) => {
     let isDev = false,
         lastReload = 0,
-        vitePlugin = base({ root });
+        state: HmrState = { id: null, plan: null },
+        vitePlugin = plugin.vite({
+            name: PACKAGE_NAME,
+            plugins: [hmr(state, PATTERNS), reactivity, template]
+        })({ root });
 
     const reload = (server: any) => {
         let now = Date.now();
@@ -54,7 +53,7 @@ export default ({ root }: { root?: string } = {}) => {
             isDev = config?.command === 'serve' && config?.server?.hmr !== false;
         },
         async handleHotUpdate(ctx: any) {
-            let { file, modules, server } = ctx;
+            let { file, modules, read, server } = ctx;
 
             // CSS/SCSS and non-script assets keep Vite's default HMR path.
             if (!FILE_REGEX.test(file) || file.includes('node_modules')) {
@@ -71,10 +70,11 @@ export default ({ root }: { root?: string } = {}) => {
             // Unsupported/unsafe template modules must not be re-imported blindly: request one
             // full reload and stop Vite from walking the import chain.
             try {
-                let source = readFileSync(file, 'utf8');
+                let patterns = template.patterns,
+                    source: string = await read();
 
-                for (let i = 0, n = TEMPLATE_PATTERNS.length; i < n; i++) {
-                    if (source.includes(TEMPLATE_PATTERNS[i])) {
+                for (let i = 0, n = patterns.length; i < n; i++) {
+                    if (source.includes(patterns[i])) {
                         reload(server);
                         return [];
                     }
@@ -85,19 +85,17 @@ export default ({ root }: { root?: string } = {}) => {
             }
         },
         transform(code: string, id: string, options?: { ssr?: boolean }) {
+            // The pipeline runs synchronously, so this handshake cannot interleave across modules
+            state.id = isDev && options?.ssr !== true ? id.replace(REGEX_PATH_SEPARATOR, '/') : null;
+            state.plan = null;
+
             let result = vitePlugin.transform(code, id);
 
-            if (result === null || !isDev || options?.ssr === true) {
+            if (result === null || state.id === null || state.plan === null) {
                 return result;
             }
 
-            let hmr = transformHMR(result.code, id.replace(REGEX_PATH_SEPARATOR, '/'));
-
-            if (!hmr.selfAccept) {
-                return result;
-            }
-
-            return { code: hmr.code, map: result.map };
+            return apply(result.code, result.map as SourceMapV3, state.id, state.plan) ?? result;
         }
     } satisfies VitePlugin;
 };
