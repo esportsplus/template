@@ -49,6 +49,20 @@ describe('compiler/parser', () => {
         });
     });
 
+    describe('parse - minify', () => {
+        it('never unquotes attribute-like text content', () => {
+            let { html } = parser.parse(['<code>x="1" y</code><p>after</p>']);
+
+            expect(html).toContain('x="1" y');
+        });
+
+        it('drops whitespace left before > by a removed dynamic attribute', () => {
+            let { html } = parser.parse(['<div ', '>text</div>']);
+
+            expect(html).toBe('<div>text');
+        });
+    });
+
     describe('parse - node slots', () => {
         it('parses single node slot', () => {
             let result = parser.parse(['<div>', '</div>']);
