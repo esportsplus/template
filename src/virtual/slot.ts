@@ -143,12 +143,9 @@ class VirtualSlot<T> {
                 this.permuteSort(order);
                 this.refresh();
             }),
+            // ReactiveArray dispatches the resolved start and the count actually removed
             subscribeArray(array, 'splice', ({ deleteCount, items, start }) => {
-                let length = this.cache.length,
-                    at = start < 0 ? Math.max(0, length + start) : Math.min(start, length),
-                    count = Math.max(0, Math.min(deleteCount, length - at));
-
-                this.combine(at, count, items.length);
+                this.combine(start, deleteCount, items.length);
                 this.refresh();
             }),
             subscribeArray(array, 'unshift', ({ items }) => {

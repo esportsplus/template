@@ -1314,4 +1314,52 @@ describe('slot/ArraySlot', () => {
             expect(() => slot.flush()).not.toThrow();
         });
     });
+
+    // The slot applies ReactiveArray events positionally, so each event must describe exactly what
+    // the array did: a raw negative splice start or a skipped undefined-element pop desyncs the DOM
+    describe('array event contract', () => {
+        function mount(values: (string | undefined)[]) {
+            let arr = reactive(values),
+                slot = new ArraySlot(arr, (value) => {
+                    let fragment = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    span.textContent = String(value);
+                    fragment.appendChild(span);
+
+                    return fragment;
+                });
+
+            container.appendChild(slot.fragment);
+
+            return { arr, text: () => [...container.children].map((child) => child.textContent).join(',') };
+        }
+
+        it('places items from a negative-start splice where the array put them', async () => {
+            let { arr, text } = mount(['a', 'b', 'c']);
+
+            arr.splice(-1, 0, 'x');
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(text()).toBe('a,b,x,c');
+        });
+
+        it('removes the row of a popped undefined element', async () => {
+            let { arr, text } = mount(['a', undefined]);
+
+            arr.pop();
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(text()).toBe('a');
+        });
+
+        it('removes the row of a shifted undefined element', async () => {
+            let { arr, text } = mount([undefined, 'a']);
+
+            arr.shift();
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            expect(text()).toBe('a');
+        });
+    });
 });
