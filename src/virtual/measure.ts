@@ -1,4 +1,5 @@
-import { Element } from '../types';
+import { PACKAGE_NAME } from '~/constants';
+import { Element } from '~/types';
 
 
 type Target = {
@@ -8,11 +9,11 @@ type Target = {
 };
 
 
-const INDEX = Symbol('template.virtual.index');
+const INDEX = Symbol.for(`${PACKAGE_NAME}/virtual.index`);
 
-const SIZE = Symbol('template.virtual.size');
+const SIZE = Symbol.for(`${PACKAGE_NAME}/virtual.size`);
 
-const SLOT = Symbol('template.virtual.slot');
+const SLOT = Symbol.for(`${PACKAGE_NAME}/virtual.slot`);
 
 
 let observer: ResizeObserver | null = null;

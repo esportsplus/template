@@ -1,17 +1,19 @@
+const PACKAGE_NAME = '@esportsplus/template';
+
 const ANCHOR_LAST = 2;
 
 const ANCHOR_MARKER = 0;
 
 const ANCHOR_SOLE = 1;
 
-const ARRAY_SLOT = Symbol('template.array.slot');
+const ARRAY_SLOT = Symbol.for(`${PACKAGE_NAME}/array.slot`);
 
 const ATTRIBUTE_DELIMITERS: Record<string, string> = {
     class: ' ',
     style: ';'
 };
 
-const CLEANUP = Symbol('template.cleanup');
+const CLEANUP = Symbol.for(`${PACKAGE_NAME}/cleanup`);
 
 const DIRECT_ATTACH_EVENTS = new Set<string>([
     'onabort',
@@ -53,8 +55,6 @@ const LIFECYCLE_EVENTS = new Set<string>([
     'onconnect', 'ondisconnect', 'onrender', 'ontick'
 ]);
 
-const PACKAGE_NAME = '@esportsplus/template';
-
 const SLOT_HTML = '<!--$-->';
 
 const STATE_HYDRATING = 0;
@@ -63,7 +63,7 @@ const STATE_NONE = 1;
 
 const STATE_WAITING = 2;
 
-const STORE = Symbol('template.store');
+const STORE = Symbol.for(`${PACKAGE_NAME}/store`);
 
 
 export {
