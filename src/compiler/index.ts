@@ -1,9 +1,10 @@
 import { ts } from '@esportsplus/typescript';
-import { ast, imports as sourceImports } from '@esportsplus/typescript/compiler';
-import type { ImportIntent, ReplacementIntent, TransformContext } from '@esportsplus/typescript/compiler';
+import { imports as sourceImports } from '@esportsplus/typescript/compiler';
+import type { ImportIntent, TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, PACKAGE_REACTIVITY, SIGNAL } from './constants';
-import { entrypointClass, generateCode, rewriteExpression } from './codegen';
+import { generateCode } from './codegen';
 import { findTemplateArtifacts } from './ts-parser';
+
 
 function hasSignalImport(sourceFile: ts.SourceFile): boolean {
     let infos = sourceImports.all(sourceFile, PACKAGE_REACTIVITY);
@@ -26,87 +27,17 @@ export default {
     ],
     transform: (ctx: TransformContext) => {
         let artifacts = findTemplateArtifacts(ctx.sourceFile, ctx.checker),
-            callRanges: { end: number; start: number }[] = [],
-            callTemplates = new Map<string, string>(),
-            imports: ImportIntent[] = [],
-            prepend: string[] = [],
-            ranges: { end: number; start: number }[] = [],
-            remove: string[] = [],
-            replacements: ReplacementIntent[] = [],
-            selectorFired = false,
-            templates = artifacts.templates,
-            codegenContext = {
-                checker: ctx.checker,
-                selectorFired: false,
-                sourceFile: ctx.sourceFile,
-                templates: callTemplates
-            };
-
-        for (let i = 0, n = templates.length; i < n; i++) {
-            ranges.push({
-                end: templates[i].end,
-                start: templates[i].start
-            });
-        }
-
-        let calls = artifacts.calls;
-
-        for (let i = 0, n = calls.length; i < n; i++) {
-            let call = calls[i];
-
-            if (ast.inRange(ranges, call.start, call.end)) {
-                continue;
-            }
-
-            // Add callback range so nested templates inside it are excluded from separate processing
-            callRanges.push({
-                end: call.callbackArg.end,
-                start: call.callbackArg.getStart(ctx.sourceFile)
-            });
-
-            // Pre-compute the rewritten callback to capture templates
-            let rewrittenCallback = rewriteExpression(codegenContext, call.callbackArg);
-
-            selectorFired ||= codegenContext.selectorFired;
-
-            replacements.push({
-                generate: (sourceFile) => `new ${NAMESPACE}.${entrypointClass(call.entrypoint)}(
-                    ${call.arrayArg.getText(sourceFile)},
-                    ${rewrittenCallback}${call.optionsArg ? ',\n                    ' + call.optionsArg.getText(sourceFile) : ''}
-                )`,
-                node: call.node
-            });
-        }
-
-        if (templates.length > 0) {
-            let result = generateCode(templates, ctx.sourceFile, ctx.checker, callRanges, callTemplates);
-
-            prepend.push(...result.prepend);
-            replacements.push(...result.replacements);
-            remove.push(ENTRYPOINT);
-            selectorFired ||= result.selectorFired;
-
-            if (result.prepend.length === 0) {
-                for (let [html, id] of callTemplates) {
-                    prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
-                }
-            }
-        }
-        else {
-            for (let [html, id] of callTemplates) {
-                prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
-            }
-        }
+            { prepend, replacements, selectorFired } = generateCode(artifacts, ctx.sourceFile, ctx.checker);
 
         if (replacements.length === 0 && prepend.length === 0) {
             return {};
         }
 
-        imports.push({
+        let imports: ImportIntent[] = [{
             namespace: NAMESPACE,
             package: PACKAGE_NAME,
-            remove: remove
-        });
+            remove: artifacts.templates.length > 0 ? [ENTRYPOINT] : []
+        }];
 
         if (selectorFired && !hasSignalImport(ctx.sourceFile)) {
             imports.push({

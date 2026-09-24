@@ -1,7 +1,8 @@
 import { ts } from '@esportsplus/typescript';
 import { imports } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, PACKAGE_NAME, PACKAGE_REACTIVITY, TYPES } from './constants';
-import { constant } from './specialize';
+import { ENTRYPOINT_REACTIVITY, PACKAGE_NAME, PACKAGE_REACTIVITY, TYPES } from './constants';
+import { constant, isConstDeclaration } from './specialize';
+import { entrypointOf, isHtmlTemplate } from './ts-parser';
 
 
 type SelectorComparison = {
@@ -10,12 +11,37 @@ type SelectorComparison = {
     node: ts.Expression;
 };
 
+
 const READ = 'read';
 
-// Conservative charset that is injection-safe in both text and quoted-attribute positions:
-// no entity/tag delimiters and no quote characters, so a folded value can never break out
-const REGEX_FOLD_SAFE = /^[^&<>"'`]*$/;
 
+// A readonly literal property (`CONFIG.size`) folds only when its owner is a local const
+// bound directly to an object literal: never an object-producing call or getter chain
+function foldProperty(expr: ts.PropertyAccessExpression, checker: ts.Checker, names?: Set<string>): string | null {
+    if (!ts.isIdentifier(expr.expression) || (names && !names.has(expr.expression.text))) {
+        return null;
+    }
+
+    let declaration = checker.getSymbolAtLocation(expr.name)?.valueDeclaration?.resolve();
+
+    if (!declaration || !ts.isPropertyAssignment(declaration)) {
+        return null;
+    }
+
+    let owner = checker.getSymbolAtLocation(expr.expression)?.valueDeclaration?.resolve();
+
+    if (!owner || !isConstDeclaration(owner) || !ts.isObjectLiteralExpression(unwrap(owner.initializer))) {
+        return null;
+    }
+
+    let type = checker.getTypeAtLocation(expr);
+
+    if (!type || (!type.isStringLiteralType() && !type.isNumberLiteralType())) {
+        return null;
+    }
+
+    return constant(declaration.initializer, checker, names);
+}
 
 // A `read(sig)` call from @esportsplus/reactivity: exactly one argument, and — when a
 // checker is available — an identity match against the reactivity import; without a checker
@@ -30,34 +56,12 @@ function isReadCall(expr: ts.Expression, checker?: ts.Checker): expr is ts.CallE
     );
 }
 
-// Union types that mix functions with non-functions (e.g., Renderable)
-// should fall through to runtime slot dispatch
-function isTypeFunction(type: ts.Type, checker: ts.Checker): boolean {
-    if (type.isUnionType()) {
-        let types = type.getTypes();
-
-        for (let i = 0, n = types.length; i < n; i++) {
-            if (!isTypeFunction(types[i], checker)) {
-                return false;
-            }
-        }
-
-        return types.length > 0;
+function unwrap(expr: ts.Expression): ts.Expression {
+    while (ts.isAsExpression(expr) || ts.isParenthesizedExpression(expr) || ts.isSatisfiesExpression(expr)) {
+        expr = expr.expression;
     }
 
-    return checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0;
-}
-
-function literal(type: ts.Type): string | null {
-    if (type.isStringLiteralType()) {
-        return type.value;
-    }
-
-    if (type.isNumberLiteralType()) {
-        return String(type.value);
-    }
-
-    return null;
+    return expr;
 }
 
 
@@ -71,21 +75,13 @@ const analyze = (expr: ts.Expression, checker?: ts.Checker): TYPES => {
     }
 
     // html.reactive() and html.virtual() calls are inlined by the compiler into slot constructions
-    if (
-        ts.isCallExpression(expr) &&
-        ts.isPropertyAccessExpression(expr.expression) &&
-        ts.isIdentifier(expr.expression.expression) &&
-        expr.expression.expression.text === ENTRYPOINT
-    ) {
-        switch (expr.expression.name.text) {
-            case ENTRYPOINT_REACTIVITY:
-                return TYPES.ArraySlot;
-            case ENTRYPOINT_VIRTUAL:
-                return TYPES.VirtualSlot;
-        }
+    let entrypoint = entrypointOf(expr);
+
+    if (entrypoint) {
+        return entrypoint === ENTRYPOINT_REACTIVITY ? TYPES.ArraySlot : TYPES.VirtualSlot;
     }
 
-    if (ts.isTaggedTemplateExpression(expr) && ts.isIdentifier(expr.tag) && expr.tag.text === ENTRYPOINT) {
+    if (isHtmlTemplate(expr)) {
         return TYPES.DocumentFragment;
     }
 
@@ -124,7 +120,7 @@ const analyze = (expr: ts.Expression, checker?: ts.Checker): TYPES => {
         try {
             let type = checker.getTypeAtLocation(expr);
 
-            if (type && isTypeFunction(type, checker)) {
+            if (type && isFunctionType(type, checker)) {
                 return TYPES.Effect;
             }
         }
@@ -136,56 +132,33 @@ const analyze = (expr: ts.Expression, checker?: ts.Checker): TYPES => {
     return TYPES.Unknown;
 };
 
-const fold = (expr: ts.Expression, checker?: ts.Checker): string | null => {
-    while (ts.isAsExpression(expr) || ts.isParenthesizedExpression(expr) || ts.isSatisfiesExpression(expr)) {
-        expr = expr.expression;
+// `names` narrows which identifiers are worth resolving (see Artifacts.constants)
+const fold = (expr: ts.Expression, checker?: ts.Checker, names?: Set<string>): string | null => {
+    expr = unwrap(expr);
+
+    if (ts.isPropertyAccessExpression(expr)) {
+        return checker ? foldProperty(expr, checker, names) : null;
     }
 
-    let value: string | null = null;
+    return constant(expr, checker, names);
+};
 
-    if (ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr) || ts.isNumericLiteral(expr)) {
-        value = expr.text;
-    }
-    else if (expr.kind === ts.SyntaxKind.TrueKeyword) {
-        value = 'true';
-    }
-    else if (expr.kind === ts.SyntaxKind.FalseKeyword) {
-        value = 'false';
-    }
-    else if (checker && (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr))) {
-        let declaration = checker.getSymbolAtLocation(ts.isPropertyAccessExpression(expr) ? expr.name : expr)?.valueDeclaration?.resolve();
+// Union types that mix functions with non-functions (e.g., Renderable) are not functions,
+// so they fall through to runtime slot dispatch
+const isFunctionType = (type: ts.Type, checker: ts.Checker): boolean => {
+    if (type.isUnionType()) {
+        let types = type.getTypes();
 
-        // A literal return type is not evidence that reading a getter is pure.
-        // Factory parameters are folded only under a guarded specialization.
-        if (!declaration || (ts.isIdentifier(expr)
-            ? !ts.isVariableDeclaration(declaration) || !declaration.initializer ||
-                !ts.isVariableDeclarationList(declaration.parent) || !(declaration.parent.flags & ts.NodeFlags.Const)
-            : !ts.isPropertyAssignment(declaration))) {
-            return null;
+        for (let i = 0, n = types.length; i < n; i++) {
+            if (!isFunctionType(types[i], checker)) {
+                return false;
+            }
         }
 
-        if (ts.isIdentifier(expr)) {
-            value = constant(expr, checker);
-        }
-        else {
-            // Preserve folding for a directly declared readonly literal object,
-            // but never eliminate an object-producing call or getter chain.
-            if (!ts.isIdentifier(expr.expression)) return null;
-            let owner = checker.getSymbolAtLocation(expr.expression)?.valueDeclaration?.resolve();
-            if (!owner || !ts.isVariableDeclaration(owner) || !owner.initializer ||
-                !ts.isVariableDeclarationList(owner.parent) || !(owner.parent.flags & ts.NodeFlags.Const)) return null;
-            let initializer = owner.initializer;
-            while (ts.isAsExpression(initializer) || ts.isParenthesizedExpression(initializer) || ts.isSatisfiesExpression(initializer)) initializer = initializer.expression;
-            if (!ts.isObjectLiteralExpression(initializer)) return null;
-            let type = checker.getTypeAtLocation(expr);
-            value = type && literal(type) !== null ? constant((declaration as ts.PropertyAssignment).initializer, checker) : null;
-        }
-    }
-    else if (checker && (ts.isConditionalExpression(expr) || ts.isBinaryExpression(expr))) {
-        value = constant(expr, checker);
+        return types.length > 0;
     }
 
-    return (value !== null && REGEX_FOLD_SAFE.test(value)) ? value : null;
+    return checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0;
 };
 
 const selectorComparison = (expr: ts.Expression, checker?: ts.Checker): SelectorComparison | null => {
@@ -210,5 +183,6 @@ const selectorComparison = (expr: ts.Expression, checker?: ts.Checker): Selector
     return null;
 };
 
-export { analyze, fold, selectorComparison };
+
+export { analyze, fold, isFunctionType, selectorComparison };
 export type { SelectorComparison };

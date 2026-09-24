@@ -413,9 +413,11 @@ describe('compiler/ts-analyzer', () => {
             expect(fold(createExpression('3.14'))).toBe('3.14');
         });
 
-        it('folds true and false keywords', () => {
-            expect(fold(createExpression('true'))).toBe('true');
-            expect(fold(createExpression('false'))).toBe('false');
+        // Runtime bindings treat false as "render nothing / remove the attribute"; a folded
+        // `disabled=${false}` would otherwise become a present `disabled=false` attribute
+        it('never folds boolean keywords', () => {
+            expect(fold(createExpression('true'))).toBeNull();
+            expect(fold(createExpression('false'))).toBeNull();
         });
 
         it('unwraps parentheses before folding', () => {

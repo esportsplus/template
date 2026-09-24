@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { stripTypeScriptTypes } from 'node:module';
 import { languageService } from '@esportsplus/typescript/compiler';
-import { read, root, signal, write } from '@esportsplus/reactivity';
+import { reactive, read, root, signal, write } from '@esportsplus/reactivity';
 import * as runtime from '../../src';
 import { remove as cleanupRemove } from '../../src/slot/cleanup';
 import { generateCode } from '../../src/compiler/codegen';
@@ -17,7 +17,7 @@ function compile(source: string, args: Record<string, unknown> = {}, checked = t
             ? languageService.scratch(process.cwd() + '/mixed-fixture.ts', source)
             : { sourceFile: languageService.parse(process.cwd() + '/mixed-fixture.ts', source), checker: undefined },
         { sourceFile, checker } = parsed,
-        result = generateCode(findTemplateArtifacts(sourceFile).templates, sourceFile, checker),
+        result = generateCode(findTemplateArtifacts(sourceFile), sourceFile, checker),
         output = source;
 
     for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
@@ -35,6 +35,100 @@ function compile(source: string, args: Record<string, unknown> = {}, checked = t
 }
 
 afterEach(() => document.body.replaceChildren());
+
+describe('compiled regressions', () => {
+    it('lowers an html.reactive nested in another html.reactive callback exactly once', () => {
+        let a = reactive(['a', 'b']),
+            c = reactive(['c']),
+            rows = reactive([a, c]);
+
+        let { output, value } = compile(
+            'let value = html`<table>${html.reactive(rows, (r) => html`<tr>${html.reactive(r, (c) => html`<td>${c}</td>`)}</tr>`)}</table>`;',
+            { rows },
+            false
+        );
+
+        expect(output).not.toContain('html.reactive');
+        expect(value.firstChild.textContent).toBe('abc');
+    });
+
+    it('lowers top-level nested html.reactive calls without overlapping replacements', () => {
+        let a = reactive(['a', 'b']),
+            c = reactive(['c']),
+            rows = reactive([a, c]);
+
+        let { output, value } = compile(
+            'let value = html.reactive(rows, (r) => html.reactive(r, (c) => html`<i>${c}</i>`).fragment).fragment;',
+            { rows },
+            false
+        );
+
+        expect(output).not.toContain('html.reactive');
+        expect(value.textContent).toBe('abc');
+    });
+
+    it('renders a conditional between two html.reactive calls', () => {
+        let a = reactive(['x', 'y']),
+            b = reactive(['z']);
+
+        let { output, value } = compile(
+            'let value = html`<ul>${flag ? html.reactive(a, (v) => html`<li>${v}</li>`) : html.reactive(b, (v) => html`<li>${v}</li>`)}</ul>`;',
+            { a, b, flag: true },
+            false
+        );
+
+        expect(output).not.toMatch(/ArraySlot\(flag/);
+        expect(value.firstChild.textContent).toBe('xy');
+    });
+
+    it('does not bake false into a static attribute', () => {
+        let { result, value } = compile('let value = html`<input disabled=${false}>`;');
+
+        expect([...result.templates.keys()].join('')).not.toContain('disabled');
+        expect(value.firstChild.disabled).toBe(false);
+    });
+
+    it('keeps nested arrow templates as block bodies inside a specialized template', () => {
+        let { output, value } = compile(
+            'const factory = (kind: "a" | "b", xs: string[]) => html`<ul class="${kind}">${xs.map((x) => html`<li>${x}</li>`)}</ul>`; let value = factory("a", ["1", "2"]);'
+        );
+
+        expect(output).toContain('xs.map((x) => {');
+        expect(value.firstChild.className).toBe('a');
+        expect(value.firstChild.textContent).toBe('12');
+    });
+
+    it('specializes a parameter whose name is also a property name', () => {
+        let { result, value } = compile('const factory = (kind: "a" | "b", o: { kind: string }) => html`<div class="${o.kind} ${kind}"></div>`; let value = factory("b", { kind: "x" });');
+
+        expect(result.templates.size).toBe(3);
+        expect([...value.firstChild.classList].sort()).toEqual(['b', 'x']);
+    });
+
+    it('keeps falsy folds out of whole attribute values', () => {
+        let { result, value } = compile('const EMPTY = ""; const ZERO = 0; let value = html`<div hidden=${ZERO} title="${EMPTY}" data-a=${EMPTY}>${ZERO}${EMPTY}</div>`;');
+        let html = [...result.templates.keys()].join('');
+
+        expect(html).not.toContain('hidden');
+        expect(html).not.toContain('title');
+        expect(html).not.toContain('data-a');
+        expect(html).toContain('>0');
+        expect(value.firstChild.hidden).toBe(false);
+        expect(value.firstChild.hasAttribute('data-a')).toBe(false);
+        expect(value.firstChild.textContent).toBe('0');
+    });
+
+    it('still folds falsy values into partial attribute values', () => {
+        let { result } = compile('const ZERO = 0; let value = html`<div title="n${ZERO}"></div>`;');
+
+        expect([...result.templates.keys()].join('')).toContain('title=n0');
+    });
+
+    it('rejects html.reactive with an options argument', () => {
+        expect(() => compile('let value = html`<ul>${html.reactive(a, (v) => html`<li>${v}</li>`, {})}</ul>`;', {}, false))
+            .toThrow('html.reactive() expects 2 arguments');
+    });
+});
 
 describe('compiled mixed attribute values', () => {
     it('keeps neighboring class effects separate from a runtime base', async () => {

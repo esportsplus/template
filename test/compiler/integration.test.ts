@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ast, languageService } from '@esportsplus/typescript/compiler';
-import { generateCode, rewriteExpression } from '../../src/compiler/codegen';
+import { languageService } from '@esportsplus/typescript/compiler';
+import { generateCode } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 
@@ -14,69 +14,21 @@ type TransformResult = {
 
 
 function pipeline(source: string): TransformResult {
-    let callRanges: { end: number; start: number }[] = [],
-        callTemplates = new Map<string, string>(),
-        imports: string[] = [],
-        prepend: string[] = [],
-        replacements: { code: string; end: number; start: number }[] = [],
-        sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-        templates = findTemplateArtifacts(sourceFile).templates;
+    let sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
+        artifacts = findTemplateArtifacts(sourceFile),
+        result = generateCode(artifacts, sourceFile),
+        imports: string[] = artifacts.templates.length > 0 ? ['html'] : [],
+        prepend = result.prepend,
+        replacements: { code: string; end: number; start: number }[] = [];
 
-    let ranges: { end: number; start: number }[] = [];
-
-    for (let i = 0, n = templates.length; i < n; i++) {
-        ranges.push({
-            end: templates[i].end,
-            start: templates[i].start
-        });
-    }
-
-    let calls = findTemplateArtifacts(sourceFile).calls;
-
-    for (let i = 0, n = calls.length; i < n; i++) {
-        let call = calls[i];
-
-        if (ast.inRange(ranges, call.start, call.end)) {
-            continue;
-        }
-
-        callRanges.push({
-            end: call.callbackArg.end,
-            start: call.callbackArg.getStart(sourceFile)
-        });
-
-        let rewrittenCallback = rewriteExpression({
-                sourceFile,
-                templates: callTemplates
-            }, call.callbackArg);
+    for (let i = 0, n = result.replacements.length; i < n; i++) {
+        let r = result.replacements[i];
 
         replacements.push({
-            code: `new ${NAMESPACE}.ArraySlot(\n                    ${call.arrayArg.getText(sourceFile)},\n                    ${rewrittenCallback}\n                )`,
-            end: call.node.end,
-            start: call.node.getStart(sourceFile)
+            code: r.generate(sourceFile),
+            end: r.node.end,
+            start: r.node.getStart(sourceFile)
         });
-    }
-
-    for (let [html, id] of callTemplates) {
-        prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
-    }
-
-    if (templates.length > 0) {
-        let result = generateCode(templates, sourceFile, undefined, callRanges);
-
-        prepend.push(...result.prepend);
-
-        for (let i = 0, n = result.replacements.length; i < n; i++) {
-            let r = result.replacements[i];
-
-            replacements.push({
-                code: r.generate(sourceFile),
-                end: r.node.end,
-                start: r.node.getStart(sourceFile)
-            });
-        }
-
-        imports.push('html');
     }
 
     // Apply replacements in reverse order so earlier offsets stay valid

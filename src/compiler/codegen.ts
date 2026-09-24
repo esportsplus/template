@@ -1,23 +1,26 @@
-import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compiler';
-import type { TemplateInfo } from './ts-parser';
-import { analyze, fold, selectorComparison } from './ts-analyzer';
-import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
-import { ENTRYPOINT, ENTRYPOINT_VIRTUAL, isEntrypoint, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
-import type { Entrypoint } from './constants';
-import { extractTemplateParts } from './ts-parser';
 import { ts } from '@esportsplus/typescript';
+import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compiler';
+import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
+import { cached } from './checker';
+import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
+import type { Entrypoint } from './constants';
+import { analyze, fold, selectorComparison } from './ts-analyzer';
+import { entrypointOf, extractTemplateParts, isHtmlTemplate } from './ts-parser';
+import type { Artifacts } from './ts-parser';
 import parser from './parser';
 import { specialize } from './specialize';
 
 
 type CodegenContext = {
-    forceExpression?: boolean;
-    staticValues?: Map<ts.Expression, string>;
     checker?: ts.Checker;
+    constants?: Set<string>;
+    // Root of a specialized variant: it must lower to an expression, never an arrow block body
+    expression?: ts.Node;
     parseCache?: Map<string, ParseResult>;
-    prefoldCache?: WeakMap<ts.Node, { expressions: ts.Expression[]; literals: string[] }>;
+    prefoldCache?: WeakMap<ts.Node, Prefolded>;
     selectorFired?: boolean;
     sourceFile: ts.SourceFile;
+    staticValues?: Map<ts.Expression, string>;
     templates: Map<string, string>;
 };
 
@@ -30,32 +33,36 @@ type CodegenResult = {
 
 type ParseResult = ReturnType<typeof parser.parse>;
 
-function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: { end: number; start: number; text: string }[], inObserver: boolean): void {
-    if (isNestedHtmlTemplate(node as ts.Expression)) {
+type Prefolded = { expressions: ts.Expression[]; literals: string[] };
+
+type Range = { end: number; start: number };
+
+
+const REGEX_ATTRIBUTE_VALUE_OPEN = /=\s*(["']?)$/;
+
+const REGEX_UNQUOTED_VALUE_CLOSE = /^(?:[\s>]|\/>)/;
+
+
+function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: (Range & { text: string })[], inObserver: boolean): void {
+    if (isHtmlTemplate(node)) {
         replacements.push({
             end: node.end,
             start: node.getStart(ctx.sourceFile),
-            text: generateNestedTemplateCode(ctx, node as ts.TaggedTemplateExpression)
+            text: generateNestedTemplateCode(ctx, node)
         });
 
         return;
     }
 
-    let entrypoint = callEntrypoint(node as ts.Expression);
+    let entrypoint = entrypointOf(node);
 
     if (entrypoint) {
-        let call = node as ts.CallExpression,
-            options = call.arguments[2];
-
         // Slots nested in arbitrary expressions have no provable parent element,
         // so they never receive the sole-child flag
         replacements.push({
             end: node.end,
             start: node.getStart(ctx.sourceFile),
-            text: `new ${NAMESPACE}.${entrypointClass(entrypoint)}(
-                ${rewriteExpression(ctx, call.arguments[0] as ts.Expression)},
-                ${rewriteExpression(ctx, call.arguments[1] as ts.Expression)}${options ? ',\n                ' + rewriteExpression(ctx, options) : ''}
-            )`
+            text: generateSlotCode(ctx, node as ts.CallExpression, entrypoint, false)
         });
 
         return;
@@ -84,25 +91,7 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
     node.forEachChild(child => collectNestedReplacements(ctx, child, replacements, childObserver));
 }
 
-function discoverTemplatesInExpression(ctx: CodegenContext, node: ts.Node): void {
-    if (isNestedHtmlTemplate(node as ts.Expression)) {
-        let parts = extractTemplateParts((node as ts.TaggedTemplateExpression).template),
-            { expressions, literals } = prefoldCached(ctx, node, parts.literals, parts.expressions),
-            parsed = parseCached(ctx, literals);
-
-        getTemplateID(ctx, parsed.html);
-
-        for (let i = 0, n = expressions.length; i < n; i++) {
-            discoverTemplatesInExpression(ctx, expressions[i]);
-        }
-
-        return;
-    }
-
-    node.forEachChild(child => discoverTemplatesInExpression(ctx, child));
-}
-
-function generateAttributeBinding(_: CodegenContext, element: string, name: string, expr: string): string {
+function generateAttributeBinding(element: string, name: string, expr: string): string {
     if (name.startsWith('on') && name.length > 2) {
         let key = name.toLowerCase();
 
@@ -152,135 +141,130 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
     let parts = extractTemplateParts(node.template);
 
     if (!ctx.staticValues) {
-        let variants = specialize(parts.expressions, ctx.checker);
+        let variants = specialize(parts.expressions, ctx.checker, ctx.constants);
+
         if (variants.length) {
-            let branch = (values: Map<ts.Expression, string>) => {
-                let variantContext = { ...ctx, forceExpression: true, staticValues: values, prefoldCache: new WeakMap() },
-                    code = generateNestedTemplateCode(variantContext, node);
-                ctx.selectorFired ||= variantContext.selectorFired;
-                return code;
-            };
             let code = '(';
-            for (let variant of variants) {
-                code += `${variant.condition} ? ${branch(variant.values)} : `;
+
+            ctx.parseCache ??= new Map();
+
+            for (let i = 0, n = variants.length; i <= n; i++) {
+                let variant = {
+                        ...ctx,
+                        expression: node,
+                        prefoldCache: new WeakMap(),
+                        staticValues: i < n ? variants[i].values : new Map()
+                    },
+                    branch = generateNestedTemplateCode(variant, node);
+
+                ctx.selectorFired ||= variant.selectorFired;
+                code += i < n ? `${variants[i].condition} ? ${branch} : ` : branch;
             }
-            return code + branch(new Map()) + ')';
+
+            return code + ')';
         }
     }
 
-    let { expressions, literals } = prefoldCached(ctx, node, parts.literals, parts.expressions),
-        exprTexts: string[] = [];
+    let { expressions, literals } = prefoldCached(ctx, node, parts.literals, parts.expressions);
 
-    for (let i = 0, n = expressions.length; i < n; i++) {
-        exprTexts.push(rewriteExpression(ctx, expressions[i]));
-    }
-
-    return generateTemplateCode(
-        ctx,
-        parseCached(ctx, literals),
-        exprTexts,
-        expressions,
-        node
-    );
+    return generateTemplateCode(ctx, parseCached(ctx, literals), expressions, node);
 }
 
-function generateNodeBinding(ctx: CodegenContext, anchor: string, exprText: string, exprNode: ts.Expression | undefined, mode: 'last' | 'sole' | undefined): string {
-    if (mode) {
-        let flag = mode === 'sole' ? ANCHOR_SOLE : ANCHOR_LAST;
+function generateNodeBinding(ctx: CodegenContext, anchor: string, expr: ts.Expression | undefined, text: () => string, mode: 'last' | 'sole' | undefined): string {
+    let flag = mode ? ', ' + (mode === 'sole' ? ANCHOR_SOLE : ANCHOR_LAST) : '',
+        node: string;
 
-        if (!exprNode) {
-            return `${NAMESPACE}.slot(${anchor}, ${exprText}, ${flag});`;
-        }
-
-        if (isNestedHtmlTemplate(exprNode)) {
-            return `${anchor}.appendChild(${generateNestedTemplateCode(ctx, exprNode)});`;
-        }
-
-        switch (analyze(exprNode, ctx.checker)) {
-            // A sole-child ArraySlot owns the parent's entire content, so the runtime may bulk-clear
-            // via parent.textContent; a last-child slot has preceding siblings, so the flag stays off
-            case TYPES.ArraySlot:
-                return `${anchor}.appendChild(new ${NAMESPACE}.ArraySlot(${exprText}${mode === 'sole' ? ', true' : ''}).fragment);`;
-
-            case TYPES.VirtualSlot:
-                return `${anchor}.appendChild(new ${NAMESPACE}.VirtualSlot(${exprText}).fragment);`;
-
-            case TYPES.DocumentFragment:
-                return `${anchor}.appendChild(${exprText});`;
-
-            case TYPES.Effect:
-                return `new ${NAMESPACE}.EffectSlot(${anchor}, ${exprText}, ${flag});`;
-
-            case TYPES.Primitive:
-            case TYPES.Static:
-                return `${anchor}.appendChild(${NAMESPACE}.text(${exprText}));`;
-
-            default:
-                return `${NAMESPACE}.slot(${anchor}, ${exprText}, ${flag});`;
-        }
-    }
-
-    if (!exprNode) {
-        return `${NAMESPACE}.slot(${anchor}, ${exprText});`;
-    }
-
-    if (isNestedHtmlTemplate(exprNode)) {
-        return `${anchor}.parentNode!.insertBefore(${generateNestedTemplateCode(ctx, exprNode)}, ${anchor});`;
-    }
-
-    switch (analyze(exprNode, ctx.checker)) {
+    switch (expr ? analyze(expr, ctx.checker) : TYPES.Unknown) {
         case TYPES.ArraySlot:
-            return `${anchor}.parentNode!.insertBefore(new ${NAMESPACE}.ArraySlot(${exprText}).fragment, ${anchor});`;
+        case TYPES.VirtualSlot: {
+            let call = expr!;
 
-        case TYPES.VirtualSlot:
-            return `${anchor}.parentNode!.insertBefore(new ${NAMESPACE}.VirtualSlot(${exprText}).fragment, ${anchor});`;
+            while (ts.isParenthesizedExpression(call)) {
+                call = call.expression;
+            }
+
+            let entrypoint = entrypointOf(call);
+
+            // A sole-child ArraySlot owns the parent's entire content, so the runtime may bulk-clear
+            // via parent.textContent; a last-child slot has preceding siblings, so the flag stays off.
+            // A conditional between slots is already lowered to instances by rewriteExpression.
+            node = entrypoint
+                ? `${generateSlotCode(ctx, call as ts.CallExpression, entrypoint, mode === 'sole')}.fragment`
+                : `(${text()}).fragment`;
+            break;
+        }
 
         case TYPES.DocumentFragment:
-            return `${anchor}.parentNode!.insertBefore(${exprText}, ${anchor});`;
+            node = text();
+            break;
 
         case TYPES.Effect:
-            return `new ${NAMESPACE}.EffectSlot(${anchor}, ${exprText});`;
+            return `new ${NAMESPACE}.EffectSlot(${anchor}, ${text()}${flag});`;
 
         case TYPES.Primitive:
         case TYPES.Static:
-            return `${anchor}.after(${NAMESPACE}.text(${exprText}));`;
+            if (!mode) {
+                return `${anchor}.after(${NAMESPACE}.text(${text()}));`;
+            }
+
+            node = `${NAMESPACE}.text(${text()})`;
+            break;
 
         default:
-            return `${NAMESPACE}.slot(${anchor}, ${exprText});`;
+            return `${NAMESPACE}.slot(${anchor}, ${text()}${flag});`;
     }
+
+    return mode
+        ? `${anchor}.appendChild(${node});`
+        : `${anchor}.parentNode!.insertBefore(${node}, ${anchor});`;
 }
 
-function generateTemplateCode(
-    ctx: CodegenContext,
-    { html, slots }: ParseResult,
-    exprTexts: string[],
-    exprNodes: ts.Expression[],
-    templateNode: ts.Node
-): string {
+function generateSlotCode(ctx: CodegenContext, call: ts.CallExpression, entrypoint: Entrypoint, soleChild: boolean): string {
+    let args = call.arguments,
+        virtual = entrypoint === ENTRYPOINT_VIRTUAL;
+
+    if (args.length !== 2 && !(virtual && args.length === 3)) {
+        throw new Error(`${PACKAGE_NAME}: html.${entrypoint}() expects ${virtual ? '2 or 3' : '2'} arguments, received ${args.length}`);
+    }
+
+    let code = `new ${NAMESPACE}.${virtual ? 'VirtualSlot' : 'ArraySlot'}(${rewriteExpression(ctx, args[0])}, ${rewriteExpression(ctx, args[1])}`;
+
+    if (args.length === 3) {
+        code += ', ' + rewriteExpression(ctx, args[2]);
+    }
+    else if (soleChild && !virtual) {
+        code += ', true';
+    }
+
+    return code + ')';
+}
+
+function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult, expressions: ts.Expression[], templateNode: ts.Node): string {
     if (!slots || slots.length === 0) {
         return `${getTemplateID(ctx, html)}()`;
     }
 
     let code: string[] = [],
         declarations: string[] = [],
+        elements = new Map<string, string>(),
         index = 0,
-        isArrowBody = !ctx.forceExpression && isArrowExpressionBody(templateNode),
-        nodes = new Map<string, string>(),
-        root = uid('root');
+        isArrowBody = ctx.expression !== templateNode && isArrowExpressionBody(templateNode),
+        keys: string[] = [],
+        root = uid('root'),
+        texts: string[] = [];
+
+    // Rewritten lazily: bindings that consume the expression node directly (spread expansion,
+    // slot construction) never pay for a rewrite they would discard
+    let text = (i: number) => texts[i] ??= (expressions[i] ? rewriteExpression(ctx, expressions[i]) : 'undefined');
 
     declarations.push(`${root} = ${getTemplateID(ctx, html)}()`);
-    nodes.set('', root);
+    elements.set('', root);
 
     for (let i = 0, n = slots.length; i < n; i++) {
-        let path = slots[i].path;
+        let path = slots[i].path,
+            key = keys[i] = path.join('.');
 
-        if (path.length === 0) {
-            continue;
-        }
-
-        let key = path.join('.');
-
-        if (nodes.has(key)) {
+        if (elements.has(key)) {
             continue;
         }
 
@@ -288,183 +272,107 @@ function generateTemplateCode(
             start = 0;
 
         for (let j = path.length - 1; j >= 0; j--) {
-            let prefix = path.slice(0, j).join('.');
+            let prefix = elements.get(path.slice(0, j).join('.'));
 
-            if (nodes.has(prefix)) {
-                ancestor = nodes.get(prefix)!;
+            if (prefix) {
+                ancestor = prefix;
                 start = j;
                 break;
             }
         }
 
         let name = uid('element'),
-            segments = path.slice(start),
             value = ancestor;
 
-        for (let s = 0, sn = segments.length; s < sn; s++) {
-            value += `.${segments[s]}`;
+        for (let j = start, m = path.length; j < m; j++) {
+            value += `.${path[j]}`;
 
-            if (s < sn - 1) {
+            if (j < m - 1) {
                 value = `(${value}! as ${NAMESPACE}.Element)`;
             }
         }
 
         declarations.push(`${name} = ${value} as ${NAMESPACE}.Element`);
-        nodes.set(key, name);
+        elements.set(key, name);
     }
 
-    code.push(isArrowBody ? '{' : `(() => {`);
+    code.push(isArrowBody ? '{' : `(() => {`, `let ${declarations.join(',\n')};`);
 
     for (let i = 0, n = slots.length; i < n; i++) {
-        let element = slots[i].path.length === 0
-                ? root
-                : (nodes.get(slots[i].path.join('.')) || root),
+        let element = elements.get(keys[i])!,
             slot = slots[i];
 
-        if (slot.type === TYPES.Attribute) {
-            let names = slot.attributes.names,
-                parts = slot.attributes.parts;
+        if (slot.type !== TYPES.Attribute) {
+            code.push(generateNodeBinding(ctx, element, expressions[index], text.bind(null, index), slot.mode));
+            index++;
+            continue;
+        }
 
-            for (let j = 0, m = names.length; j < m; j++) {
-                let name = names[j];
+        let names = slot.attributes.names,
+            parts = slot.attributes.parts;
 
-                if (name === TYPES.Attributes) {
-                    let exprNode = exprNodes[index];
+        for (let j = 0, m = names.length; j < m; j++) {
+            let name = names[j];
 
-                    let canExpand = exprNode !== undefined && ts.isObjectLiteralExpression(exprNode),
-                        props = canExpand ? (exprNode as ts.ObjectLiteralExpression).properties : [];
+            if (name === TYPES.Attributes) {
+                let expr = expressions[index];
 
-                    if (canExpand) {
-                        // Check if all properties can be statically analyzed
-                        for (let k = 0, p = props.length; k < p; k++) {
-                            let prop = props[k];
+                if (expr && isExpandable(expr)) {
+                    for (let k = 0, p = expr.properties.length; k < p; k++) {
+                        let prop = expr.properties[k] as ts.PropertyAssignment | ts.ShorthandPropertyAssignment,
+                            key = (prop.name as ts.Identifier | ts.StringLiteral).text;
 
-                            if (
-                                ts.isSpreadAssignment(prop) ||
-                                (ts.isPropertyAssignment(prop) && ts.isComputedPropertyName(prop.name)) ||
-                                (ts.isShorthandPropertyAssignment(prop) && prop.objectAssignmentInitializer)
-                            ) {
-                                canExpand = false;
-                                break;
-                            }
-                        }
-
-                    }
-
-                    if (canExpand) {
-                            for (let k = 0, p = props.length; k < p; k++) {
-                                let prop = props[k];
-
-                                if (ts.isPropertyAssignment(prop)) {
-                                    let propName = ts.isIdentifier(prop.name)
-                                            ? prop.name.text
-                                            : ts.isStringLiteral(prop.name)
-                                                ? prop.name.text
-                                                : null;
-
-                                    if (propName) {
-                                        code.push(
-                                            generateAttributeBinding(
-                                                ctx,
-                                                element,
-                                                propName,
-                                                rewriteExpression(ctx, prop.initializer)
-                                            )
-                                        );
-                                    }
-                                }
-                                else if (ts.isShorthandPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
-                                    let propName = prop.name.text;
-
-                                    code.push(
-                                        generateAttributeBinding(
-                                            ctx,
-                                            element,
-                                            propName,
-                                            propName
-                                        )
-                                    );
-                                }
-                                else if (ts.isMethodDeclaration(prop) && ts.isIdentifier(prop.name)) {
-                                    throw new Error(`${PACKAGE_NAME}: method declarations are not supported in spread attribute object literals`);
-                                }
-                            }
-                    }
-                    else {
                         code.push(
-                            `${NAMESPACE}.setProperties(${element}, ${exprTexts[index] || 'undefined'});`
+                            generateAttributeBinding(element, key, ts.isPropertyAssignment(prop) ? rewriteExpression(ctx, prop.initializer) : key)
                         );
                     }
-
-                    index++;
-                }
-                else if (name.startsWith('on') && name.length > 2) {
-                    code.push(
-                        generateAttributeBinding(
-                            ctx,
-                            element,
-                            name,
-                            exprTexts[index] || 'undefined'
-                        )
-                    );
-                    index++;
                 }
                 else {
-                    // Markers sharing a value (or a class/style token) with each other or with
-                    // literal text emit ONE binding. Resolve callback parts reactively,
-                    // preserving independent bindings for separate class/style groups.
-                    let group = parts[j].group,
-                        last = j;
-
-                    while (last + 1 < m && names[last + 1] === name && parts[last + 1].group === group) {
-                        last++;
-                    }
-
-                    if (last === j && !parts[j].prefix && !parts[j].suffix) {
-                        code.push(
-                            generateAttributeBinding(
-                                ctx,
-                                element,
-                                name,
-                                exprTexts[index] || 'undefined'
-                            )
-                        );
-                        index++;
-                    }
-                    else {
-                        let values: string[] = [];
-
-                        for (let k = j; k <= last; k++) {
-                            if (parts[k].prefix) {
-                                values.push(JSON.stringify(parts[k].prefix));
-                            }
-
-                            values.push(`(${exprTexts[index++] || 'undefined'})`);
-                        }
-
-                        if (parts[last].suffix) {
-                            values.push(JSON.stringify(parts[last].suffix));
-                        }
-
-                        code.push(
-                            generateAttributeBinding(ctx, element, name, `${NAMESPACE}.interpolate([${values.join(', ')}])`)
-                        );
-                        j = last;
-                    }
+                    code.push(`${NAMESPACE}.setProperties(${element}, ${text(index)});`);
                 }
+
+                index++;
             }
-        }
-        else {
-            code.push(
-                generateNodeBinding(ctx, element, exprTexts[index] || 'undefined', exprNodes[index], slot.mode)
-            );
-            index++;
+            else if (name.startsWith('on') && name.length > 2) {
+                code.push(generateAttributeBinding(element, name, text(index++)));
+            }
+            else {
+                // Markers sharing a value (or a class/style token) with each other or with
+                // literal text emit ONE binding. Resolve callback parts reactively,
+                // preserving independent bindings for separate class/style groups.
+                let group = parts[j].group,
+                    last = j;
+
+                while (last + 1 < m && names[last + 1] === name && parts[last + 1].group === group) {
+                    last++;
+                }
+
+                if (last === j && !parts[j].prefix && !parts[j].suffix) {
+                    code.push(generateAttributeBinding(element, name, text(index++)));
+                    continue;
+                }
+
+                let values: string[] = [];
+
+                for (let k = j; k <= last; k++) {
+                    if (parts[k].prefix) {
+                        values.push(JSON.stringify(parts[k].prefix));
+                    }
+
+                    values.push(`(${text(index++)})`);
+                }
+
+                if (parts[last].suffix) {
+                    values.push(JSON.stringify(parts[last].suffix));
+                }
+
+                code.push(generateAttributeBinding(element, name, `${NAMESPACE}.interpolate([${values.join(', ')}])`));
+                j = last;
+            }
         }
     }
 
-    code.splice(1, 0, `let ${declarations.join(',\n')};`);
-    code.push(`return ${root};`);
-    code.push(isArrowBody ? `}` : `})()`);
+    code.push(`return ${root};`, isArrowBody ? `}` : `})()`);
 
     return code.join('\n');
 }
@@ -484,51 +392,66 @@ function isArrowExpressionBody(node: ts.Node): boolean {
     return ts.isArrowFunction(node.parent) && (node.parent as ts.ArrowFunction).body === node;
 }
 
-function isNestedHtmlTemplate(expr: ts.Expression): expr is ts.TaggedTemplateExpression {
-    return ts.isTaggedTemplateExpression(expr) && ts.isIdentifier(expr.tag) && expr.tag.text === ENTRYPOINT;
-}
-
-function callEntrypoint(expr: ts.Expression): Entrypoint | null {
-    if (
-        ts.isCallExpression(expr) &&
-        ts.isPropertyAccessExpression(expr.expression) &&
-        ts.isIdentifier(expr.expression.expression) &&
-        expr.expression.expression.text === ENTRYPOINT &&
-        isEntrypoint(expr.expression.name.text)
-    ) {
-        return expr.expression.name.text;
+// A spread object literal expands into per-property bindings only when every member is a
+// plain `name: value` / shorthand whose key is statically known; anything else (spreads,
+// computed or numeric keys, accessors) keeps runtime setProperties semantics
+function isExpandable(expr: ts.Expression): expr is ts.ObjectLiteralExpression {
+    if (!ts.isObjectLiteralExpression(expr)) {
+        return false;
     }
 
-    return null;
+    let expandable = true;
+
+    for (let i = 0, n = expr.properties.length; i < n; i++) {
+        let prop = expr.properties[i];
+
+        if (ts.isMethodDeclaration(prop)) {
+            throw new Error(`${PACKAGE_NAME}: method declarations are not supported in spread attribute object literals`);
+        }
+
+        if (ts.isPropertyAssignment(prop)) {
+            expandable &&= ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name);
+        }
+        else {
+            expandable &&= ts.isShorthandPropertyAssignment(prop) && !prop.objectAssignmentInitializer;
+        }
+    }
+
+    return expandable;
 }
 
-function entrypointClass(entrypoint: Entrypoint): string {
-    return entrypoint === ENTRYPOINT_VIRTUAL ? 'VirtualSlot' : 'ArraySlot';
+// True when an expression supplies an attribute's entire value (`name=${x}`, `name="${x}"`).
+// Text that merely looks like `a =${x} b` also matches; callers only use this to decline a fold.
+function isWholeAttributeValue(before: string, after: string): boolean {
+    let open = REGEX_ATTRIBUTE_VALUE_OPEN.exec(before);
+
+    if (!open) {
+        return false;
+    }
+
+    return open[1] ? after.startsWith(open[1]) : REGEX_UNQUOTED_VALUE_CLOSE.test(after);
 }
 
-function isReactiveCall(expr: ts.Expression): expr is ts.CallExpression {
-    return callEntrypoint(expr) !== null;
-}
-
-// Each distinct template is parsed once per transform: the root emission, the trailing
-// template-ID discovery loop, and nested-expression discovery all share this cache. The key
-// joins the (post-prefold) literals on NUL, which source template text cannot contain.
+// Each distinct template is parsed once per transform. The key joins the (post-prefold)
+// literals on NUL, which source template text cannot contain.
 function parseCached(ctx: CodegenContext, literals: string[]): ParseResult {
     let cache = ctx.parseCache ??= new Map<string, ParseResult>(),
-        key = literals.join('\0');
+        key = literals.join('\0'),
+        result = cache.get(key);
 
-    if (!cache.has(key)) {
-        cache.set(key, parser.parse(literals) as ParseResult);
+    if (result === undefined) {
+        result = parser.parse(literals) as ParseResult;
+        cache.set(key, result);
     }
 
-    return cache.get(key)!;
+    return result;
 }
 
 // Merge every foldable expression into the surrounding literals BEFORE parse: the folded value
 // rides the template clone (as text or a static attribute token) instead of a runtime binding.
 // This is the only safe splice point — post-parse HTML rewriting would invalidate the
 // sibling-count-derived node paths of later slots.
-function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.Checker, values?: Map<ts.Expression, string>): { expressions: ts.Expression[]; literals: string[] } {
+function prefold(ctx: CodegenContext, literals: string[], expressions: ts.Expression[]): Prefolded {
     if (expressions.length === 0) {
         return { expressions, literals };
     }
@@ -537,7 +460,17 @@ function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.
         foldedLiterals: string[] = [literals[0]];
 
     for (let i = 0, n = expressions.length; i < n; i++) {
-        let folded = values?.get(expressions[i]) ?? fold(expressions[i], checker);
+        let folded = ctx.staticValues?.get(expressions[i]) ?? fold(expressions[i], ctx.checker, ctx.constants);
+
+        // A whole attribute value binds through the element's property when one exists, where
+        // '' and 0 coerce to false (`disabled`, `hidden`); a static `disabled=""` would set it.
+        // Only the runtime knows which names are property-backed, so falsy values stay bindings.
+        if (
+            (folded === '' || folded === '0') &&
+            isWholeAttributeValue(foldedLiterals[foldedLiterals.length - 1], literals[i + 1])
+        ) {
+            folded = null;
+        }
 
         if (folded === null) {
             foldedExpressions.push(expressions[i]);
@@ -551,14 +484,13 @@ function prefold(literals: string[], expressions: ts.Expression[], checker?: ts.
     return { expressions: foldedExpressions, literals: foldedLiterals };
 }
 
-// prefold's inputs derive entirely from the template node, so its result is stable per node —
-// keyed by node identity, the root emission and the ID-discovery loop fold each template once.
-function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], expressions: ts.Expression[]): { expressions: ts.Expression[]; literals: string[] } {
-    let cache = ctx.prefoldCache ??= new WeakMap<ts.Node, { expressions: ts.Expression[]; literals: string[] }>(),
+// prefold's inputs derive entirely from the template node, so its result is stable per node
+function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], expressions: ts.Expression[]): Prefolded {
+    let cache = ctx.prefoldCache ??= new WeakMap<ts.Node, Prefolded>(),
         result = cache.get(node);
 
     if (result === undefined) {
-        result = prefold(literals, expressions, ctx.checker, ctx.staticValues);
+        result = prefold(ctx, literals, expressions);
         cache.set(node, result);
     }
 
@@ -566,81 +498,76 @@ function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], e
 }
 
 
-const generateCode = (templates: TemplateInfo[], sourceFile: ts.SourceFile, checker?: ts.Checker, callRanges: { end: number; start: number }[] = [], templateMap?: Map<string, string>): CodegenResult => {
-    let result: CodegenResult = {
-            prepend: [],
-            replacements: [],
-            selectorFired: false,
-            templates: templateMap || new Map()
-        };
-
-    if (templates.length === 0) {
-        return result;
-    }
-
-    let ranges: { end: number; start: number }[] = [...callRanges];
-
-    for (let i = 0, n = templates.length; i < n; i++) {
-        let exprs = templates[i].expressions;
-
-        for (let j = 0, m = exprs.length; j < m; j++) {
-            ranges.push({ end: exprs[j].end, start: exprs[j].getStart(sourceFile) });
-        }
-    }
-
-    let root = templates.filter(t => !ast.inRange(ranges, t.node.getStart(sourceFile), t.node.end));
-
-    if (root.length === 0) {
-        return result;
-    }
-
+// Top-level reactive calls lower first, then root templates. A call nested in a template or
+// in an already-lowered call, and a template nested in either, is emitted by its enclosing
+// rewrite — emitting it separately would produce overlapping replacements.
+const generateCode = ({ calls, constants, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker): CodegenResult => {
     let ctx: CodegenContext = {
-            checker,
+            checker: checker && cached(checker),
+            constants,
+            parseCache: new Map(),
             sourceFile,
-            templates: result.templates
-        };
-
-    for (let i = 0, n = root.length; i < n; i++) {
-        let template = root[i],
-            code = generateNestedTemplateCode(ctx, template.node);
-
-        result.replacements.push({
-            generate: () => code,
-            node: template.node
-        });
-    }
+            templates: new Map()
+        },
+        nested: Range[] = [],
+        prepend: string[] = [],
+        replacements: ReplacementIntent[] = [],
+        templateRanges: Range[] = [];
 
     for (let i = 0, n = templates.length; i < n; i++) {
-        let { expressions, literals } = prefoldCached(ctx, templates[i].node, templates[i].literals, templates[i].expressions);
+        let { end, expressions, start } = templates[i];
 
-        getTemplateID(ctx, parseCached(ctx, literals).html);
+        templateRanges.push({ end, start });
 
         for (let j = 0, m = expressions.length; j < m; j++) {
-            discoverTemplatesInExpression(ctx, expressions[j]);
+            nested.push({ end: expressions[j].end, start: expressions[j].getStart(sourceFile) });
         }
+    }
+
+    for (let i = 0, n = calls.length; i < n; i++) {
+        let { end, entrypoint, node, start } = calls[i];
+
+        if (ast.inRange(templateRanges, start, end) || ast.inRange(nested, start, end)) {
+            continue;
+        }
+
+        let code = generateSlotCode(ctx, node, entrypoint, false);
+
+        nested.push({ end, start });
+        replacements.push({ generate: () => code, node });
+    }
+
+    for (let i = 0, n = templates.length; i < n; i++) {
+        let { end, node, start } = templates[i];
+
+        if (ast.inRange(nested, start, end)) {
+            continue;
+        }
+
+        let code = generateNestedTemplateCode(ctx, node);
+
+        replacements.push({ generate: () => code, node });
     }
 
     for (let [html, id] of ctx.templates) {
-        result.prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
+        prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
     }
 
-    result.selectorFired = ctx.selectorFired === true;
-
-    return result;
+    return { prepend, replacements, selectorFired: ctx.selectorFired === true, templates: ctx.templates };
 };
 
 const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => {
-    if (isNestedHtmlTemplate(expr)) {
+    if (isHtmlTemplate(expr)) {
         return generateNestedTemplateCode(ctx, expr);
     }
 
-    if (isReactiveCall(expr)) {
-        let options = expr.arguments[2];
+    let entrypoint = entrypointOf(expr);
 
-        return `${rewriteExpression(ctx, expr.arguments[0] as ts.Expression)}, ${rewriteExpression(ctx, expr.arguments[1] as ts.Expression)}${options ? ', ' + rewriteExpression(ctx, options) : ''}`;
+    if (entrypoint) {
+        return generateSlotCode(ctx, expr as ts.CallExpression, entrypoint, false);
     }
 
-    let replacements: { end: number; start: number; text: string }[] = [],
+    let replacements: (Range & { text: string })[] = [],
         rootObserver = ts.isArrowFunction(expr) || ts.isFunctionExpression(expr);
 
     expr.forEachChild(child => collectNestedReplacements(ctx, child, replacements, rootObserver));
@@ -661,8 +588,8 @@ const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => 
     }
 
     return text;
-}
+};
 
 
-export { entrypointClass, generateCode, rewriteExpression };
-export type { CodegenResult };
+export { generateCode, rewriteExpression };
+export type { CodegenContext, CodegenResult };

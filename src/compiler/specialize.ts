@@ -1,133 +1,374 @@
 import { ts } from '@esportsplus/typescript';
 
 
-type Primitive = string | number | boolean;
+type Primitive = boolean | number | string;
+
+type Scope = {
+    checker?: ts.Checker;
+    // Identifier texts that can resolve to a value; any other identifier is unknown without
+    // paying a checker round-trip. Undefined queries every identifier.
+    names?: Set<string>;
+    values: Map<ts.Symbol, Primitive>;
+    visiting: Set<ts.Symbol>;
+};
+
 type Variant = { condition: string; values: Map<ts.Expression, string> };
-const UNKNOWN = Symbol();
+
+
 const LIMIT = 16;
-const SAFE = /^[^&<>"'`]*$/;
+
+// Conservative charset that is injection-safe in both text and quoted-attribute positions:
+// no entity/tag delimiters and no quote characters, so a folded value can never break out
+const REGEX_SAFE = /^[^&<>"'`]*$/;
+
+const UNKNOWN = Symbol();
+
+
+function combine(parameters: Map<ts.Symbol, { name: string; values: Primitive[] }>) {
+    let combinations: { conditions: string[]; environment: Map<ts.Symbol, Primitive> }[] = [{ conditions: [], environment: new Map() }];
+
+    for (let [symbol, parameter] of parameters) {
+        if (combinations.length * parameter.values.length > LIMIT) {
+            return null;
+        }
+
+        let next: typeof combinations = [];
+
+        for (let i = 0, n = combinations.length; i < n; i++) {
+            let { conditions, environment } = combinations[i];
+
+            for (let j = 0, m = parameter.values.length; j < m; j++) {
+                let value = parameter.values[j];
+
+                next.push({
+                    // Dispatch must not narrow the original parameter inside emitted
+                    // branches: its unchanged body may still compare other union members.
+                    conditions: [...conditions, `(${parameter.name} as unknown) === ${JSON.stringify(value)}`],
+                    environment: new Map(environment).set(symbol, value)
+                });
+            }
+        }
+
+        combinations = next;
+    }
+
+    return combinations;
+}
 
 // Partial evaluation is deliberately restricted to primitive syntax. Never call
 // user code, read an object property/getter, or evaluate a reactive callback.
-function evaluate(node: ts.Expression, checker: ts.Checker, environment: Map<ts.Symbol, Primitive>, visiting = new Set<ts.Symbol>()): Primitive | typeof UNKNOWN {
-    if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) {
-        return evaluate(node.expression, checker, environment, visiting);
+// Without a checker only literal syntax evaluates; identifiers stay unknown.
+function evaluate(node: ts.Expression, scope: Scope): Primitive | typeof UNKNOWN {
+    while (ts.isAsExpression(node) || ts.isParenthesizedExpression(node) || ts.isSatisfiesExpression(node)) {
+        node = node.expression;
     }
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
-    if (ts.isNumericLiteral(node)) return Number(node.text);
-    if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
-    if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
+
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+        return node.text;
+    }
+
+    if (ts.isNumericLiteral(node)) {
+        return Number(node.text);
+    }
+
+    if (node.kind === ts.SyntaxKind.TrueKeyword) {
+        return true;
+    }
+
+    if (node.kind === ts.SyntaxKind.FalseKeyword) {
+        return false;
+    }
+
     if (ts.isIdentifier(node)) {
-        let symbol = checker.getSymbolAtLocation(node);
-        if (!symbol) return UNKNOWN;
-        if (environment.has(symbol)) return environment.get(symbol)!;
-        if (visiting.has(symbol)) return UNKNOWN;
-        let declaration = symbol.valueDeclaration?.resolve();
-        if (declaration && ts.isVariableDeclaration(declaration) && declaration.initializer &&
-            ts.isVariableDeclarationList(declaration.parent) && (declaration.parent.flags & ts.NodeFlags.Const)) {
-            visiting.add(symbol);
-            let value = evaluate(declaration.initializer, checker, environment, visiting);
-            visiting.delete(symbol);
-            return value;
-        }
+        return identifier(node, scope);
     }
+
     if (ts.isConditionalExpression(node)) {
-        let condition = evaluate(node.condition, checker, environment, visiting);
-        return condition === UNKNOWN ? UNKNOWN : evaluate(condition ? node.whenTrue : node.whenFalse, checker, environment, visiting);
+        let condition = evaluate(node.condition, scope);
+
+        if (condition === UNKNOWN) {
+            return UNKNOWN;
+        }
+
+        return evaluate(condition ? node.whenTrue : node.whenFalse, scope);
     }
+
     if (ts.isBinaryExpression(node)) {
-        let left = evaluate(node.left, checker, environment, visiting);
-        if (left === UNKNOWN) return UNKNOWN;
-        let right = evaluate(node.right, checker, environment, visiting);
-        if (right === UNKNOWN) return UNKNOWN;
+        let left = evaluate(node.left, scope);
+
+        if (left === UNKNOWN) {
+            return UNKNOWN;
+        }
+
+        let right = evaluate(node.right, scope);
+
+        if (right === UNKNOWN) {
+            return UNKNOWN;
+        }
+
         switch (node.operatorToken.kind) {
-            case ts.SyntaxKind.EqualsEqualsEqualsToken: return left === right;
-            case ts.SyntaxKind.ExclamationEqualsEqualsToken: return left !== right;
+            case ts.SyntaxKind.EqualsEqualsEqualsToken:
+                return left === right;
+
+            case ts.SyntaxKind.ExclamationEqualsEqualsToken:
+                return left !== right;
+
             case ts.SyntaxKind.PlusToken:
-                if (typeof left === 'string' || typeof right === 'string') return String(left) + String(right);
-                if (typeof left === 'number' && typeof right === 'number') return left + right;
+                if (typeof left === 'string' || typeof right === 'string') {
+                    return String(left) + String(right);
+                }
+
+                if (typeof left === 'number' && typeof right === 'number') {
+                    return left + right;
+                }
         }
     }
+
     return UNKNOWN;
 }
 
-function immutable(parameter: ts.ParameterDeclaration, symbol: ts.Symbol, checker: ts.Checker): boolean {
-    let safe = true;
-    const contains = (node: ts.Node): boolean => {
-        if (ts.isShorthandPropertyAssignment(node) && checker.getShorthandAssignmentValueSymbol(node) === symbol) return true;
-        if (ts.isIdentifier(node) && checker.getSymbolAtLocation(node) === symbol) return true;
+function hasParameters(node: ts.Node): node is ts.Node & { parameters: ts.NodeArray<ts.ParameterDeclaration> } {
+    return (node as { parameters?: unknown }).parameters !== undefined;
+}
+
+function identifier(node: ts.Identifier, scope: Scope): Primitive | typeof UNKNOWN {
+    if (!scope.checker || (scope.names && !scope.names.has(node.text))) {
+        return UNKNOWN;
+    }
+
+    let symbol = scope.checker.getSymbolAtLocation(node);
+
+    if (!symbol) {
+        return UNKNOWN;
+    }
+
+    if (scope.values.has(symbol)) {
+        return scope.values.get(symbol)!;
+    }
+
+    if (scope.visiting.has(symbol)) {
+        return UNKNOWN;
+    }
+
+    let declaration = symbol.valueDeclaration?.resolve();
+
+    if (!declaration || !isConstDeclaration(declaration)) {
+        return UNKNOWN;
+    }
+
+    scope.visiting.add(symbol);
+
+    let value = evaluate(declaration.initializer, scope);
+
+    scope.visiting.delete(symbol);
+
+    return value;
+}
+
+function immutable(parameter: ts.ParameterDeclaration & { name: ts.Identifier }, symbol: ts.Symbol, checker: ts.Checker): boolean {
+    let name = parameter.name.text,
+        safe = true;
+
+    // Only a same-named identifier can write the binding; shadowing is ruled out by symbol identity
+    let contains = (node: ts.Node): boolean => {
+        if (ts.isShorthandPropertyAssignment(node) && (node.name as ts.Identifier).text === name && checker.getShorthandAssignmentValueSymbol(node) === symbol) {
+            return true;
+        }
+
+        if (ts.isIdentifier(node) && node.text === name && checker.getSymbolAtLocation(node) === symbol) {
+            return true;
+        }
+
         return node.forEachChild(contains) === true;
     };
-    const visit = (node: ts.Node) => {
+
+    let visit = (node: ts.Node) => {
+        if (!safe) {
+            return;
+        }
+
         // Aliased arguments and eval can write a binding without an AST assignment.
-        if (ts.isIdentifier(node) && (node.text === 'arguments' || node.text === 'eval')) safe = false;
-        if (ts.isBinaryExpression(node) &&
-            node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
-            contains(node.left)) safe = false;
-        if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
-            (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) && contains(node.operand)) safe = false;
-        if ((ts.isForOfStatement(node) || ts.isForInStatement(node)) && contains(node.initializer)) safe = false;
-        if (safe) node.forEachChild(visit);
+        if (ts.isIdentifier(node) && (node.text === 'arguments' || node.text === 'eval')) {
+            safe = false;
+        }
+        else if (
+            ts.isBinaryExpression(node) &&
+            node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+            node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+            contains(node.left)
+        ) {
+            safe = false;
+        }
+        else if (
+            (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+            (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) &&
+            contains(node.operand)
+        ) {
+            safe = false;
+        }
+        else if ((ts.isForOfStatement(node) || ts.isForInStatement(node)) && contains(node.initializer)) {
+            safe = false;
+        }
+
+        node.forEachChild(visit);
     };
+
     visit(parameter.parent);
+
     return safe;
 }
+
+function literals(type: ts.Type): Primitive[] | null {
+    let types = type.isUnionType() ? type.getTypes() : [type],
+        values: Primitive[] = [];
+
+    for (let i = 0, n = types.length; i < n; i++) {
+        let member = types[i];
+
+        if (!member.isStringLiteralType() && !member.isNumberLiteralType()) {
+            return null;
+        }
+
+        values.push(member.value);
+    }
+
+    return values.length && values.length <= LIMIT ? values : null;
+}
+
+// Every identifier that can resolve to a parameter is bound by an enclosing signature: nested
+// callbacks are never walked, so the ancestors' parameter names are the complete candidate set
+function parameterNames(node: ts.Node): Set<string> {
+    let names = new Set<string>();
+
+    for (let current = node.parent; current; current = current.parent) {
+        if (!hasParameters(current)) {
+            continue;
+        }
+
+        for (let i = 0, n = current.parameters.length; i < n; i++) {
+            let name = current.parameters[i].name;
+
+            if (ts.isIdentifier(name)) {
+                names.add(name.text);
+            }
+        }
+    }
+
+    return names;
+}
+
+// Only strings and numbers fold: runtime bindings treat `false` as "render nothing /
+// remove the attribute", which no static text or attribute value can express
+function serialize(value: Primitive | typeof UNKNOWN): string | null {
+    if (typeof value !== 'number' && typeof value !== 'string') {
+        return null;
+    }
+
+    let text = String(value);
+
+    return REGEX_SAFE.test(text) ? text : null;
+}
+
+
+const constant = (node: ts.Expression, checker?: ts.Checker, names?: Set<string>): string | null => {
+    return serialize(evaluate(node, { checker, names, values: new Map(), visiting: new Set() }));
+};
+
+const isConstDeclaration = (node: ts.Node): node is ts.VariableDeclaration & { initializer: ts.Expression } => {
+    return ts.isVariableDeclaration(node) &&
+        node.initializer !== undefined &&
+        ts.isVariableDeclarationList(node.parent) &&
+        (node.parent.flags & ts.NodeFlags.Const) !== 0;
+};
 
 // Enumerating a bounded, immutable parameter gives static clones without copying
 // factory bodies across modules or relying on bundler inlining. Unknown runtime
 // values still take the original generic binding path.
-function specialize(expressions: ts.Expression[], checker?: ts.Checker): Variant[] {
-    if (!checker) return [];
-    let parameters = new Map<ts.Symbol, { name: string; values: Primitive[] }>();
+const specialize = (expressions: ts.Expression[], checker?: ts.Checker, names?: Set<string>): Variant[] => {
+    if (!checker || expressions.length === 0) {
+        return [];
+    }
 
-    const visit = (node: ts.Node) => {
-        if (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isTaggedTemplateExpression(node)) return;
-        if (ts.isIdentifier(node)) {
+    let candidates = parameterNames(expressions[0]),
+        parameters = new Map<ts.Symbol, { name: string; values: Primitive[] }>();
+
+    if (!candidates.size) {
+        return [];
+    }
+
+    // Nothing walked here can introduce a binding (function-likes, class bodies and nested
+    // templates are skipped), so every identifier shares the template's scope: once a name
+    // resolves to a parameter, its other occurrences are the same parameter.
+    let visit = (node: ts.Node) => {
+        if (hasParameters(node) || ts.isClassExpression(node) || ts.isTaggedTemplateExpression(node)) {
+            return;
+        }
+
+        if (
+            ts.isIdentifier(node) &&
+            candidates.has(node.text) &&
+            !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
+        ) {
             let symbol = checker.getSymbolAtLocation(node),
                 declaration = symbol?.valueDeclaration?.resolve();
-            if (symbol && declaration?.kind === ts.SyntaxKind.Parameter && ts.isIdentifier((declaration as ts.ParameterDeclaration).name) && !parameters.has(symbol)) {
-                let parameter = declaration as ts.ParameterDeclaration;
-                let type = checker.getTypeAtLocation(parameter.name),
-                    types = type?.isUnionType() ? type.getTypes() : type ? [type] : [],
-                    values: Primitive[] = [];
-                for (let type of types) {
-                    if (type.isStringLiteralType() || type.isNumberLiteralType()) values.push(type.value);
-                    else return;
-                }
-                if (values.length && values.length <= LIMIT && immutable(parameter, symbol, checker)) {
+
+            if (symbol && declaration && ts.isParameterDeclaration(declaration) && ts.isIdentifier(declaration.name)) {
+                let type = checker.getTypeAtLocation(declaration.name),
+                    values = type ? literals(type) : null;
+
+                candidates.delete(node.text);
+
+                if (values && immutable(declaration as ts.ParameterDeclaration & { name: ts.Identifier }, symbol, checker)) {
                     parameters.set(symbol, { name: node.text, values });
                 }
             }
         }
+
         node.forEachChild(visit);
     };
-    expressions.forEach(visit);
-    if (!parameters.size) return [];
 
-    let combinations: { environment: Map<ts.Symbol, Primitive>; conditions: string[] }[] = [{ environment: new Map(), conditions: [] }];
-    for (let [symbol, parameter] of parameters) {
-        if (combinations.length * parameter.values.length > LIMIT) return [];
-        combinations = combinations.flatMap(combination => parameter.values.map(value => ({
-            environment: new Map([...combination.environment, [symbol, value]]),
-            // Dispatch must not narrow the original parameter inside emitted
-            // branches: its unchanged body may still compare other union members.
-            conditions: [...combination.conditions, `(${parameter.name} as unknown) === ${JSON.stringify(value)}`]
-        })));
+    for (let i = 0, n = expressions.length; i < n; i++) {
+        visit(expressions[i]);
     }
 
-    return combinations.map(({ environment, conditions }) => {
-        let values = new Map<ts.Expression, string>();
-        for (let expression of expressions) {
-            let value = evaluate(expression, checker, environment);
-            if ((typeof value === 'string' || typeof value === 'number') && SAFE.test(String(value))) values.set(expression, String(value));
-        }
-        return { condition: conditions.join(' && '), values };
-    }).filter(variant => variant.values.size > 0);
-}
+    if (!parameters.size) {
+        return [];
+    }
 
-const constant = (node: ts.Expression, checker: ts.Checker): string | null => {
-    let value = evaluate(node, checker, new Map());
-    return value !== UNKNOWN && SAFE.test(String(value)) ? String(value) : null;
+    let combinations = combine(parameters),
+        variants: Variant[] = [];
+
+    if (!combinations) {
+        return [];
+    }
+
+    if (names) {
+        names = new Set(names);
+
+        for (let parameter of parameters.values()) {
+            names.add(parameter.name);
+        }
+    }
+
+    for (let i = 0, n = combinations.length; i < n; i++) {
+        let { conditions, environment } = combinations[i],
+            values = new Map<ts.Expression, string>();
+
+        for (let j = 0, m = expressions.length; j < m; j++) {
+            let value = serialize(evaluate(expressions[j], { checker, names, values: environment, visiting: new Set() }));
+
+            if (value !== null) {
+                values.set(expressions[j], value);
+            }
+        }
+
+        if (values.size) {
+            variants.push({ condition: conditions.join(' && '), values });
+        }
+    }
+
+    return variants;
 };
 
-export { constant, specialize };
+
+export { constant, isConstDeclaration, specialize };

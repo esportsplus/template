@@ -1,4 +1,4 @@
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { languageService } from '@esportsplus/typescript/compiler';
@@ -64,8 +64,7 @@ describe('compiler/virtual', () => {
             let sourceFile = languageService.parse(process.cwd() + '/test.ts',
                     `let x = html\`<div>\${html.virtual(items, (item) => html\`<span>\${item}</span>\`, { anchor: 'end' })}</div>\`;`
                 ),
-                templates = findTemplateArtifacts(sourceFile).templates,
-                result = generateCode(templates, sourceFile),
+                result = generateCode(findTemplateArtifacts(sourceFile), sourceFile),
                 code = result.replacements[0].generate(EMPTY);
 
             expect(code).toContain(`${NAMESPACE}.VirtualSlot`);
@@ -78,8 +77,7 @@ describe('compiler/virtual', () => {
             let sourceFile = languageService.parse(process.cwd() + '/test.ts',
                     `let x = html\`<div>\${html.virtual(items, (item) => html\`<span>\${item}</span>\`)}</div>\`;`
                 ),
-                templates = findTemplateArtifacts(sourceFile).templates,
-                result = generateCode(templates, sourceFile),
+                result = generateCode(findTemplateArtifacts(sourceFile), sourceFile),
                 code = result.replacements[0].generate(EMPTY);
 
             expect(code).toContain(`${NAMESPACE}.VirtualSlot`);
@@ -134,6 +132,7 @@ describe('compiler/virtual', () => {
                 let result = await instance.handleHotUpdate({
                     file,
                     modules: [{ isSelfAccepting: false }],
+                    read: () => readFileSync(file, 'utf8'),
                     server: { ws: { send } }
                 });
 

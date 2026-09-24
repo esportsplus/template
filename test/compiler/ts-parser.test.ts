@@ -10,6 +10,56 @@ function createSourceFile(code: string): ts.SourceFile {
 
 
 describe('compiler/ts-parser', () => {
+    describe('findTemplateArtifacts - import identity (checker)', () => {
+        function artifacts(code: string) {
+            let { checker, sourceFile } = languageService.scratch(process.cwd() + '/identity.ts', code);
+
+            return findTemplateArtifacts(sourceFile, checker);
+        }
+
+        it('accepts every use of an unshadowed package import', () => {
+            let { calls, templates } = artifacts([
+                `import { html } from '@esportsplus/template';`,
+                `declare let items: string[];`,
+                `let a = html\`<a></a>\`;`,
+                `let b = () => html\`<b></b>\`;`,
+                `let c = html.reactive(items as any, (item: string) => html\`<i>\${item}</i>\`);`
+            ].join('\n'));
+
+            expect(templates.length).toBe(3);
+            expect(calls.length).toBe(1);
+        });
+
+        it('rejects a template tagged by a parameter that shadows the import', () => {
+            let { templates } = artifacts([
+                `import { html } from '@esportsplus/template';`,
+                `let a = html\`<a></a>\`;`,
+                `function other(html: (strings: TemplateStringsArray) => string) { return html\`<b></b>\`; }`
+            ].join('\n'));
+
+            expect(templates.map(t => t.literals[0])).toEqual(['<a></a>']);
+        });
+
+        it('rejects a template tagged by a local const that shadows the import', () => {
+            let { templates } = artifacts([
+                `import { html } from '@esportsplus/template';`,
+                `let a = html\`<a></a>\`;`,
+                `{ const html = (strings: TemplateStringsArray) => strings[0]; html\`<b></b>\`; }`
+            ].join('\n'));
+
+            expect(templates.map(t => t.literals[0])).toEqual(['<a></a>']);
+        });
+
+        it('rejects html imported from another package', () => {
+            let { templates } = artifacts([
+                `import { html } from 'lit';`,
+                `let a = html\`<a></a>\`;`
+            ].join('\n'));
+
+            expect(templates.length).toBe(0);
+        });
+    });
+
     describe('extractTemplateParts', () => {
         it('NoSubstitutionTemplateLiteral → single literal, empty expressions', () => {
             let sourceFile = createSourceFile('let x = `hello world`;');
@@ -133,7 +183,7 @@ describe('compiler/ts-parser', () => {
     });
 
     describe('findTemplateArtifacts().calls', () => {
-        it('html.reactive() → returns ReactiveCallInfo with array + callback args', () => {
+        it('html.reactive() → returns ReactiveCallInfo with entrypoint and call node', () => {
             let source = [
                 `import { html } from '@esportsplus/template';`,
                 `let x = html.reactive(items, (item) => html\`<li>\${item}</li>\`);`
@@ -142,8 +192,8 @@ describe('compiler/ts-parser', () => {
             let calls = findTemplateArtifacts(sourceFile).calls;
 
             expect(calls.length).toBe(1);
-            expect(calls[0].arrayArg).toBeDefined();
-            expect(calls[0].callbackArg).toBeDefined();
+            expect(calls[0].entrypoint).toBe('reactive');
+            expect(calls[0].node.arguments.length).toBe(2);
             expect(calls[0].start).toBeLessThan(calls[0].end);
         });
 

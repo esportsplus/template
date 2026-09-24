@@ -10,17 +10,17 @@ const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
 
 function codegen(source: string) {
     let sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-        templates = findTemplateArtifacts(sourceFile).templates;
+        artifacts = findTemplateArtifacts(sourceFile);
 
-    return { result: generateCode(templates, sourceFile), sourceFile, templates };
+    return { result: generateCode(artifacts, sourceFile), sourceFile, templates: artifacts.templates };
 }
 
 // Runs codegen with a real checker so fold() can resolve const identifiers to their literal types
 function codegenWithProgram(source: string) {
     let { checker, sourceFile } = languageService.scratch(process.cwd() + '/test.ts', source),
-        templates = findTemplateArtifacts(sourceFile).templates;
+        artifacts = findTemplateArtifacts(sourceFile);
 
-    return generateCode(templates, sourceFile, checker);
+    return generateCode(artifacts, sourceFile, checker);
 }
 
 
@@ -415,6 +415,15 @@ describe('compiler/codegen', () => {
             let code = result.replacements[0].generate(EMPTY);
 
             expect(code).toContain(`${NAMESPACE}.setProperties(`);
+        });
+
+        it('falls back to setProperties for accessors and numeric keys instead of dropping them', () => {
+            let { result } = codegen(`let x = html\`<div \${{ get title() { return v; }, id: v, 1: v }}>text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code).toContain(`${NAMESPACE}.setProperties(`);
+            expect(code).toContain('get title()');
+            expect(code).not.toContain(`${NAMESPACE}.setProperty(`);
         });
 
         it('method declaration in object literal throws on print (EmitHint.Expression limitation)', () => {
