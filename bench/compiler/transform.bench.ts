@@ -1,7 +1,7 @@
-import { ts } from '@esportsplus/typescript';
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
+import { languageService } from '@esportsplus/typescript/compiler';
 import { generateCode } from '../../src/compiler/codegen';
-import { findHtmlTemplates, findReactiveCalls, findTemplateArtifacts } from '../../src/compiler/ts-parser';
+import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 
 
 const COMPONENTS = 100;
@@ -27,20 +27,19 @@ function build(n: number): string {
 const SOURCE = build(COMPONENTS);
 
 
-let sourceFile = ts.createSourceFile('bench.ts', SOURCE, ts.ScriptTarget.Latest, true);
+let { checker, sourceFile } = languageService.scratch(process.cwd() + '/bench.ts', SOURCE);
 
 
-describe('compiler — transform (100 components, nested templates + reactive calls)', () => {
-    bench('findHtmlTemplates + generateCode', () => {
-        generateCode(findHtmlTemplates(sourceFile), sourceFile);
-    });
-
-    bench('discovery walks (findHtmlTemplates + findReactiveCalls)', () => {
-        findHtmlTemplates(sourceFile);
-        findReactiveCalls(sourceFile);
-    });
-
-    bench('discovery combined (findTemplateArtifacts)', () => {
-        findTemplateArtifacts(sourceFile);
-    });
+test('compiler — transform (100 components, nested templates + reactive calls)', async ({ bench }) => {
+    await bench.compare(
+        bench('findTemplateArtifacts + generateCode', () => {
+            generateCode(findTemplateArtifacts(sourceFile), sourceFile);
+        }),
+        bench('findTemplateArtifacts + generateCode (with checker)', () => {
+            generateCode(findTemplateArtifacts(sourceFile, checker), sourceFile, checker);
+        }),
+        bench('discovery (findTemplateArtifacts)', () => {
+            findTemplateArtifacts(sourceFile);
+        })
+    );
 });

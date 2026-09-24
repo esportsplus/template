@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 
 
 type Ctx = {
@@ -48,7 +48,7 @@ function frameCurrent(nodes: Ctx[], dirty: number) {
 
     for (let i = 0; i < dirty; i++) {
         let ctx = nodes[i],
-            updates = (ctx.updates = {});
+            updates: Ctx['updates'] = (ctx.updates = {});
 
         for (let a = 0, n = ATTRS.length; a < n; a++) {
             updates[ATTRS[a]] = 'v' + i;
@@ -123,66 +123,69 @@ function frameUnified(nodes: Ctx[], dirty: number) {
 }
 
 
-describe('scheduling — sparse (1% dirty)', () => {
+test('scheduling — sparse (1% dirty)', async ({ bench }) => {
     let nodes = build(NODES);
 
-    bench('current (3 loops + per-slot closures)', () => {
-        frameCurrent(nodes, SPARSE);
-    });
-
-    bench('unified (1 drain, pooled buffers)', () => {
-        frameUnified(nodes, SPARSE);
-    });
+    await bench.compare(
+        bench('current (3 loops + per-slot closures)', () => {
+            frameCurrent(nodes, SPARSE);
+        }),
+        bench('unified (1 drain, pooled buffers)', () => {
+            frameUnified(nodes, SPARSE);
+        })
+    );
 });
 
 
-describe('scheduling — dense (100% dirty)', () => {
+test('scheduling — dense (100% dirty)', async ({ bench }) => {
     let nodes = build(NODES);
 
-    bench('current (3 loops + per-slot closures)', () => {
-        frameCurrent(nodes, DENSE);
-    });
-
-    bench('unified (1 drain, pooled buffers)', () => {
-        frameUnified(nodes, DENSE);
-    });
+    await bench.compare(
+        bench('current (3 loops + per-slot closures)', () => {
+            frameCurrent(nodes, DENSE);
+        }),
+        bench('unified (1 drain, pooled buffers)', () => {
+            frameUnified(nodes, DENSE);
+        })
+    );
 });
 
 
-describe('invalidation — poll-all vs push-queue (1% dirty)', () => {
+test('invalidation — poll-all vs push-queue (1% dirty)', async ({ bench }) => {
     let nodes = build(NODES);
 
     for (let i = 0, n = nodes.length; i < n; i++) {
         nodes[i].updating = i < SPARSE;
     }
 
-    bench('poll-all (ECS: scan every node each tick)', () => {
-        for (let i = 0, n = nodes.length; i < n; i++) {
-            let ctx = nodes[i];
+    await bench.compare(
+        bench('poll-all (ECS: scan every node each tick)', () => {
+            for (let i = 0, n = nodes.length; i < n; i++) {
+                let ctx = nodes[i];
 
-            if (!ctx.updating) {
-                continue;
+                if (!ctx.updating) {
+                    continue;
+                }
+
+                for (let a = 0, len = ATTRS.length; a < len; a++) {
+                    paint(ctx, ATTRS[a], 'v' + i);
+                }
+            }
+        }),
+        bench('push-queue (drain only dirty)', () => {
+            let queue: Ctx[] = [];
+
+            for (let i = 0; i < SPARSE; i++) {
+                queue.push(nodes[i]);
             }
 
-            for (let a = 0, len = ATTRS.length; a < len; a++) {
-                paint(ctx, ATTRS[a], 'v' + i);
+            for (let i = 0, n = queue.length; i < n; i++) {
+                let ctx = queue[i];
+
+                for (let a = 0, len = ATTRS.length; a < len; a++) {
+                    paint(ctx, ATTRS[a], 'v' + i);
+                }
             }
-        }
-    });
-
-    bench('push-queue (drain only dirty)', () => {
-        let queue: Ctx[] = [];
-
-        for (let i = 0; i < SPARSE; i++) {
-            queue.push(nodes[i]);
-        }
-
-        for (let i = 0, n = queue.length; i < n; i++) {
-            let ctx = queue[i];
-
-            for (let a = 0, len = ATTRS.length; a < len; a++) {
-                paint(ctx, ATTRS[a], 'v' + i);
-            }
-        }
-    });
+        })
+    );
 });

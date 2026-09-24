@@ -46,9 +46,9 @@
     },
     "scripts": {
         "agent:test": "vitest run",
-        "bench:krausest": "vitest run --config vitest.krausest.config.ts",
+        "bench:krausest": "pnpm build && vitest run --config vitest.krausest.config.ts",
         "bench:krausest:browser": "node bench/krausest/run-browser.mjs",
-        "bench:run": "vitest bench --config vitest.bench.config.ts",
+        "bench:run": "pnpm build && vitest bench --config vitest.bench.config.ts",
         "bench:virtual:browser": "node bench/virtual/run-browser.mjs",
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",

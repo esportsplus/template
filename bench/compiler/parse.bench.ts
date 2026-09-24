@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 
 import parser from '../../src/compiler/parser';
 
@@ -30,20 +30,19 @@ const SLOT_STYLE = build(ELEMENTS, '<span style="color: red; width: ', 'px">x</s
 const SLOT_SUFFIXED = build(ELEMENTS, '<a href="/users/', '/edit">x</a>');
 
 
-describe('compiler/parser — parse (50 elements, one attribute slot each)', () => {
-    bench('slot owns the whole value', () => {
-        parser.parse(SLOT);
-    });
-
-    bench('prefixed class token', () => {
-        parser.parse(SLOT_PREFIXED);
-    });
-
-    bench('prefix and suffix around a property value', () => {
-        parser.parse(SLOT_SUFFIXED);
-    });
-
-    bench('prefix and suffix inside a style declaration', () => {
-        parser.parse(SLOT_STYLE);
-    });
+test('compiler/parser — parse (50 elements, one attribute slot each)', async ({ bench }) => {
+    await bench.compare(
+        bench('slot owns the whole value', () => {
+            parser.parse(SLOT);
+        }),
+        bench('prefixed class token', () => {
+            parser.parse(SLOT_PREFIXED);
+        }),
+        bench('prefix and suffix around a property value', () => {
+            parser.parse(SLOT_SUFFIXED);
+        }),
+        bench('prefix and suffix inside a style declaration', () => {
+            parser.parse(SLOT_STYLE);
+        })
+    );
 });

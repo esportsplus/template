@@ -1,7 +1,7 @@
 // Evaluated first so the raf/microtask stubs land before src modules capture the schedulers
 import { flush } from '../krausest/setup';
 import { read, signal, write, Signal } from '@esportsplus/reactivity';
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import { setProperty } from '../../src/attributes';
 import { Element } from '../../src/types';
 
@@ -42,28 +42,29 @@ for (let i = 0; i < NODES; i++) {
 flush();
 
 
-describe('attributes — apply drain', () => {
-    bench('dense expando drain (1000 elements x 3 props)', () => {
-        tick++;
+test('attributes — apply drain', async ({ bench }) => {
+    await bench.compare(
+        bench('dense expando drain (1000 elements x 3 props)', () => {
+            tick++;
 
-        for (let i = 0; i < NODES; i++) {
-            let set = expando[i];
+            for (let i = 0; i < NODES; i++) {
+                let set = expando[i];
 
-            for (let j = 0, n = set.length; j < n; j++) {
-                write(set[j], tick);
+                for (let j = 0, n = set.length; j < n; j++) {
+                    write(set[j], tick);
+                }
             }
-        }
 
-        flush();
-    });
+            flush();
+        }),
+        bench('dense data-attribute drain (1000 elements x data-id)', () => {
+            tick++;
 
-    bench('dense data-attribute drain (1000 elements x data-id)', () => {
-        tick++;
+            for (let i = 0; i < NODES; i++) {
+                write(data[i], tick);
+            }
 
-        for (let i = 0; i < NODES; i++) {
-            write(data[i], tick);
-        }
-
-        flush();
-    });
+            flush();
+        })
+    );
 });

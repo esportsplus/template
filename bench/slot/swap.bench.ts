@@ -1,7 +1,7 @@
 // Evaluated first so the raf/microtask stubs land before src modules capture the schedulers
 import { flush } from '../krausest/setup';
 import { reactive, read, signal, ReactiveArray, Signal } from '@esportsplus/reactivity';
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import { ANCHOR_SOLE } from '../../src/constants';
 import { ArraySlot } from '../../src/slot/array';
 import { EffectSlot } from '../../src/slot/effect';
@@ -64,21 +64,22 @@ rows.push(...build(SIZE));
 flush();
 
 
-describe('slot/array — keyed set', () => {
-    bench('set same item at index 0 (no-op set)', () => {
-        reset();
-        keyed.$set(0, rows[0]);
-        flush();
-    });
+test('slot/array — keyed set', async ({ bench }) => {
+    await bench.compare(
+        bench('set same item at index 0 (no-op set)', () => {
+            reset();
+            keyed.$set(0, rows[0]);
+            flush();
+        }),
+        bench('swap rows 1 and 998 (krausest swap)', () => {
+            reset();
 
-    bench('swap rows 1 and 998 (krausest swap)', () => {
-        reset();
+            let a = rows[1],
+                b = rows[998];
 
-        let a = rows[1],
-            b = rows[998];
-
-        keyed.$set(1, b);
-        keyed.$set(998, a);
-        flush();
-    });
+            keyed.$set(1, b);
+            keyed.$set(998, a);
+            flush();
+        })
+    );
 });

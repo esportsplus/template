@@ -1,11 +1,13 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
+import { built, external } from './bench/built';
 
 
 export default defineConfig({
+    plugins: [built(import.meta.dirname)],
     resolve: {
         alias: {
-            '~': path.resolve(__dirname, 'src')
+            '~': path.resolve(import.meta.dirname, 'src')
         }
     },
     test: {
@@ -13,6 +15,11 @@ export default defineConfig({
             include: ['bench/**/*.bench.ts']
         },
         environment: 'jsdom',
-        globals: true
+        globals: true,
+        // The default reporter omits benchmark tables when stdout is not a TTY
+        reporters: ['verbose'],
+        server: {
+            deps: { external }
+        }
     }
 });

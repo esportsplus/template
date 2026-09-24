@@ -39,16 +39,18 @@ let id = 1,
     selected = signal(0);
 
 
+// Not named `rows`: the reactivity compiler tracks reactive arrays by name file-wide, so a
+// shadowing local would have its index writes rewritten to `$set`
 function build(n: number): Row[] {
-    let rows: Row[] = new Array(n);
+    let items: Row[] = new Array(n);
 
     for (let i = 0; i < n; i++) {
         let base = `${ADJECTIVES[random(ADJECTIVES.length)]} ${COLOURS[random(COLOURS.length)]} ${NOUNS[random(NOUNS.length)]}`;
 
-        rows[i] = { base, id: id++, label: signal(base) };
+        items[i] = { base, id: id++, label: signal(base) };
     }
 
-    return rows;
+    return items;
 }
 
 // Deterministic LCG so both checkouts build identical data

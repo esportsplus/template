@@ -1,7 +1,7 @@
 // Evaluated first so the raf/microtask stubs land before src modules capture the schedulers
 import { flush } from '../krausest/setup';
 import { read, signal, write, Signal } from '@esportsplus/reactivity';
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import { setProperty } from '../../src/attributes';
 import { ANCHOR_SOLE } from '../../src/constants';
 import { add, remove } from '../../src/event/ontick';
@@ -47,27 +47,28 @@ function ticks(n: number) {
 }
 
 
-describe('scheduling — real drain (attributes + effect slots + ontick)', () => {
-    bench('frame drain — dense (500 props + 500 slots + 100 ticks)', () => {
-        counter++;
+test('scheduling — real drain (attributes + effect slots + ontick)', async ({ bench }) => {
+    await bench.compare(
+        bench('frame drain — dense (500 props + 500 slots + 100 ticks)', () => {
+            counter++;
 
-        for (let i = 0; i < NODES; i++) {
-            write(props[i], counter);
-            write(texts[i], counter);
-        }
+            for (let i = 0; i < NODES; i++) {
+                write(props[i], counter);
+                write(texts[i], counter);
+            }
 
-        ticks(TICKS);
-        flush();
-    });
+            ticks(TICKS);
+            flush();
+        }),
+        bench('frame drain — sparse (1% dirty)', () => {
+            counter++;
 
-    bench('frame drain — sparse (1% dirty)', () => {
-        counter++;
+            for (let i = 0; i < NODES; i += 100) {
+                write(props[i], counter);
+                write(texts[i], counter);
+            }
 
-        for (let i = 0; i < NODES; i += 100) {
-            write(props[i], counter);
-            write(texts[i], counter);
-        }
-
-        flush();
-    });
+            flush();
+        })
+    );
 });
