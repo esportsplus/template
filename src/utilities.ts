@@ -1,3 +1,4 @@
+import type { Reactive } from '@esportsplus/reactivity';
 import { SLOT_HTML } from './constants';
 
 
@@ -47,6 +48,11 @@ const template = (html: string): (() => DocumentFragment | Text) => {
     };
 };
 
+// A reactive array seen as a plain one. Slots follow their array through its events, so they read
+// it untracked: through the reactive type `.length` compiles to a tracked read, which would
+// subscribe whatever effect is rendering the slot to the array's length.
+const untracked = <T>(array: Reactive<T[]>): T[] => array;
+
 const text = (value: string) => {
     let element = txt.cloneNode() as Text;
 
@@ -58,4 +64,4 @@ const text = (value: string) => {
 };
 
 
-export { clone, EMPTY_FRAGMENT, fragment, marker, raf, template, text };
+export { clone, EMPTY_FRAGMENT, fragment, marker, raf, template, text, untracked };

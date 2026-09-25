@@ -4,7 +4,7 @@ import { ArraySlot } from '../slot/array';
 import { ondisconnect } from '../slot/cleanup';
 import { subscribeArray } from '../slot/subscriptions';
 import { Element } from '../types';
-import { clone, EMPTY_FRAGMENT, marker as MARKER, raf } from '../utilities';
+import { clone, EMPTY_FRAGMENT, marker as MARKER, raf, untracked } from '../utilities';
 import { create, index, insert, offset, remove, reorder, set, size } from './cache';
 import type { Cache } from './cache';
 import { INDEX, observe, SIZE, SLOT, unobserve } from './measure';
@@ -79,8 +79,8 @@ class VirtualSlot<T> {
     constructor(array: Reactive<T[]>, template: (value: T) => DocumentFragment | Text, options: VirtualOptions = {}) {
         this.anchored = options.anchor === 'end';
         this.array = array;
-        this.cache = create(array.length, 200);
-        this.lengthSignal = signal(array.length);
+        this.cache = create(untracked(array).length, 200);
+        this.lengthSignal = signal(untracked(array).length);
         this.rangeSignal = signal<[number, number]>([0, 0]);
         this.windowed = reactive([] as T[]);
 
@@ -116,15 +116,15 @@ class VirtualSlot<T> {
                 this.refresh();
             }),
             subscribeArray(array, 'concat', ({ items }) => {
-                this.inserted(array.length - items.length, items.length);
+                this.inserted(untracked(array).length - items.length, items.length);
                 this.refresh();
             }),
             subscribeArray(array, 'pop', () => {
-                this.removed(array.length, 1);
+                this.removed(untracked(array).length, 1);
                 this.refresh();
             }),
             subscribeArray(array, 'push', ({ items }) => {
-                this.inserted(array.length - items.length, items.length);
+                this.inserted(untracked(array).length - items.length, items.length);
                 this.refresh();
             }),
             subscribeArray(array, 'reverse', () => {
@@ -220,7 +220,7 @@ class VirtualSlot<T> {
             oldEnd = this.end;
 
         if (this.reset || end <= oldStart || start >= oldEnd) {
-            this.windowed.splice(0, this.windowed.length, ...this.array.slice(start, end));
+            this.windowed.splice(0, untracked(this.windowed).length, ...this.array.slice(start, end));
         }
         else {
             if (start < oldStart) {
@@ -234,7 +234,7 @@ class VirtualSlot<T> {
                 this.windowed.push(...this.array.slice(oldEnd, end));
             }
             else if (end < oldEnd) {
-                this.windowed.splice(this.windowed.length - (oldEnd - end), oldEnd - end);
+                this.windowed.splice(untracked(this.windowed).length - (oldEnd - end), oldEnd - end);
             }
         }
 
@@ -446,7 +446,7 @@ class VirtualSlot<T> {
     private patch(start: number) {
         let current = this.windowed,
             desired = this.array,
-            n = current.length,
+            n = untracked(current).length,
             i = 0;
 
         while (i < n && current[i] === desired[start + i]) {
@@ -519,7 +519,7 @@ class VirtualSlot<T> {
     }
 
     private refresh() {
-        write(this.lengthSignal, this.array.length);
+        write(this.lengthSignal, untracked(this.array).length);
         this.schedule();
     }
 

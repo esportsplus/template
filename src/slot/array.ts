@@ -1,7 +1,7 @@
 import { read, root, signal, write, Reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
-import { clone, EMPTY_FRAGMENT, marker, raf } from '../utilities';
+import { clone, EMPTY_FRAGMENT, marker, raf, untracked } from '../utilities';
 import { dispose as disposeGroups, ondisconnect, remove } from './cleanup';
 import { subscribeArray } from './subscriptions';
 
@@ -85,7 +85,7 @@ class ArraySlot<T> {
         let fragment = this.fragment = clone(EMPTY_FRAGMENT);
 
         this.marker = marker.cloneNode() as unknown as Element;
-        this.signal = signal(array.length);
+        this.signal = signal(untracked(array).length);
         this.soleChild = soleChild;
         this.template = function (data) {
             let dispose: VoidFunction,
@@ -107,9 +107,9 @@ class ArraySlot<T> {
         fragment.append(this.marker);
         ondisconnect(this.marker as unknown as Element, () => this.dispose());
 
-        if (array.length) {
+        if (untracked(array).length) {
             root(() => {
-                let n = array.length,
+                let n = untracked(array).length,
                     nodes = new Array<SlotGroup>(n);
 
                 for (let i = 0; i < n; i++) {
@@ -324,7 +324,7 @@ class ArraySlot<T> {
         if (n !== order.length) {
             remove(nodes.splice(0));
 
-            let m = this.array.length,
+            let m = untracked(this.array).length,
                 rebuilt = new Array<SlotGroup>(m);
 
             for (let i = 0; i < m; i++) {
