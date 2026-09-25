@@ -20,6 +20,8 @@ type CodegenContext = {
     prefoldCache?: WeakMap<ts.Node, Prefolded>;
     selectorFired?: boolean;
     sourceFile: ts.SourceFile;
+    // Expressions denoting `html` (see Artifacts.sites)
+    sites: Set<ts.Node>;
     staticValues?: Map<ts.Expression, string>;
     templates: Map<string, string>;
 };
@@ -44,7 +46,7 @@ const REGEX_UNQUOTED_VALUE_CLOSE = /^(?:[\s>]|\/>)/;
 
 
 function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: (Range & { text: string })[], inObserver: boolean): void {
-    if (isHtmlTemplate(node)) {
+    if (isHtmlTemplate(node, ctx.sites)) {
         replacements.push({
             end: node.end,
             start: node.getStart(ctx.sourceFile),
@@ -54,7 +56,7 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
         return;
     }
 
-    let entrypoint = entrypointOf(node);
+    let entrypoint = entrypointOf(node, ctx.sites);
 
     if (entrypoint) {
         // Slots nested in arbitrary expressions have no provable parent element,
@@ -174,7 +176,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, expr: ts.Expre
     let flag = mode ? ', ' + (mode === 'sole' ? ANCHOR_SOLE : ANCHOR_LAST) : '',
         node: string;
 
-    switch (expr ? analyze(expr, ctx.checker) : TYPES.Unknown) {
+    switch (expr ? analyze(expr, ctx.sites, ctx.checker) : TYPES.Unknown) {
         case TYPES.ArraySlot:
         case TYPES.VirtualSlot: {
             let call = expr!;
@@ -183,7 +185,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, expr: ts.Expre
                 call = call.expression;
             }
 
-            let entrypoint = entrypointOf(call);
+            let entrypoint = entrypointOf(call, ctx.sites);
 
             // A sole-child ArraySlot owns the parent's entire content, so the runtime may bulk-clear
             // via parent.textContent; a last-child slot has preceding siblings, so the flag stays off.
@@ -501,11 +503,12 @@ function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], e
 // Top-level reactive calls lower first, then root templates. A call nested in a template or
 // in an already-lowered call, and a template nested in either, is emitted by its enclosing
 // rewrite — emitting it separately would produce overlapping replacements.
-const generateCode = ({ calls, constants, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker): CodegenResult => {
+const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker): CodegenResult => {
     let ctx: CodegenContext = {
             checker: checker && cached(checker),
             constants,
             parseCache: new Map(),
+            sites,
             sourceFile,
             templates: new Map()
         },
@@ -557,11 +560,11 @@ const generateCode = ({ calls, constants, templates }: Artifacts, sourceFile: ts
 };
 
 const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => {
-    if (isHtmlTemplate(expr)) {
+    if (isHtmlTemplate(expr, ctx.sites)) {
         return generateNestedTemplateCode(ctx, expr);
     }
 
-    let entrypoint = entrypointOf(expr);
+    let entrypoint = entrypointOf(expr, ctx.sites);
 
     if (entrypoint) {
         return generateSlotCode(ctx, expr as ts.CallExpression, entrypoint, false);

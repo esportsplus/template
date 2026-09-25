@@ -65,7 +65,7 @@ function unwrap(expr: ts.Expression): ts.Expression {
 }
 
 
-const analyze = (expr: ts.Expression, checker?: ts.Checker): TYPES => {
+const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker): TYPES => {
     while (ts.isParenthesizedExpression(expr)) {
         expr = expr.expression;
     }
@@ -75,13 +75,13 @@ const analyze = (expr: ts.Expression, checker?: ts.Checker): TYPES => {
     }
 
     // html.reactive() and html.virtual() calls are inlined by the compiler into slot constructions
-    let entrypoint = entrypointOf(expr);
+    let entrypoint = entrypointOf(expr, sites);
 
     if (entrypoint) {
         return entrypoint === ENTRYPOINT_REACTIVITY ? TYPES.ArraySlot : TYPES.VirtualSlot;
     }
 
-    if (isHtmlTemplate(expr)) {
+    if (isHtmlTemplate(expr, sites)) {
         return TYPES.DocumentFragment;
     }
 
@@ -102,8 +102,8 @@ const analyze = (expr: ts.Expression, checker?: ts.Checker): TYPES => {
     }
 
     if (ts.isConditionalExpression(expr)) {
-        let whenFalse = analyze(expr.whenFalse, checker),
-            whenTrue = analyze(expr.whenTrue, checker);
+        let whenFalse = analyze(expr.whenFalse, sites, checker),
+            whenTrue = analyze(expr.whenTrue, sites, checker);
 
         if (whenTrue === whenFalse) {
             return whenTrue;

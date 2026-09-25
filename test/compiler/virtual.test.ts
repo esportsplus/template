@@ -1,9 +1,9 @@
-import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { languageService } from '@esportsplus/typescript/compiler';
 import type { TransformContext } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, NAMESPACE } from '../../src/compiler/constants';
+import { ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, NAMESPACE } from '../../src/compiler/constants';
 import { generateCode } from '../../src/compiler/codegen';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 import transform from '../../src/compiler';
@@ -109,25 +109,30 @@ describe('compiler/virtual', () => {
     });
 
     describe('html.virtual pattern detection', () => {
-        it('has a transform pattern', () => {
-            expect(transform.patterns).toContain(`${ENTRYPOINT}.${ENTRYPOINT_VIRTUAL}`);
-        });
-
+        // An isolated project: parallel workers never see this module in their program
         it('vite plugin requests a full reload for a source containing only html.virtual', async () => {
-            let root = process.cwd().replace(/\\/g, '/'),
-                file = join(root, 'src', '__virtual_only.ts'),
+            let root = mkdtempSync(join(process.cwd(), '.fixture-virtual-')).replace(/\\/g, '/'),
+                file = root + '/virtual-only.ts',
                 send = vi.fn();
 
-            writeFileSync(file, [
-                `import { html } from '@esportsplus/template';`,
-                `export const value = 1;`,
-                `let el = html.virtual(items, row);`
-            ].join('\n'));
+            let source = [
+                    `import { html } from '@esportsplus/template';`,
+                    `export const value = 1;`,
+                    `declare let items: any, row: any;`,
+                    `let el = html.virtual(items, row);`
+                ].join('\n');
+
+            writeFileSync(file, source);
+            writeFileSync(root + '/tsconfig.json', JSON.stringify({
+                compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, target: 'esnext', types: [] },
+                files: ['./virtual-only.ts']
+            }));
 
             try {
                 let instance = vite({ root });
 
                 instance.configResolved({ command: 'serve', root, server: {} });
+                instance.transform(source, file);
 
                 let result = await instance.handleHotUpdate({
                     file,
@@ -140,7 +145,7 @@ describe('compiler/virtual', () => {
                 expect(send).toHaveBeenCalledWith({ type: 'full-reload' });
             }
             finally {
-                unlinkSync(file);
+                rmSync(root, { force: true, recursive: true });
             }
         });
     });

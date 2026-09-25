@@ -4,7 +4,7 @@ import reactivity from '@esportsplus/reactivity/compiler';
 import template from '..';
 import { apply, plugin as hmr } from '../hmr';
 import type { HmrState } from '../hmr';
-import { PACKAGE_NAME } from '../constants';
+import { PACKAGE_NAME, UNCOMPILED } from '../constants';
 
 
 type VitePlugin = {
@@ -19,8 +19,6 @@ type VitePlugin = {
 
 const FILE_REGEX = /\.[tj]sx?$/;
 
-const PATTERNS = [...(reactivity.patterns ?? []), ...template.patterns];
-
 const REGEX_PATH_SEPARATOR = /\\/g;
 
 const RELOAD_WINDOW = 100;
@@ -29,10 +27,11 @@ const RELOAD_WINDOW = 100;
 export default ({ root }: { root?: string } = {}) => {
     let isDev = false,
         lastReload = 0,
-        state: HmrState = { id: null, plan: null },
+        state: HmrState = { id: null, plan: null, templates: new Set() },
         vitePlugin = plugin.vite({
             name: PACKAGE_NAME,
-            plugins: [hmr(state, PATTERNS), reactivity, template]
+            plugins: [hmr(state), reactivity, template],
+            uncompiled: [UNCOMPILED]
         })({ root });
 
     const reload = (server: any) => {
@@ -52,37 +51,31 @@ export default ({ root }: { root?: string } = {}) => {
             vitePlugin.configResolved(config);
             isDev = config?.command === 'serve' && config?.server?.hmr !== false;
         },
-        async handleHotUpdate(ctx: any) {
-            let { file, modules, read, server } = ctx;
+        handleHotUpdate(ctx: any) {
+            let { file, modules, server } = ctx,
+                // Modules compiled against the changed file are updated with it
+                result = vitePlugin.handleHotUpdate(ctx);
 
             // CSS/SCSS and non-script assets keep Vite's default HMR path.
             if (!FILE_REGEX.test(file) || file.includes('node_modules')) {
-                return;
+                return result;
             }
 
             // A supported component self-accepts; let Vite apply the update normally.
             for (let i = 0, n = modules.length; i < n; i++) {
                 if (modules[i].isSelfAccepting) {
-                    return;
+                    return result;
                 }
             }
 
             // Unsupported/unsafe template modules must not be re-imported blindly: request one
             // full reload and stop Vite from walking the import chain.
-            try {
-                let patterns = template.patterns,
-                    source: string = await read();
+            if (state.templates.has(file.replace(REGEX_PATH_SEPARATOR, '/'))) {
+                reload(server);
+                return [];
+            }
 
-                for (let i = 0, n = patterns.length; i < n; i++) {
-                    if (source.includes(patterns[i])) {
-                        reload(server);
-                        return [];
-                    }
-                }
-            }
-            catch {
-                return;
-            }
+            return result;
         },
         transform(code: string, id: string, options?: { ssr?: boolean }) {
             // The pipeline runs synchronously, so this handshake cannot interleave across modules

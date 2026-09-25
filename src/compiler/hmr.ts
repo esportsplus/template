@@ -6,11 +6,13 @@ import { PACKAGE_NAME } from './constants';
 import { edit } from './sourcemap';
 import type { Edit } from './sourcemap';
 import { isFunctionType } from './ts-analyzer';
+import { findTemplateArtifacts } from './ts-parser';
 
 
 // Per-plugin-instance handshake with the bundler integration: it sets `id` (null disables HMR,
 // e.g. for SSR or builds) before each transform, and applies the resulting `plan` after it
-type HmrState = { id: string | null; plan: Site[] | null };
+// `templates` holds every module whose last dev transform found html sites
+type HmrState = { id: string | null; plan: Site[] | null; templates: Set<string> };
 
 // One entry per export site, in source order; `apply` re-finds the sites in the lowered code
 type Site =
@@ -366,11 +368,25 @@ const apply = (code: string, map: SourceMapV3, id: string, plan: Site[]): { code
 };
 
 // Runs first in the compiler pipeline and never edits code there: an edit would force the
-// coordinator to re-sync the project program before the next plugin. It only records a plan.
-const plugin = (state: HmrState, patterns: string[]): Plugin => ({
-    patterns,
+// coordinator to re-sync the project program before the next plugin. It only records a plan, and
+// only for modules that use html (under any name), which are the ones HMR wraps.
+const plugin = (state: HmrState): Plugin => ({
     transform: (ctx) => {
-        state.plan = state.id === null ? null : analyze(ctx);
+        if (state.id === null) {
+            state.plan = null;
+
+            return {};
+        }
+
+        if (findTemplateArtifacts(ctx.sourceFile, ctx.checker, ctx.program).sites.size === 0) {
+            state.templates.delete(state.id);
+            state.plan = null;
+
+            return {};
+        }
+
+        state.templates.add(state.id);
+        state.plan = analyze(ctx);
 
         return {};
     }

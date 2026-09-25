@@ -12,9 +12,9 @@ function createSourceFile(code: string): ts.SourceFile {
 describe('compiler/ts-parser', () => {
     describe('findTemplateArtifacts - import identity (checker)', () => {
         function artifacts(code: string) {
-            let { checker, sourceFile } = languageService.scratch(process.cwd() + '/identity.ts', code);
+            let { checker, program, sourceFile } = languageService.scratch(process.cwd() + '/identity.ts', code);
 
-            return findTemplateArtifacts(sourceFile, checker);
+            return findTemplateArtifacts(sourceFile, checker, program);
         }
 
         it('accepts every use of an unshadowed package import', () => {
@@ -57,6 +57,104 @@ describe('compiler/ts-parser', () => {
             ].join('\n'));
 
             expect(templates.length).toBe(0);
+        });
+
+        it('accepts templates and calls through an aliased import', () => {
+            let { calls, templates } = artifacts([
+                `import { html as h } from '@esportsplus/template';`,
+                `declare let items: string[];`,
+                `let a = h\`<a></a>\`;`,
+                `let c = h.reactive(items as any, (item: string) => h\`<i>\${item}</i>\`);`
+            ].join('\n'));
+
+            expect(templates.length).toBe(2);
+            expect(calls.map(call => call.entrypoint)).toEqual(['reactive']);
+        });
+
+        it('accepts templates and calls through a namespace import', () => {
+            let { calls, templates } = artifacts([
+                `import * as t from '@esportsplus/template';`,
+                `declare let items: string[];`,
+                `let a = t.html\`<a></a>\`;`,
+                `let c = t.html.virtual(items as any, (item: string) => t.html\`<i>\${item}</i>\`);`
+            ].join('\n'));
+
+            expect(templates.length).toBe(2);
+            expect(calls.map(call => call.entrypoint)).toEqual(['virtual']);
+        });
+
+        it('rejects a parameter that shadows an alias', () => {
+            let { templates } = artifacts([
+                `import { html as h } from '@esportsplus/template';`,
+                `let a = h\`<a></a>\`;`,
+                `function other(h: (strings: TemplateStringsArray) => string) { return h\`<b></b>\`; }`
+            ].join('\n'));
+
+            expect(templates.map(t => t.literals[0])).toEqual(['<a></a>']);
+        });
+
+        it('ignores a different export imported under an alias', () => {
+            let { templates } = artifacts([
+                `import { svg as h } from '@esportsplus/template';`,
+                `let a = h\`<a></a>\`;`
+            ].join('\n'));
+
+            expect(templates.length).toBe(0);
+        });
+
+        it('ignores a different export imported under the name html', () => {
+            let { templates } = artifacts([
+                `import { svg as html } from '@esportsplus/template';`,
+                `let a = html\`<a></a>\`;`
+            ].join('\n'));
+
+            expect(templates.length).toBe(0);
+        });
+
+        it('treats a type position as neither a site nor an escape', () => {
+            let { escapes, templates } = artifacts([
+                `import { html } from '@esportsplus/template';`,
+                `type Tag = typeof html;`,
+                `let a = html\`<a></a>\`;`
+            ].join('\n'));
+
+            expect(templates.length).toBe(1);
+            expect(escapes).toEqual([]);
+        });
+
+        it('follows a const alias and a destructured namespace member', () => {
+            let { escapes, templates } = artifacts([
+                `import { html } from '@esportsplus/template';`,
+                `import * as t from '@esportsplus/template';`,
+                `const h = html;`,
+                `const { html: d } = t;`,
+                `let a = h\`<a></a>\`;`,
+                `let b = d\`<b></b>\`;`
+            ].join('\n'));
+
+            expect(templates.map(t => t.literals[0]).sort()).toEqual(['<a></a>', '<b></b>']);
+            expect(escapes).toEqual([]);
+        });
+
+        it('reports every use that cannot be compiled', () => {
+            let { escapes } = artifacts([
+                `import { html } from '@esportsplus/template';`,
+                `declare function take(value: unknown): void;`,
+                `let h = html;`,
+                `take(html);`,
+                `let o = { html };`,
+                `let r = html.reactive;`,
+                `const { virtual } = html;`
+            ].join('\n'));
+
+            // The shorthand `{ html }` reports its property, whose text is `html`
+            expect(escapes.map(node => node.parent!.getText()).sort()).toEqual([
+                'h = html',
+                'html',
+                'html.reactive',
+                'take(html)',
+                '{ virtual } = html'
+            ]);
         });
     });
 

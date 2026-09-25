@@ -1,5 +1,5 @@
 import { ts } from '@esportsplus/typescript';
-import { imports } from '@esportsplus/typescript/compiler';
+import { references } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, isEntrypoint, PACKAGE_NAME } from './constants';
 import type { Entrypoint } from './constants';
 
@@ -9,12 +9,15 @@ type Artifacts = {
     // Names bound by a `const` declaration anywhere in the file: only these can fold, so any
     // other identifier is rejected without a checker round-trip
     constants: Set<string>;
+    // Other files the sites resolve through (barrels, aliases): a change there can change them
+    dependencies: string[];
+    // Uses of `html` the compiler cannot lower: anything but a template tag, an
+    // html.reactive()/html.virtual() callee, or a const alias of it
+    escapes: ts.Node[];
+    // Expressions denoting this package's `html`: `html`, an alias, or `ns.html`
+    sites: Set<ts.Node>;
     templates: TemplateInfo[];
 };
-
-// How the file binds the `html` identifier: `imported` by a value import from this package,
-// `local` by any other declaration that could shadow it
-type Bindings = { imported: boolean; local: boolean };
 
 type ReactiveCallInfo = {
     end: number;
@@ -33,62 +36,52 @@ type TemplateInfo = {
 };
 
 
-// Every declaration kind whose `name` introduces a value binding in some scope
-const BINDING_KINDS = new Set<ts.SyntaxKind>([
-    ts.SyntaxKind.BindingElement,
-    ts.SyntaxKind.ClassDeclaration,
-    ts.SyntaxKind.ClassExpression,
-    ts.SyntaxKind.EnumDeclaration,
-    ts.SyntaxKind.FunctionDeclaration,
-    ts.SyntaxKind.FunctionExpression,
-    ts.SyntaxKind.ImportClause,
-    ts.SyntaxKind.ImportEqualsDeclaration,
-    ts.SyntaxKind.ImportSpecifier,
-    ts.SyntaxKind.ModuleDeclaration,
-    ts.SyntaxKind.NamespaceImport,
-    ts.SyntaxKind.Parameter,
-    ts.SyntaxKind.VariableDeclaration
-]);
-
-
-function bind(node: ts.Node, bindings: Bindings): void {
-    if (!BINDING_KINDS.has(node.kind)) {
-        return;
-    }
-
-    let name = (node as { name?: ts.Node }).name;
-
-    if (!name || !ts.isIdentifier(name) || name.text !== ENTRYPOINT) {
-        return;
-    }
-
-    if (ts.isImportSpecifier(node) && isPackageImport(node)) {
-        bindings.imported = true;
-    }
-    else {
-        bindings.local = true;
-    }
-}
-
 // Deepest first so a nested template lowers before its parent consumes it, then document
 // order for position-deterministic emission
 function byDepthThenStart(a: TemplateInfo, b: TemplateInfo): number {
     return a.depth !== b.depth ? b.depth - a.depth : a.start - b.start;
 }
 
-// `import { html } from '<package>'` as a value import: specifier.parent is NamedImports,
-// then ImportClause, then ImportDeclaration
-function isPackageImport(specifier: ts.ImportSpecifier): boolean {
-    let clause = specifier.parent.parent,
-        declaration = clause.parent;
+// A binding that can never be reassigned, so what it was initialized with is what every use sees
+function isConst(declaration: ts.Node): boolean {
+    let node: ts.Node | undefined = declaration;
 
-    return (specifier.propertyName ?? specifier.name).text === ENTRYPOINT &&
-        !specifier.isTypeOnly &&
-        ts.isImportClause(clause) &&
-        clause.phaseModifier !== ts.SyntaxKind.TypeKeyword &&
-        ts.isImportDeclaration(declaration) &&
-        ts.isStringLiteral(declaration.moduleSpecifier) &&
-        declaration.moduleSpecifier.text === PACKAGE_NAME;
+    while (node && (ts.isBindingElement(node) || ts.isObjectBindingPattern(node) || ts.isArrayBindingPattern(node))) {
+        node = node.parent;
+    }
+
+    return node !== undefined &&
+        ts.isVariableDeclaration(node) &&
+        ts.isVariableDeclarationList(node.parent) &&
+        (node.parent.flags & ts.NodeFlags.Const) !== 0;
+}
+
+// A site the compiler lowers, or a const alias whose own uses are sites in turn
+function isLowered(site: ts.Node): boolean {
+    let parent = site.parent;
+
+    if (!parent) {
+        return false;
+    }
+
+    if (ts.isTaggedTemplateExpression(parent)) {
+        return parent.tag === site;
+    }
+
+    if (ts.isPropertyAccessExpression(parent)) {
+        return parent.expression === site &&
+            isEntrypoint(parent.name.text) &&
+            parent.parent !== undefined &&
+            ts.isCallExpression(parent.parent) &&
+            parent.parent.expression === parent;
+    }
+
+    if (ts.isVariableDeclaration(parent)) {
+        // `const h = html` only: `const { reactive } = html` would pull a compile-only member out
+        return parent.initializer === site && ts.isIdentifier(parent.name) && isConst(parent);
+    }
+
+    return ts.isBindingElement(parent) && parent.propertyName === site && isConst(parent);
 }
 
 function nextDepth(node: ts.Node, depth: number): number {
@@ -97,13 +90,22 @@ function nextDepth(node: ts.Node, depth: number): number {
         : depth;
 }
 
-function visit(node: ts.Node, depth: number, artifacts: Artifacts, bindings: Bindings): void {
-    let entrypoint = entrypointOf(node);
+// Transform harness (no checker): every identifier named `html` is taken at its word
+function syntactic(node: ts.Node, sites: Set<ts.Node>): void {
+    if (ts.isIdentifier(node) && node.text === ENTRYPOINT) {
+        sites.add(node);
+    }
+
+    node.forEachChild(child => syntactic(child, sites));
+}
+
+function visit(node: ts.Node, depth: number, artifacts: Artifacts): void {
+    let entrypoint = entrypointOf(node, artifacts.sites);
 
     if (entrypoint) {
         artifacts.calls.push({ end: node.end, entrypoint, node: node as ts.CallExpression, start: node.getStart() });
     }
-    else if (isHtmlTemplate(node)) {
+    else if (isHtmlTemplate(node, artifacts.sites)) {
         let { expressions, literals } = extractTemplateParts(node.template);
 
         artifacts.templates.push({ depth, end: node.end, expressions, literals, node, start: node.getStart() });
@@ -117,22 +119,19 @@ function visit(node: ts.Node, depth: number, artifacts: Artifacts, bindings: Bin
         artifacts.constants.add(node.name.text);
     }
 
-    bind(node, bindings);
-
     let d = nextDepth(node, depth);
 
-    node.forEachChild(child => visit(child, d, artifacts, bindings));
+    node.forEachChild(child => visit(child, d, artifacts));
 }
 
 
-// Syntactic match for `html.reactive(...)` / `html.virtual(...)`; arity is validated where
-// the call is lowered so a malformed call fails the build instead of being skipped
-const entrypointOf = (node: ts.Node): Entrypoint | null => {
+// `html.reactive(...)` / `html.virtual(...)` through any site; arity is validated where the call is
+// lowered so a malformed call fails the build instead of being skipped
+const entrypointOf = (node: ts.Node, sites: Set<ts.Node>): Entrypoint | null => {
     if (
         ts.isCallExpression(node) &&
         ts.isPropertyAccessExpression(node.expression) &&
-        ts.isIdentifier(node.expression.expression) &&
-        node.expression.expression.text === ENTRYPOINT &&
+        sites.has(node.expression.expression) &&
         isEntrypoint(node.expression.name.text)
     ) {
         return node.expression.name.text;
@@ -162,31 +161,63 @@ const extractTemplateParts = (template: ts.TemplateLiteral): { expressions: ts.E
     return { expressions, literals };
 };
 
-// Without a checker every `html` match is accepted. With one, a file that imports `html` from
-// this package and declares nothing else by that name provably resolves every use to the
-// import; only otherwise does each match pay a symbol round-trip to confirm its origin.
-const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker): Artifacts => {
-    let artifacts: Artifacts = { calls: [], constants: new Set(), templates: [] },
-        bindings: Bindings = { imported: false, local: false };
+// With a checker, sites are found by resolving every value in the file to its declaration: `html`
+// reached through any import, barrel re-export, namespace or const alias is a site, and a
+// same-named local never is. Every site the compiler cannot lower is reported as an escape.
+const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): Artifacts => {
+    let artifacts: Artifacts = { calls: [], constants: new Set(), dependencies: [], escapes: [], sites: new Set(), templates: [] };
 
-    visit(sourceFile, 0, artifacts, bindings);
+    if (checker && program) {
+        let targets = new Set(references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT).map(references.key));
 
-    if (checker && (bindings.local || !bindings.imported)) {
-        artifacts.calls = artifacts.calls.filter(call =>
-            imports.includes(checker, (call.node.expression as ts.PropertyAccessExpression).expression, PACKAGE_NAME, ENTRYPOINT)
-        );
-        artifacts.templates = artifacts.templates.filter(template =>
-            imports.includes(checker, template.node.tag, PACKAGE_NAME, ENTRYPOINT)
-        );
+        if (targets.size > 0) {
+            let dependencies = new Set<string>(),
+                self = sourceFile.fileName.toLowerCase();
+
+            for (let [identifier, origin] of references.origins(checker, program, sourceFile)) {
+                if (!references.holds(checker, program, origin, targets)) {
+                    continue;
+                }
+
+                let parent = identifier.parent!;
+
+                // `ns.html` / `ns['html']` is the site, not its member name
+                artifacts.sites.add(
+                    (ts.isPropertyAccessExpression(parent) && parent.name === identifier) ||
+                    (ts.isElementAccessExpression(parent) && parent.argumentExpression === identifier)
+                        ? parent
+                        : identifier
+                );
+
+                for (let file of [...origin.through, origin.declaration.path]) {
+                    if (file.toLowerCase() !== self) {
+                        dependencies.add(file);
+                    }
+                }
+            }
+
+            artifacts.dependencies = [...dependencies];
+        }
+
+        for (let site of artifacts.sites) {
+            if (!isLowered(site)) {
+                artifacts.escapes.push(site);
+            }
+        }
     }
+    else {
+        syntactic(sourceFile, artifacts.sites);
+    }
+
+    visit(sourceFile, 0, artifacts);
 
     artifacts.templates.sort(byDepthThenStart);
 
     return artifacts;
 };
 
-const isHtmlTemplate = (node: ts.Node): node is ts.TaggedTemplateExpression => {
-    return ts.isTaggedTemplateExpression(node) && ts.isIdentifier(node.tag) && node.tag.text === ENTRYPOINT;
+const isHtmlTemplate = (node: ts.Node, sites: Set<ts.Node>): node is ts.TaggedTemplateExpression => {
+    return ts.isTaggedTemplateExpression(node) && sites.has(node.tag);
 };
 
 

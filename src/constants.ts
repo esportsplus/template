@@ -65,6 +65,10 @@ const STATE_WAITING = 2;
 
 const STORE = Symbol.for(`${PACKAGE_NAME}/store`);
 
+// Tail of every error the uncompiled html runtime throws. The build rejects any chunk containing
+// it: the runtime surviving tree-shaking means some module reached html without being compiled.
+const UNCOMPILED = 'must be compiled. Ensure vite-plugin is configured.';
+
 
 export {
     ANCHOR_LAST, ANCHOR_MARKER, ANCHOR_SOLE,
@@ -74,4 +78,5 @@ export {
     LIFECYCLE_EVENTS,
     PACKAGE_NAME,
     SLOT_HTML, STATE_HYDRATING, STATE_NONE, STATE_WAITING, STORE,
+    UNCOMPILED
 };

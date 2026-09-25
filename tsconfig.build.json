@@ -2,7 +2,8 @@
     "compilerOptions": {
         "plugins": [
             { "transform": "@esportsplus/reactivity/compiler/tsc" }
-        ]
+        ],
+        "removeComments": false
     },
     "extends": "@esportsplus/typescript/tsconfig.package.json"
 }

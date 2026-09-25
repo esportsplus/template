@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { languageService } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, NAMESPACE } from '../../src/compiler/constants';
+import { ENTRYPOINT, NAMESPACE } from '../../src/compiler/constants';
 
 import transform from '../../src/compiler';
 
@@ -17,20 +17,9 @@ function createContext(source: string) {
 
 describe('compiler/transform', () => {
     describe('patterns', () => {
-        it('has html` pattern', () => {
-            expect(transform.patterns).toContain(`${ENTRYPOINT}\``);
-        });
-
-        it('has html.reactive pattern', () => {
-            expect(transform.patterns).toContain(`${ENTRYPOINT}.${ENTRYPOINT_REACTIVITY}`);
-        });
-
-        it('has html.virtual pattern', () => {
-            expect(transform.patterns).toContain(`${ENTRYPOINT}.${ENTRYPOINT_VIRTUAL}`);
-        });
-
-        it('has exactly 3 patterns', () => {
-            expect(transform.patterns).toHaveLength(3);
+        // A file can reach html under any name, so no text prefilter may skip it
+        it('has no text patterns', () => {
+            expect('patterns' in transform).toBe(false);
         });
     });
 

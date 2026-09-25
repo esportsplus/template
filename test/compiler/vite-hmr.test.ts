@@ -1,4 +1,4 @@
-import { readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import vite from '../../src/compiler/plugins/vite';
@@ -167,15 +167,26 @@ describe('compiler/vite-hmr', () => {
             expect(result).toBeUndefined();
         });
 
+        // An isolated project: parallel workers never see this module in their program
         it('requests one full reload for unsupported template modules', async () => {
-            let file = join(root, 'src', '__hmr_hot.ts'),
+            let fixture = mkdtempSync(join(process.cwd(), '.fixture-hmr-')).replace(/\\/g, '/'),
+                file = fixture + '/hot.ts',
                 send = vi.fn();
 
-            writeFileSync(file, "import { html } from '@esportsplus/template';\nexport const value = 1;\nlet el = html`<div>hi</div>`;\n");
+            let source = "import { html } from '@esportsplus/template';\nexport const value = 1;\nlet el = html`<div>hi</div>`;\n";
+
+            writeFileSync(file, source);
+            writeFileSync(fixture + '/tsconfig.json', JSON.stringify({
+                compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, target: 'esnext', types: [] },
+                files: ['./hot.ts']
+            }));
 
             try {
-                let instance = plugin(root, { command: 'serve', server: {} }),
-                    result = await instance.handleHotUpdate({
+                let instance = plugin(fixture, { command: 'serve', server: {} });
+
+                instance.transform(source, file);
+
+                let result = await instance.handleHotUpdate({
                         file,
                         modules: [{ isSelfAccepting: false }],
                         read: () => readFileSync(file, 'utf8'),
@@ -187,7 +198,7 @@ describe('compiler/vite-hmr', () => {
                 expect(send).toHaveBeenCalledWith({ type: 'full-reload' });
             }
             finally {
-                unlinkSync(file);
+                rmSync(fixture, { force: true, recursive: true });
             }
         });
     });

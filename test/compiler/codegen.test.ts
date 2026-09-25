@@ -322,9 +322,10 @@ describe('compiler/codegen', () => {
         it('rewrites nested html template in expression', () => {
             let source = `let x = html\`<div>\${html\`<span>inner</span>\`}</div>\`;`,
                 sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-                templates = findTemplateArtifacts(sourceFile).templates;
+                { sites, templates } = findTemplateArtifacts(sourceFile);
 
             let ctx = {
+                sites,
                 sourceFile,
                 templates: new Map<string, string>()
             };
@@ -338,9 +339,10 @@ describe('compiler/codegen', () => {
         it('prints plain expression as-is', () => {
             let source = `let x = html\`<div>\${value}</div>\`;`,
                 sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-                templates = findTemplateArtifacts(sourceFile).templates;
+                { sites, templates } = findTemplateArtifacts(sourceFile);
 
             let ctx = {
+                sites,
                 sourceFile,
                 templates: new Map<string, string>()
             };

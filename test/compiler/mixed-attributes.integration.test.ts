@@ -134,4 +134,25 @@ describe('mixed attributes through compiler plugins', () => {
         expect(output).toContain('class="checkbox checkbox--radio ');
         expect(output).not.toContain('html`');
     });
+
+    it('compiles templates written through an alias and a namespace import', () => {
+        let fixture = mkdtempSync(join(root, '.fixture-mixed-'));
+        fixtures.push(fixture);
+        let path = join(fixture, 'alias.ts'),
+            source = [
+                "import { html as h } from '@esportsplus/template';",
+                "import * as t from '@esportsplus/template';",
+                'export default (label: string) => h`<div class="a">${label}${t.html`<span>x</span>`}</div>`;'
+            ].join('\n');
+        writeFileSync(path, source);
+        writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', target: 'esnext', strict: true, types: [] }, files: ['./alias.ts'] }));
+        let plugin = vite({ root: fixture });
+        plugin.configResolved({ root: fixture, command: 'build' });
+        let output = plugin.transform(source, path.replace(/\\/g, '/'))!.code;
+        expect(output).not.toContain('h`');
+        expect(output).not.toContain('html`');
+        document.body.append(execute(output, { '@esportsplus/reactivity': reactivity, '@esportsplus/template': runtime })('hi'));
+        expect(document.body.textContent).toBe('hix');
+        expect(document.body.querySelector('div.a > span')?.textContent).toBe('x');
+    });
 });
