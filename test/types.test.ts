@@ -103,4 +103,60 @@ describe('types', () => {
             expect(preset({ options: [], selected: 'c' })).toBe('c');
         });
     });
+
+    describe('component properties', () => {
+        const INPUT = Symbol.for('test.component.input');
+
+        type A = Attributes & { [INPUT]?: Attributes, selected?: string };
+
+        let factory = component(
+                function(this: { attributes?: A } | void, attributes: A) {
+                    return (this?.attributes?.selected ?? '') + (attributes.selected ?? '');
+                },
+                { input: INPUT, size: 'md' }
+            );
+
+        it('assigns properties to the factory', () => {
+            expectTypeOf(factory.input).toEqualTypeOf<typeof INPUT>();
+            expectTypeOf(factory.size).toEqualTypeOf<'md'>();
+            expect(factory.input).toBe(INPUT);
+            expect(factory.size).toBe('md');
+        });
+
+        it('accepts assigned symbols as attribute keys', () => {
+            expect(factory({ [factory.input]: { class: 'x' }, selected: 'a' })).toBe('a');
+        });
+
+        it('keeps properties on bound presets', () => {
+            let preset = factory.bind({ attributes: { [factory.input]: { class: 'x' }, selected: 'p' } });
+
+            expectTypeOf(preset).toEqualTypeOf<typeof factory>();
+            expect(preset.input).toBe(INPUT);
+            expect(preset.size).toBe('md');
+            expect(preset({ selected: 'b' })).toBe('pb');
+        });
+
+        it('keeps properties when binding a bound preset', () => {
+            let preset = factory.bind({ attributes: { selected: 'p' } }).bind({ attributes: { selected: 'q' } });
+
+            expect(preset.input).toBe(INPUT);
+            expect(preset({ selected: 'c' })).toBe('pc');
+        });
+
+        it('infers union attributes from the annotated template', () => {
+            type U = Attributes & ({ selected?: string, state?: never } | { selected?: never, state: { selected: string } });
+
+            let union = component((attributes: U) => attributes.selected ?? attributes.state?.selected ?? '', { input: INPUT });
+
+            expectTypeOf<Parameters<typeof union>[0]>().toEqualTypeOf<U>();
+            expect(union({ state: { selected: 'd' } })).toBe('d');
+        });
+
+        it('leaves factories without properties untouched', () => {
+            let plain = component<Attributes>(() => '');
+
+            expect(plain.bind).toBe(Function.prototype.bind);
+            expectTypeOf(plain).toEqualTypeOf<ReturnType<typeof component<Attributes>>>();
+        });
+    });
 });
