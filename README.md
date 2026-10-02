@@ -8,7 +8,7 @@ High-performance, compiler-optimized HTML templating library for JavaScript/Type
 - **Zero runtime parsing** - No template parsing at runtime
 - **Reactive integration** - Works with `@esportsplus/reactivity` for dynamic updates; changes reach the DOM at the end of the task that made them (reactivity's microtask pass, with array slots batching their own operations the same way), and `flush()` from `@esportsplus/reactivity` (or `slot.flush()` for an array slot) applies them synchronously
 - **Event delegation** - Efficient event handling with automatic delegation
-- **Lifecycle events** - `onconnect`, `ondisconnect`, `onrender`, `ontick`
+- **Lifecycle events** - `onconnect`, `ondisconnect`, `onfirstpaint`, `onrender`, `ontick`
 - **Async slots** - Async function support with fallback content in `EffectSlot`
 - **Non-destructive reordering** - Uses `moveBefore` DOM API for array sort/reverse when available
 - **HMR support** - Fine-grained hot module replacement for templates in development
@@ -386,8 +386,9 @@ const circle = (fill: string) =>
 | `on` | Register direct-attach event handler |
 | `ondocument` | Register an owner-scoped document event handler |
 | `onwindow` | Register an owner-scoped window event handler |
-| `onconnect` | Lifecycle: element connected to DOM |
+| `onconnect` | Lifecycle: element connected to DOM, just before its first paint |
 | `ondisconnect` | Lifecycle: element disconnected from DOM |
+| `onfirstpaint` | Lifecycle: once, the frame after the element's first paint |
 | `onrender` | Lifecycle: after initial render |
 | `ontick` | Lifecycle: RAF animation loop |
 | `runtime` | Route event name to correct handler |

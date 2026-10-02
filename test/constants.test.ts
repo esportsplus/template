@@ -110,6 +110,10 @@ describe('constants', () => {
             expect(LIFECYCLE_EVENTS.has('ondisconnect')).toBe(true);
         });
 
+        it('contains onfirstpaint', () => {
+            expect(LIFECYCLE_EVENTS.has('onfirstpaint')).toBe(true);
+        });
+
         it('contains onrender', () => {
             expect(LIFECYCLE_EVENTS.has('onrender')).toBe(true);
         });

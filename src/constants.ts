@@ -52,7 +52,7 @@ const DIRECT_ATTACH_EVENTS = new Set<string>([
 ]);
 
 const LIFECYCLE_EVENTS = new Set<string>([
-    'onconnect', 'ondisconnect', 'onrender', 'ontick'
+    'onconnect', 'ondisconnect', 'onfirstpaint', 'onrender', 'ontick'
 ]);
 
 const SLOT_HTML = '<!--$-->';

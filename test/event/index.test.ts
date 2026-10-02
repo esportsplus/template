@@ -290,6 +290,16 @@ describe('event/index', () => {
             expect(rendered).toBe(true);
         });
 
+        it('routes onfirstpaint to lifecycle handler', () => {
+            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown };
+
+            container.appendChild(element);
+            runtime(element as unknown as Element, 'onfirstpaint', () => {});
+
+            // Waiting for its frame, it registers a cleanup that stops the wait on disposal.
+            expect(element[CLEANUP]).toBeInstanceOf(Array);
+        });
+
         it('routes ondisconnect to lifecycle handler', () => {
             let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown };
 

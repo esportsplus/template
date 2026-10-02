@@ -8,6 +8,8 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     class?: Attribute<T> | Attribute<T>[];
     onconnect?: Callback<[element: T]>;
     ondisconnect?: Callback<[element: T]>;
+    // Once, in the frame after the one that first paints the element
+    onfirstpaint?: Callback<[element: T]>;
     onrender?: Callback<[element: T]>;
     ontick?: Callback<[dispose: VoidFunction, element: T]>;
     style?: Attribute<T> | Attribute<T>[];

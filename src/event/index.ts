@@ -4,6 +4,7 @@ import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS, PACKAGE_NAME } from '../constan
 import { ondisconnect as disconnect } from '../slot';
 import { Attributes, Element } from '../types';
 import onconnect from './onconnect';
+import onfirstpaint from './onfirstpaint';
 import ontick from './ontick';
 
 
@@ -218,7 +219,7 @@ const onwindow = <E extends string>(element: Element, event: E, listener: Attrib
     );
 };
 
-const lifecycle = { onconnect, ondisconnect, onrender, ontick };
+const lifecycle = { onconnect, ondisconnect, onfirstpaint, onrender, ontick };
 
 const runtime = <E extends `on${string}`>(element: Element, name: E, listener: Attributes[E]): void => {
     let key = name.toLowerCase();
@@ -257,4 +258,4 @@ const runtime = <E extends `on${string}`>(element: Element, name: E, listener: A
 };
 
 
-export { delegate, on, onconnect, ondisconnect, ondocument, onrender, ontick, onwindow, runtime };
+export { delegate, on, onconnect, ondisconnect, ondocument, onfirstpaint, onrender, ontick, onwindow, runtime };
