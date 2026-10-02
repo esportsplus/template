@@ -176,6 +176,15 @@ describe('compiler/codegen', () => {
             expect(code).toContain(`${NAMESPACE}.onfirstpaint(`);
         });
 
+        it('registers lifecycle hooks of nested templates and descendants before their ancestors', () => {
+            let { result } = codegen(`let x = html\`<div onconnect=\${outer}><span onconnect=\${inner}></span>\${html\`<em onconnect=\${nested}></em>\`}</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code.indexOf(', nested)')).toBeGreaterThan(-1);
+            expect(code.indexOf(', nested)')).toBeLessThan(code.indexOf(', inner)'));
+            expect(code.indexOf(', inner)')).toBeLessThan(code.indexOf(', outer)'));
+        });
+
         it('treats a bare spread after an event attribute as its own binding, not the event handler', () => {
             // Whitespace between markers collapses upstream, so `onanimationend=${h} ${rest}` reaches
             // the parser as two abutting markers. The spread must emit setProperties — it must not

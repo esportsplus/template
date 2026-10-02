@@ -252,6 +252,7 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
         index = 0,
         isArrowBody = ctx.expression !== templateNode && isArrowExpressionBody(templateNode),
         keys: string[] = [],
+        offsets: number[] = [],
         root = uid('root'),
         texts: string[] = [];
 
@@ -264,7 +265,11 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
 
     for (let i = 0, n = slots.length; i < n; i++) {
         let path = slots[i].path,
-            key = keys[i] = path.join('.');
+            key = keys[i] = path.join('.'),
+            slot = slots[i];
+
+        offsets[i] = index;
+        index += slot.type === TYPES.Attribute ? slot.attributes.names.length : 1;
 
         if (elements.has(key)) {
             continue;
@@ -301,16 +306,25 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
     code.push(isArrowBody ? '{' : `(() => {`, `let ${declarations.join(',\n')};`);
 
     for (let i = 0, n = slots.length; i < n; i++) {
-        let element = elements.get(keys[i])!,
-            slot = slots[i];
+        let slot = slots[i];
 
         if (slot.type !== TYPES.Attribute) {
-            code.push(generateNodeBinding(ctx, element, expressions[index], text.bind(null, index), slot.mode));
-            index++;
+            code.push(generateNodeBinding(ctx, elements.get(keys[i])!, expressions[offsets[i]], text.bind(null, offsets[i]), slot.mode));
+        }
+    }
+
+    // Nested templates first, then attributes in reverse document order: lifecycle hooks register (and so run)
+    // descendants before ancestors, so a parent's onconnect sees the refs its children took.
+    for (let i = slots.length - 1; i >= 0; i--) {
+        let slot = slots[i];
+
+        if (slot.type !== TYPES.Attribute) {
             continue;
         }
 
-        let names = slot.attributes.names,
+        let element = elements.get(keys[i])!,
+            index = offsets[i],
+            names = slot.attributes.names,
             parts = slot.attributes.parts;
 
         for (let j = 0, m = names.length; j < m; j++) {
