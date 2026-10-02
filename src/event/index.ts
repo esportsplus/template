@@ -1,4 +1,3 @@
-import { root } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
 import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS, PACKAGE_NAME } from '../constants';
 import { ondisconnect as disconnect } from '../slot';
@@ -204,10 +203,6 @@ const ondocument = <E extends string>(element: Element, event: E, listener: Attr
     );
 };
 
-const onrender = (element: Element, listener: NonNullable<Attributes[`onrender`]>) => {
-    root(() => listener(element));
-};
-
 const onwindow = <E extends string>(element: Element, event: E, listener: Attributes[`onwindow${E}`], once: boolean = false): void => {
     let name = 'window' + event;
 
@@ -219,7 +214,7 @@ const onwindow = <E extends string>(element: Element, event: E, listener: Attrib
     );
 };
 
-const lifecycle = { onconnect, ondisconnect, onfirstpaint, onrender, ontick };
+const lifecycle = { onconnect, ondisconnect, onfirstpaint, ontick };
 
 const runtime = <E extends `on${string}`>(element: Element, name: E, listener: Attributes[E]): void => {
     let key = name.toLowerCase();
@@ -258,4 +253,4 @@ const runtime = <E extends `on${string}`>(element: Element, name: E, listener: A
 };
 
 
-export { delegate, on, onconnect, ondisconnect, ondocument, onfirstpaint, onrender, ontick, onwindow, runtime };
+export { delegate, on, onconnect, ondisconnect, ondocument, onfirstpaint, ontick, onwindow, runtime };

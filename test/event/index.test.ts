@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { delegate, on, ondisconnect, onrender, runtime } from '../../src/event';
+import { delegate, on, ondisconnect, runtime } from '../../src/event';
 import { CLEANUP } from '../../src/constants';
 import { remove } from '../../src/slot/cleanup';
 import type { Element } from '../../src/types';
@@ -218,31 +218,6 @@ describe('event/index', () => {
         });
     });
 
-    describe('onrender', () => {
-        it('calls listener immediately with element', () => {
-            let element = document.createElement('div') as Element,
-                receivedElement: unknown = null;
-
-            container.appendChild(element as unknown as Node);
-            onrender(element, (el) => { receivedElement = el; });
-
-            expect(receivedElement).toBe(element);
-        });
-
-        it('calls listener synchronously', () => {
-            let element = document.createElement('div') as Element,
-                callOrder: string[] = [];
-
-            container.appendChild(element as unknown as Node);
-
-            callOrder.push('before');
-            onrender(element, () => { callOrder.push('render'); });
-            callOrder.push('after');
-
-            expect(callOrder).toEqual(['before', 'render', 'after']);
-        });
-    });
-
     describe('runtime', () => {
         it('routes click event to delegate', () => {
             let element = document.createElement('button') as Element,
@@ -278,16 +253,6 @@ describe('event/index', () => {
             element.dispatchEvent(new FocusEvent('blur'));
 
             expect(blurred).toBe(true);
-        });
-
-        it('routes onrender to lifecycle handler', () => {
-            let element = document.createElement('div') as Element,
-                rendered = false;
-
-            container.appendChild(element as unknown as Node);
-            runtime(element, 'onrender', () => { rendered = true; });
-
-            expect(rendered).toBe(true);
         });
 
         it('routes onfirstpaint to lifecycle handler', () => {

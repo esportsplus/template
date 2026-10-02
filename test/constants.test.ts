@@ -114,10 +114,6 @@ describe('constants', () => {
             expect(LIFECYCLE_EVENTS.has('onfirstpaint')).toBe(true);
         });
 
-        it('contains onrender', () => {
-            expect(LIFECYCLE_EVENTS.has('onrender')).toBe(true);
-        });
-
         it('contains ontick', () => {
             expect(LIFECYCLE_EVENTS.has('ontick')).toBe(true);
         });

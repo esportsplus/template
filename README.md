@@ -8,7 +8,7 @@ High-performance, compiler-optimized HTML templating library for JavaScript/Type
 - **Zero runtime parsing** - No template parsing at runtime
 - **Reactive integration** - Works with `@esportsplus/reactivity` for dynamic updates; changes reach the DOM at the end of the task that made them (reactivity's microtask pass, with array slots batching their own operations the same way), and `flush()` from `@esportsplus/reactivity` (or `slot.flush()` for an array slot) applies them synchronously
 - **Event delegation** - Efficient event handling with automatic delegation
-- **Lifecycle events** - `onconnect`, `ondisconnect`, `onfirstpaint`, `onrender`, `ontick`
+- **Lifecycle events** - `onconnect`, `ondisconnect`, `onfirstpaint`, `ontick`
 - **Async slots** - Async function support with fallback content in `EffectSlot`
 - **Non-destructive reordering** - Uses `moveBefore` DOM API for array sort/reverse when available
 - **HMR support** - Fine-grained hot module replacement for templates in development
@@ -334,9 +334,9 @@ const connect = (handler: (el: HTMLElement) => void) =>
 const disconnect = (handler: (el: HTMLElement) => void) =>
     html`<div ondisconnect="${handler}">Will disconnect</div>`;
 
-// Called after template renders
-const render = (handler: (el: HTMLElement) => void) =>
-    html`<div onrender="${handler}">Rendered</div>`;
+// Called once, the frame after the element's first paint
+const firstpaint = (handler: (el: HTMLElement) => void) =>
+    html`<div onfirstpaint="${handler}">Painted</div>`;
 
 // Called on animation frame (with dispose function)
 const tick = (handler: (dispose: () => void, el: HTMLElement) => void) =>
@@ -389,7 +389,6 @@ const circle = (fill: string) =>
 | `onconnect` | Lifecycle: element connected to DOM, just before its first paint |
 | `ondisconnect` | Lifecycle: element disconnected from DOM |
 | `onfirstpaint` | Lifecycle: once, the frame after the element's first paint |
-| `onrender` | Lifecycle: after initial render |
 | `ontick` | Lifecycle: RAF animation loop |
 | `runtime` | Route event name to correct handler |
 | `slot` | Static slot rendering |
@@ -416,7 +415,7 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     style?: Attribute<T> | Attribute<T>[];
     onconnect?: (element: T) => void;
     ondisconnect?: (element: T) => void;
-    onrender?: (element: T) => void;
+    onfirstpaint?: (element: T) => void;
     ontick?: (dispose: VoidFunction, element: T) => void;
 } & { [K in keyof GlobalEventHandlersEventMap as `on${K}` | `once${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
   & { [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: (this: T, event: DocumentEventMap[K]) => void }
