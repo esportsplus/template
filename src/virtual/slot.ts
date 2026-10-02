@@ -364,6 +364,15 @@ class VirtualSlot<T> {
         }
     }
 
+    // Renders a change made in this task now rather than at its end, for a caller about to measure the rows.
+    flush() {
+        if (this.disposed || !this.scheduled) {
+            return;
+        }
+
+        this.run();
+    }
+
     private inserted(at: number, count: number) {
         if (count <= 0) {
             return;

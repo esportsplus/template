@@ -485,6 +485,29 @@ describe('virtual/VirtualSlot', () => {
             expect(slot.range).toEqual([0, 5]);
         });
 
+        it('renders a pending change synchronously on flush, leaving nothing for the pending pass', async () => {
+            let slot = setup(Array.from({ length: 10 }, (_, i) => i));
+
+            await flush();
+
+            deliver([[scroller, 200], ...rows().map((row) => [row, 100] as [Element, number])]);
+            await flush();
+
+            array.splice(0, 1);
+
+            expect(indexes()).toEqual([0, 1, 2, 3, 4]);
+
+            slot.flush();
+
+            expect(slot.length).toBe(9);
+            expect(indexes()).toEqual([1, 2, 3, 4, 5]);
+
+            slot.flush();
+            await Promise.resolve();
+
+            expect(indexes()).toEqual([1, 2, 3, 4, 5]);
+        });
+
         it('maps splice onto the cache and patches rendered content', async () => {
             let slot = setup(Array.from({ length: 10 }, (_, i) => i));
 
