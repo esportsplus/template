@@ -394,31 +394,41 @@ describe('event/index', () => {
     });
 
     describe('passive events', () => {
-        it('wheel event uses passive listener', () => {
-            let element = document.createElement('div') as Element,
-                wheeled = false;
+        it('registers touch and wheel listeners passive, so they cannot cancel', () => {
+            for (let event of [
+                new TouchEvent('touchmove', { bubbles: true, cancelable: true }),
+                new TouchEvent('touchstart', { bubbles: true, cancelable: true }),
+                new WheelEvent('wheel', { bubbles: true, cancelable: true })
+            ]) {
+                let element = document.createElement('div') as Element,
+                    called = false;
 
-            container.appendChild(element as unknown as Node);
-            delegate(element, 'wheel', () => { wheeled = true; });
+                container.appendChild(element as unknown as Node);
+                delegate(element, event.type, (e: Event) => {
+                    called = true;
+                    e.preventDefault();
+                });
 
-            element.dispatchEvent(new WheelEvent('wheel', { bubbles: true }));
+                element.dispatchEvent(event);
 
-            expect(wheeled).toBe(true);
+                expect(called).toBe(true);
+                expect(event.defaultPrevented).toBe(false);
+            }
         });
 
-        it('touchstart event uses passive listener', () => {
+        it('lets every other event cancel', () => {
             let element = document.createElement('div') as Element,
-                touched = false;
+                event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
 
             container.appendChild(element as unknown as Node);
-            delegate(element, 'touchstart', () => { touched = true; });
+            delegate(element, 'mousedown', (e: Event) => { e.preventDefault(); });
 
-            element.dispatchEvent(new TouchEvent('touchstart', { bubbles: true }));
+            element.dispatchEvent(event);
 
-            expect(touched).toBe(true);
+            expect(event.defaultPrevented).toBe(true);
         });
 
-        it('scroll event (direct attach) uses passive', () => {
+        it('scroll event attaches directly', () => {
             let element = document.createElement('div') as Element,
                 scrolled = false;
 
@@ -428,6 +438,19 @@ describe('event/index', () => {
             element.dispatchEvent(new Event('scroll'));
 
             expect(scrolled).toBe(true);
+        });
+
+        it('routes onactive names through runtime()', () => {
+            let element = document.createElement('div') as Element,
+                event = new TouchEvent('touchmove', { cancelable: true });
+
+            container.appendChild(element as unknown as Node);
+            runtime(element, 'onactivetouchmove', (e: Event) => { e.preventDefault(); });
+
+            element.dispatchEvent(new Event('pointerdown'));
+            element.dispatchEvent(event);
+
+            expect(event.defaultPrevented).toBe(true);
         });
     });
 });

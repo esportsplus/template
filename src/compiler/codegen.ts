@@ -102,13 +102,17 @@ function generateAttributeBinding(element: string, name: string, expr: string): 
         }
 
         // Same character gates as runtime() in ../event: types reject DOM events starting with
-        // 'ce', 'doc' or 'wi', so a match can only be a prefix
+        // 'ac', 'ce', 'doc' or 'wi', so a match can only be a prefix
         let i = 2,
             once = false;
 
         if (key[2] === 'c' && key[3] === 'e') {
             i = 4;
             once = true;
+        }
+
+        if (key[i] === 'a' && key[i + 1] === 'c') {
+            return `${NAMESPACE}.onactive(${element}, '${key.slice(i + 6)}', ${expr});`;
         }
 
         let flag = once ? ', true' : '';

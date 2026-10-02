@@ -1,7 +1,8 @@
 import { defineProperty } from '@esportsplus/utilities';
-import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS, PACKAGE_NAME } from '../constants';
+import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS, PACKAGE_NAME, PASSIVE_EVENTS } from '../constants';
 import { ondisconnect as disconnect } from '../slot';
 import { Attributes, Element } from '../types';
+import onactive from './onactive';
 import onconnect from './onconnect';
 import onfirstpaint from './onfirstpaint';
 import ontick from './ontick';
@@ -14,14 +15,7 @@ type Host = Document | Window;
 type Registration = { counter: number; key: symbol; members: Set<Binding> | null; release: VoidFunction };
 
 
-let passive = new Set<string>([
-        'animationend', 'animationiteration', 'animationstart',
-        'mousedown', 'mouseenter', 'mouseleave', 'mousemove', 'mouseout', 'mouseover', 'mouseup',
-        'pointerenter', 'pointerleave', 'pointermove', 'pointerout', 'pointerover',
-        'scroll',
-        'touchcancel', 'touchend', 'touchleave', 'touchmove', 'touchstart', 'transitionend',
-        'wheel'
-    ]),
+let passive = new Set<string>(PASSIVE_EVENTS),
     registrations: Record<string, Registration | null> = {},
     symbols: Record<string, symbol> = {};
 
@@ -224,7 +218,7 @@ const runtime = <E extends `on${string}`>(element: Element, name: E, listener: A
         return;
     }
 
-    // Character gates only: the Attributes type rejects every DOM event starting with 'ce',
+    // Character gates only: the Attributes type rejects every DOM event starting with 'ac', 'ce',
     // 'doc' or 'wi', so a match can only be a prefix ('domcontentloaded' is why 'doc' needs three)
     let i = 2,
         once = false;
@@ -234,7 +228,10 @@ const runtime = <E extends `on${string}`>(element: Element, name: E, listener: A
         once = true;
     }
 
-    if (key[i] === 'd' && key[i + 1] === 'o' && key[i + 2] === 'c') {
+    if (key[i] === 'a' && key[i + 1] === 'c') {
+        onactive(element, key.slice(i + 6), listener as Function);
+    }
+    else if (key[i] === 'd' && key[i + 1] === 'o' && key[i + 2] === 'c') {
         ondocument(element, key.slice(i + 8), listener, once);
     }
     else if (key[i] === 'w' && key[i + 1] === 'i') {
@@ -253,4 +250,4 @@ const runtime = <E extends `on${string}`>(element: Element, name: E, listener: A
 };
 
 
-export { delegate, on, onconnect, ondisconnect, ondocument, onfirstpaint, ontick, onwindow, runtime };
+export { delegate, on, onactive, onconnect, ondisconnect, ondocument, onfirstpaint, ontick, onwindow, runtime };

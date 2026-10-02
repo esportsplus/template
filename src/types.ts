@@ -1,3 +1,4 @@
+import type { PASSIVE_EVENTS } from './constants';
 import { ArraySlot } from './slot';
 
 
@@ -19,6 +20,9 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: Handler<T, DocumentEventMap[K]>;
 } & {
     [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: Handler<T, WindowEventMap[K]>;
+} & {
+    // Cancelable, bound while a gesture on the element lasts
+    [K in typeof PASSIVE_EVENTS[number] as `onactive${K}`]?: Handler<T, GlobalEventHandlersEventMap[K]>;
 } & Record<PropertyKey, unknown>;
 
 // Method signatures compare parameters bivariantly, so a listener may annotate a narrower element

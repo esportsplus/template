@@ -55,6 +55,10 @@ const LIFECYCLE_EVENTS = new Set<string>([
     'onconnect', 'ondisconnect', 'onfirstpaint', 'ontick'
 ]);
 
+// Only listeners for these can hold up scrolling, so the template registers them passive; 'onactive' binds a cancelable
+// one for the length of a gesture.
+const PASSIVE_EVENTS = ['touchmove', 'touchstart', 'wheel'] as const;
+
 const SLOT_HTML = '<!--$-->';
 
 const STORE = Symbol.for(`${PACKAGE_NAME}/store`);
@@ -70,7 +74,7 @@ export {
     CLEANUP,
     DIRECT_ATTACH_EVENTS,
     LIFECYCLE_EVENTS,
-    PACKAGE_NAME,
+    PACKAGE_NAME, PASSIVE_EVENTS,
     SLOT_HTML, STORE,
     UNCOMPILED
 };

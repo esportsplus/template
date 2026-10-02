@@ -265,7 +265,8 @@ const simpleAsync = () =>
 
 Events use delegation by default for efficiency:
 
-Delegated `mousedown`, `touchstart`, and `wheel` listeners are passive for scroll performance, so their handlers cannot call `preventDefault()`.
+`touchmove`, `touchstart`, and `wheel` listeners are passive, so their handlers cannot call `preventDefault()`: they are
+the only events whose listeners can hold up scrolling. Use `onactive{event}` when one must cancel.
 
 ```typescript
 // Click
@@ -310,6 +311,24 @@ cleanup. Multiple owners each receive the event in registration order; register
 shared shortcuts once. Handlers receive the owning element as `this`; use
 `event.currentTarget` for the document or window.
 Replacing an event binding on the same owner removes the previous registration.
+
+### Active Events
+
+`onactive{event}` binds a cancelable listener for one of the passive events, on the element itself and only while a
+gesture on it lasts, so the browser waits on script before scrolling only then:
+
+| Event | Bound from | Until |
+|---|---|---|
+| `touchmove`, `touchstart` | a touch or pen `pointerdown` on the element | the last finger lifts (`touchend` / `touchcancel`) |
+| `wheel` | the pointer moving over the element | `pointerleave` |
+
+```typescript
+// Stops the page scrolling under a touch drag once it has started
+html`<ul onactivetouchmove=${(e: TouchEvent) => dragging && e.preventDefault()}>…</ul>`;
+```
+
+A passive event added later without a gesture of its own is cancelable for as long as the element lives. Template
+disposal removes every listener.
 
 ### Once Events
 
@@ -384,6 +403,7 @@ const circle = (fill: string) =>
 | `setProperties` | Set multiple properties from an object |
 | `delegate` | Register delegated event handler |
 | `on` | Register direct-attach event handler |
+| `onactive` | Register a cancelable handler for a passive event, bound while a gesture on the element lasts |
 | `ondocument` | Register an owner-scoped document event handler |
 | `onwindow` | Register an owner-scoped window event handler |
 | `onconnect` | Lifecycle: element connected to DOM, just before its first paint |
@@ -420,6 +440,7 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
 } & { [K in keyof GlobalEventHandlersEventMap as `on${K}` | `once${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
   & { [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: (this: T, event: DocumentEventMap[K]) => void }
   & { [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: (this: T, event: WindowEventMap[K]) => void }
+  & { [K in 'touchmove' | 'touchstart' | 'wheel' as `onactive${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
   & Record<PropertyKey, unknown>;
 
 type Factory<A, C, R> = {

@@ -176,6 +176,14 @@ describe('compiler/codegen', () => {
             expect(code).toContain(`${NAMESPACE}.onfirstpaint(`);
         });
 
+        it('generates onactive call for a cancelable gesture listener', () => {
+            let { result } = codegen(`let x = html\`<div onactivetouchmove=\${handler}>text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code).toContain(`${NAMESPACE}.onactive(`);
+            expect(code).toContain("'touchmove', handler)");
+        });
+
         it('registers lifecycle hooks of nested templates and descendants before their ancestors', () => {
             let { result } = codegen(`let x = html\`<div onconnect=\${outer}><span onconnect=\${inner}></span>\${html\`<em onconnect=\${nested}></em>\`}</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
