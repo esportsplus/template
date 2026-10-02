@@ -168,7 +168,7 @@ describe('render', () => {
             expect(container.childNodes.length).toBe(0);
         });
 
-        it('stops reactive content and ignores a pending frame', async () => {
+        it('stops reactive content and ignores a pending update', async () => {
             let s = signal('before'),
                 dispose = render(container, () => read(s)),
                 textnode = container.lastChild!;
@@ -178,7 +178,7 @@ describe('render', () => {
             write(s, 'after');
             dispose();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(container.childNodes.length).toBe(0);
             expect(textnode.nodeValue).toBe('before');

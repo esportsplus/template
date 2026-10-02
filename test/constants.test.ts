@@ -7,9 +7,6 @@ import {
     LIFECYCLE_EVENTS,
     PACKAGE_NAME,
     SLOT_HTML,
-    STATE_HYDRATING,
-    STATE_NONE,
-    STATE_WAITING,
     STORE
 } from '../src/constants';
 
@@ -136,26 +133,6 @@ describe('constants', () => {
     describe('SLOT_HTML', () => {
         it('is a comment marker', () => {
             expect(SLOT_HTML).toBe('<!--$-->');
-        });
-    });
-
-    describe('State constants', () => {
-        it('STATE_HYDRATING is 0', () => {
-            expect(STATE_HYDRATING).toBe(0);
-        });
-
-        it('STATE_NONE is 1', () => {
-            expect(STATE_NONE).toBe(1);
-        });
-
-        it('STATE_WAITING is 2', () => {
-            expect(STATE_WAITING).toBe(2);
-        });
-
-        it('states are distinct', () => {
-            expect(STATE_HYDRATING).not.toBe(STATE_NONE);
-            expect(STATE_HYDRATING).not.toBe(STATE_WAITING);
-            expect(STATE_NONE).not.toBe(STATE_WAITING);
         });
     });
 });

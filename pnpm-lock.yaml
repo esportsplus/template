@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@esportsplus/queue':
-        specifier: ^0.4.6
-        version: 0.4.6
       '@esportsplus/reactivity':
         specifier: ^0.38.1
         version: 0.38.1
@@ -263,9 +260,6 @@ packages:
 
   '@esportsplus/cli-passthrough@0.0.19':
     resolution: {integrity: sha512-DRhP579js4sM+Faww6dcpJ2B+CqgjWBnMvpEY/b39mRJyT6W0u8ie1o1oRh2HnzxdhnYChW8XAR40POTuVhJnA==}
-
-  '@esportsplus/queue@0.4.6':
-    resolution: {integrity: sha512-ccHPLFiM/unSYk6wBbDf92n9YyQdEf2FZ8J4s0Zq/TZZg3le0fmLsHIJO/jGlN6wNE51uuJp2iL5Xp2xElPXgQ==}
 
   '@esportsplus/reactivity@0.38.1':
     resolution: {integrity: sha512-OzDjlDePrs4OyeAc0PI9XrjVM6xKwW28YdOzGB2wN4m4Z35iSZL0SWcomgFU4HN1ypQuJhKPBT5ajbpJ6R3aVg==}
@@ -1205,8 +1199,6 @@ snapshots:
     optional: true
 
   '@esportsplus/cli-passthrough@0.0.19': {}
-
-  '@esportsplus/queue@0.4.6': {}
 
   '@esportsplus/reactivity@0.38.1':
     dependencies:

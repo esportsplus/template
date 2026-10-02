@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { onCleanup, reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../../src/constants';
 import { ArraySlot } from '../../src/slot/array';
@@ -131,7 +131,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.push('b', 'c');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -156,7 +156,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.pop();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -182,7 +182,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.shift();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -208,7 +208,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.unshift('a', 'b');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -235,7 +235,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.splice(1, 2);
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -259,7 +259,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.splice(1, 0, 'b', 'c');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -283,7 +283,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.splice(1, 1, 'x', 'y');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -311,7 +311,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.reverse();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -337,7 +337,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.sort();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -363,7 +363,7 @@ describe('slot/ArraySlot', () => {
             container.appendChild(slot.fragment);
             arr.splice(0, arr.length);
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -388,7 +388,7 @@ describe('slot/ArraySlot', () => {
 
             arr.concat(['b', 'c']);
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -465,7 +465,7 @@ describe('slot/ArraySlot', () => {
             arr.push('e');
             arr.shift();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -476,7 +476,7 @@ describe('slot/ArraySlot', () => {
     });
 
     describe('rapid successive operations', () => {
-        it('batches push+push+pop in same frame', async () => {
+        it('batches push+push+pop in one pass', async () => {
             let arr = reactive(['a'] as string[]),
                 slot = new ArraySlot(arr, (s) => {
                     let frag = document.createDocumentFragment(),
@@ -494,7 +494,7 @@ describe('slot/ArraySlot', () => {
             arr.push('c');
             arr.pop();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -503,7 +503,7 @@ describe('slot/ArraySlot', () => {
             expect(spans[1].textContent).toBe('b');
         });
 
-        it('batches unshift+pop+push in same frame', async () => {
+        it('batches unshift+pop+push in one pass', async () => {
             let arr = reactive(['b'] as string[]),
                 slot = new ArraySlot(arr, (s) => {
                     let frag = document.createDocumentFragment(),
@@ -521,7 +521,7 @@ describe('slot/ArraySlot', () => {
             arr.pop();
             arr.push('c');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -548,7 +548,7 @@ describe('slot/ArraySlot', () => {
 
             arr.pop();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -571,7 +571,7 @@ describe('slot/ArraySlot', () => {
 
             arr.shift();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -594,7 +594,7 @@ describe('slot/ArraySlot', () => {
 
             arr.splice(10, 5);
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -626,7 +626,7 @@ describe('slot/ArraySlot', () => {
 
             arr.push(...items);
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -653,7 +653,7 @@ describe('slot/ArraySlot', () => {
 
             arr.splice(1, 1, 'x');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -679,7 +679,7 @@ describe('slot/ArraySlot', () => {
 
             arr.splice(0, 1, 'z');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -704,7 +704,7 @@ describe('slot/ArraySlot', () => {
 
             arr.$set(2, 'x');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -734,7 +734,7 @@ describe('slot/ArraySlot', () => {
 
             expect(() => arr.concat(items)).not.toThrow();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(slot.length).toBe(200000);
         });
@@ -763,7 +763,7 @@ describe('slot/ArraySlot', () => {
 
             arr.sort();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -793,7 +793,7 @@ describe('slot/ArraySlot', () => {
 
             arr.sort();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -824,7 +824,7 @@ describe('slot/ArraySlot', () => {
 
             arr.reverse();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -854,7 +854,7 @@ describe('slot/ArraySlot', () => {
 
             arr.reverse();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -889,7 +889,7 @@ describe('slot/ArraySlot', () => {
 
             arr.sort();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -922,7 +922,7 @@ describe('slot/ArraySlot', () => {
 
             arr.sort();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -959,7 +959,7 @@ describe('slot/ArraySlot', () => {
 
             arr.splice(0, arr.length);
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             spans = container.querySelectorAll('span');
 
@@ -987,7 +987,7 @@ describe('slot/ArraySlot', () => {
 
             arr.pop();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             removed = container.querySelector('span[data-value="b"]');
 
@@ -1030,7 +1030,7 @@ describe('slot/ArraySlot', () => {
 
             arr.sort();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = detached.querySelectorAll('span');
 
@@ -1051,7 +1051,7 @@ describe('slot/ArraySlot', () => {
 
             arr.reverse();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = detached.querySelectorAll('span');
 
@@ -1079,7 +1079,7 @@ describe('slot/ArraySlot', () => {
 
             arr.sort();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -1106,7 +1106,7 @@ describe('slot/ArraySlot', () => {
             arr.unshift('a');
             arr.splice(1, 0, 'x');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let spans = container.querySelectorAll('span');
 
@@ -1149,7 +1149,7 @@ describe('slot/ArraySlot', () => {
 
             arr.clear();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(cleanups).toBe(3);
             expect(spansAtCleanup.every(count => count === 3)).toBe(true);
@@ -1159,7 +1159,7 @@ describe('slot/ArraySlot', () => {
 
             arr.push('x');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             let after = container.querySelectorAll('span');
 
@@ -1193,7 +1193,7 @@ describe('slot/ArraySlot', () => {
             flagged.clear();
             unflagged.clear();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(flaggedCleanups).toBe(2);
             expect(unflaggedCleanups).toBe(2);
@@ -1213,7 +1213,7 @@ describe('slot/ArraySlot', () => {
 
             arr.clear();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(slot.fragment.querySelectorAll('span').length).toBe(0);
             expect(slot.fragment.childNodes.length).toBe(1);
@@ -1246,13 +1246,13 @@ describe('slot/ArraySlot', () => {
 
             expect(disposed).toBe(2);
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(container.querySelectorAll('span').length).toBe(2);
 
             arr.push('d');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(container.querySelectorAll('span').length).toBe(2);
         });
@@ -1260,7 +1260,7 @@ describe('slot/ArraySlot', () => {
     });
 
     describe('flush', () => {
-        it('applies queued operations synchronously, cancels the scheduled frame, and is a no-op when idle', () => {
+        it('applies queued operations synchronously, leaves nothing for the pending pass, and is a no-op when idle', async () => {
             let rendered: string[] = [],
                 arr = reactive(['a'] as string[]),
                 slot = new ArraySlot(arr, (s) => {
@@ -1281,20 +1281,17 @@ describe('slot/ArraySlot', () => {
 
             expect(rendered).toEqual(['a']);
 
-            let cancel = vi.spyOn(globalThis, 'cancelAnimationFrame');
-
             slot.flush();
 
             expect(rendered).toEqual(['a', 'b', 'c']);
             expect(container.querySelectorAll('span').length).toBe(3);
             expect(slot.length).toBe(3);
-            expect(cancel).toHaveBeenCalledTimes(1);
 
             slot.flush();
+            await Promise.resolve();
 
-            expect(cancel).toHaveBeenCalledTimes(1);
-
-            cancel.mockRestore();
+            expect(rendered).toEqual(['a', 'b', 'c']);
+            expect(container.querySelectorAll('span').length).toBe(3);
         });
 
         it('is a no-op after dispose', () => {
@@ -1339,7 +1336,7 @@ describe('slot/ArraySlot', () => {
             let { arr, text } = mount(['a', 'b', 'c']);
 
             arr.splice(-1, 0, 'x');
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(text()).toBe('a,b,x,c');
         });
@@ -1348,7 +1345,7 @@ describe('slot/ArraySlot', () => {
             let { arr, text } = mount(['a', undefined]);
 
             arr.pop();
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(text()).toBe('a');
         });
@@ -1357,7 +1354,7 @@ describe('slot/ArraySlot', () => {
             let { arr, text } = mount([undefined, 'a']);
 
             arr.shift();
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(text()).toBe('a');
         });

@@ -1,10 +1,8 @@
 import { effect } from '@esportsplus/reactivity';
 import { isArray, isObject } from '@esportsplus/utilities';
-import { ATTRIBUTE_DELIMITERS, STATE_HYDRATING, STATE_NONE, STATE_WAITING, STORE } from './constants';
+import { ATTRIBUTE_DELIMITERS, STORE } from './constants';
 import { Attributes, Element } from './types';
-import { raf } from './utilities';
 import { runtime } from './event';
-import q from '@esportsplus/queue';
 
 
 type Context = {
@@ -13,21 +11,13 @@ type Context = {
     element: Element;
     raw?: unknown[];
     store?: Record<string, unknown>;
-    updates?: Record<PropertyKey, unknown>;
-    updating?: boolean;
     values?: Record<string, unknown>;
 };
-
-type State = typeof STATE_HYDRATING | typeof STATE_NONE | typeof STATE_WAITING;
 
 type ListState = {
     dynamic: Set<string>;
     static: string;
 };
-
-
-let queue = q<Context>(64),
-    scheduled = false;
 
 
 function apply(element: Element, name: string, value: unknown) {
@@ -60,14 +50,8 @@ function context(element: Element) {
     return (element[STORE] ??= { element }) as Context;
 }
 
-function list(
-    ctx: Context | null,
-    element: Element,
-    id: null | number,
-    name: string,
-    state: State,
-    value: unknown
-) {
+// The element's full list once 'value' changes it, undefined while it stays as it is.
+function list(ctx: Context | null, element: Element, id: null | number, name: string, value: unknown) {
     if (value == null || value === false || value === '') {
         value = '';
     }
@@ -134,31 +118,20 @@ function list(
     }
 
     if (!changed) {
-        return;
+        return undefined;
     }
 
-    value = listState.static;
+    let joined = listState.static;
 
     for (let key of dynamic) {
-        value += (value ? delimiter : '') + key;
+        joined += (joined ? delimiter : '') + key;
     }
 
-    if (state === STATE_HYDRATING) {
-        apply(element, name, value);
-    }
-    else {
-        schedule(ctx, element, name, state, value);
-    }
+    return joined;
 }
 
-function property(
-    ctx: Context | null,
-    element: Element,
-    id: null | number,
-    name: string,
-    state: State,
-    value: unknown
-) {
+// The value to write once 'value' changes the binding, undefined while it stays as it is.
+function property(ctx: Context | null, element: Element, id: null | number, name: string, value: unknown) {
     if (value == null || value === false || value === '') {
         value = '';
     }
@@ -169,21 +142,18 @@ function property(
         let values = ctx.values ??= {};
 
         if (values[name] === value) {
-            return;
+            return undefined;
         }
 
         values[name] = value;
     }
 
-    if (state === STATE_HYDRATING) {
-        apply(element, name, value);
-    }
-    else {
-        schedule(ctx, element, name, state, value);
-    }
+    return value;
 }
 
-function reactive(element: Element, name: string, state: State, value: unknown) {
+// Written as the effect runs: reactivity already defers reruns to a microtask, so the DOM lands in
+// the same task as the change, and its flush() makes it synchronous.
+function reactive(element: Element, name: string, value: unknown) {
     let ctx = context(element),
         fn = (name === 'class' || name === 'style') ? list : property;
 
@@ -192,79 +162,40 @@ function reactive(element: Element, name: string, state: State, value: unknown) 
     let id = ctx.effect++;
 
     effect(() => {
-        let v = (value as Function)(element);
+        let next: unknown,
+            v = (value as Function)(element);
 
         if (v == null || typeof v !== 'object') {
-            fn(ctx, element, id, name, state, v);
+            next = fn(ctx, element, id, name, v);
         }
         else if (isArray(v)) {
-            let last = v.length - 1;
-
+            // One write for the whole array, whichever of its values changed.
             for (let i = 0, n = v.length; i < n; i++) {
-                fn(
-                    ctx,
-                    element,
-                    id,
-                    name,
-                    state === STATE_HYDRATING
-                        ? state
-                        : i !== last ? STATE_WAITING : state,
-                    v[i],
-                );
+                let part = fn(ctx, element, id, name, v[i]);
+
+                if (part !== undefined) {
+                    next = part;
+                }
             }
         }
-    });
 
-    state = STATE_NONE;
-}
-
-function schedule(ctx: Context | null, element: Element, name: string, state: State, value: unknown) {
-    ctx ??= context(element);
-    (ctx.updates ??= {})[name] = value;
-
-    if (state === STATE_NONE && !ctx.updating) {
-        ctx.updating = true;
-        queue.add(ctx);
-    }
-
-    if (scheduled) {
-        return;
-    }
-
-    scheduled = true;
-    raf(task);
-}
-
-function task() {
-    let context,
-        n = queue.length;
-
-    while ((context = queue.next()) && n--) {
-        let { element, updates } = context;
-
-        for (let name in updates) {
-            apply(element, name, updates[name]);
-            delete updates[name];
+        if (next !== undefined) {
+            apply(element, name, next);
         }
-
-        context.updating = false;
-    }
-
-    if (queue.length) {
-        raf(task);
-    }
-    else {
-        scheduled = false;
-    }
+    });
 }
 
 
 const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
     if (typeof value === 'function') {
-        reactive(element, name, STATE_HYDRATING, value);
+        reactive(element, name, value);
     }
     else if (typeof value !== 'object') {
-        list(null, element, null, name, STATE_HYDRATING, value);
+        let next = list(null, element, null, name, value);
+
+        if (next !== undefined) {
+            apply(element, name, next);
+        }
     }
     else if (isArray(value)) {
         for (let i = 0, n = value.length; i < n; i++) {
@@ -281,10 +212,10 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
 
 const setProperty = (element: Element, name: string, value: unknown) => {
     if (typeof value === 'function') {
-        reactive(element, name, STATE_HYDRATING, value);
+        reactive(element, name, value);
     }
     else {
-        property(null, element, null, name, STATE_HYDRATING, value);
+        apply(element, name, property(null, element, null, name, value));
     }
 };
 
@@ -311,11 +242,11 @@ const setProperties = function (
                     runtime(element, name as `on${string}`, value as Function);
                 }
                 else {
-                    reactive(element, name, STATE_HYDRATING, value);
+                    reactive(element, name, value);
                 }
             }
             else  {
-                property(null, element, null, name, STATE_HYDRATING, value);
+                apply(element, name, property(null, element, null, name, value));
             }
         }
     }

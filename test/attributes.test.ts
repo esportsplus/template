@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { read, signal, write } from '@esportsplus/reactivity';
+import { flush, read, signal, write } from '@esportsplus/reactivity';
 import { setList, setProperties, setProperty } from '../src/attributes';
 import type { Element } from '../src/types';
 
@@ -398,7 +398,7 @@ describe('attributes', () => {
             write(s1, 'b');
             write(s2, 'y');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(element.getAttribute('updating')).toBe('b');
             expect(element.id).toBe('y');
@@ -432,7 +432,84 @@ describe('attributes', () => {
         });
     });
 
-    describe('reactive updates (schedule/task path)', () => {
+    describe('reactive updates', () => {
+        it('applies a class change at the end of the task, before any frame', async () => {
+            let frame = false,
+                s = signal('foo');
+
+            requestAnimationFrame(() => {
+                frame = true;
+            });
+            setList(element as unknown as Element, 'class', () => read(s));
+            write(s, 'bar');
+
+            expect(element.className).toBe('foo');
+
+            await Promise.resolve();
+
+            expect(element.className).toBe('bar');
+            expect(frame).toBe(false);
+        });
+
+        it('applies synchronously through reactivity flush()', () => {
+            let s = signal('a');
+
+            setList(element as unknown as Element, 'class', () => read(s));
+            setProperty(element as unknown as Element, 'id', () => read(s));
+            write(s, 'b');
+            flush();
+
+            expect(element.className).toBe('b');
+            expect(element.id).toBe('b');
+        });
+
+        it('writes a binding once for every change made in one task', async () => {
+            let a = signal('x'),
+                b = signal('y'),
+                writes = 0;
+
+            setList(element as unknown as Element, 'class', () => `${read(a)} ${read(b)}`);
+
+            let observer = new MutationObserver((records) => {
+                writes += records.length;
+            });
+
+            observer.observe(element, { attributeFilter: ['class'], attributes: true });
+            write(a, 'x2');
+            write(b, 'y2');
+            write(a, 'x3');
+
+            await Promise.resolve();
+            await new Promise((resolve) => setTimeout(resolve));
+
+            expect([...element.classList].sort()).toEqual(['x3', 'y2']);
+            expect(writes).toBe(1);
+
+            observer.disconnect();
+        });
+
+        it('applies an array of values in one write', async () => {
+            let s = signal('a'),
+                writes = 0;
+
+            setProperty(element as unknown as Element, 'title', () => [read(s), 'last'] as unknown as string);
+
+            let observer = new MutationObserver((records) => {
+                writes += records.length;
+            });
+
+            observer.observe(element, { attributeFilter: ['title'], attributes: true });
+            write(s, 'b');
+
+            await Promise.resolve();
+            await new Promise((resolve) => setTimeout(resolve));
+
+            expect(element.title).toBe('last');
+            expect(writes).toBe(1);
+
+            observer.disconnect();
+        });
+
         it('removes stale dynamic class values on reactive update', async () => {
             let s = signal('foo bar');
 
@@ -443,7 +520,7 @@ describe('attributes', () => {
 
             write(s, 'foo baz');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(element.className).toContain('foo');
             expect(element.className).toContain('baz');
@@ -460,13 +537,13 @@ describe('attributes', () => {
 
             write(s, 'color: blue');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(element.getAttribute('style')).toContain('color: blue');
             expect(element.getAttribute('style')).not.toContain('font-size: 14px');
         });
 
-        it('schedules property update via RAF on reactive change', async () => {
+        it('applies a property update at the end of the task', async () => {
             let s = signal('first');
 
             setProperty(element as unknown as Element, 'id', () => read(s));
@@ -475,12 +552,12 @@ describe('attributes', () => {
 
             write(s, 'second');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(element.id).toBe('second');
         });
 
-        it('batches multiple property updates in single RAF', async () => {
+        it('applies several property updates in one pass', async () => {
             let s1 = signal('a'),
                 s2 = signal('x');
 
@@ -493,7 +570,7 @@ describe('attributes', () => {
             write(s1, 'b');
             write(s2, 'y');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(element.id).toBe('b');
             expect(element.getAttribute('data-value')).toBe('y');
@@ -508,7 +585,7 @@ describe('attributes', () => {
 
             write(s, '');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(element.className).not.toContain('foo');
             expect(element.className).not.toContain('bar');

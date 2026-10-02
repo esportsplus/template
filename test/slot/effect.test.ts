@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { read, root, signal, write } from '@esportsplus/reactivity';
+import { flush, read, root, signal, write } from '@esportsplus/reactivity';
 import { ANCHOR_LAST, ANCHOR_MARKER, ANCHOR_SOLE } from '../../src/constants';
 import { ondisconnect } from '../../src/slot/cleanup';
 import { EffectSlot } from '../../src/slot/effect';
@@ -262,16 +262,21 @@ describe('slot/EffectSlot', () => {
         });
     });
 
-    describe('scheduled updates', () => {
-        it('initializes with scheduled=false', () => {
-            let slot = new EffectSlot(anchor, () => 'Test');
+    describe('microtask updates', () => {
+        it('applies synchronously through reactivity flush()', () => {
+            let s = signal('first');
 
-            expect(slot.scheduled).toBe(false);
+            new EffectSlot(anchor, () => read(s));
+            write(s, 'second');
+
+            expect(container.textContent).toContain('first');
+
+            flush();
+
+            expect(container.textContent).toContain('second');
         });
-    });
 
-    describe('RAF scheduled updates', () => {
-        it('batches subsequent reactive updates via RAF', async () => {
+        it('applies subsequent reactive updates at the end of the task', async () => {
             let s = signal('first');
 
             new EffectSlot(anchor, () => read(s));
@@ -280,12 +285,12 @@ describe('slot/EffectSlot', () => {
 
             write(s, 'second');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(container.textContent).toContain('second');
         });
 
-        it('coalesces rapid reactive updates into one RAF', async () => {
+        it('coalesces rapid reactive updates into one write', async () => {
             let s = signal('a');
 
             new EffectSlot(anchor, () => read(s));
@@ -296,13 +301,13 @@ describe('slot/EffectSlot', () => {
             write(s, 'c');
             write(s, 'd');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(container.textContent).toContain('d');
             expect(container.textContent).not.toContain('b');
         });
 
-        it('skips a frame scheduled before dispose', async () => {
+        it('skips an update pending before dispose', async () => {
             let s = signal('before'),
                 slot = new EffectSlot(anchor, () => read(s)),
                 textnode = slot.textnode!;
@@ -310,13 +315,13 @@ describe('slot/EffectSlot', () => {
             write(s, 'after');
             slot.dispose();
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(textnode.nodeValue).toBe('before');
             expect(container.childNodes.length).toBe(0);
         });
 
-        it('skips a frame scheduled before the owning root is disposed', async () => {
+        it('skips an update pending before the owning root is disposed', async () => {
             let dispose = () => {},
                 s = signal('before'),
                 slot = root(stop => {
@@ -331,7 +336,7 @@ describe('slot/EffectSlot', () => {
 
             expect(slot.disposed).toBe(true);
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(textnode.nodeValue).toBe('before');
         });
@@ -524,7 +529,7 @@ describe('slot/EffectSlot', () => {
 
             write(s, 'b');
 
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await Promise.resolve();
 
             expect(slot.textnode).toBe(textnode);
             expect(parent.textContent).toBe('b');
@@ -556,7 +561,6 @@ describe('slot/EffectSlot', () => {
 
             write(s, 'after');
 
-            await new Promise((resolve) => requestAnimationFrame(resolve));
             await Promise.resolve();
 
             expect(textnode.nodeValue).toBe('before');

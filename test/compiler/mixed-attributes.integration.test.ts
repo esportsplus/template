@@ -109,10 +109,10 @@ describe('mixed attributes through compiler plugins', () => {
             expect(element.title).toBe(type + ' off');
             expect(element.textContent).toBe(type);
             expect(element.querySelector('[data-indicator]') !== null).toBe(type === 'checkbox');
-            element.click(); await new Promise(resolve => requestAnimationFrame(resolve));
+            element.click(); await Promise.resolve();
             expect(element.classList.contains('--active')).toBe(true);
             expect(element.title).toBe(type + ' on');
-            element.click(); await new Promise(resolve => requestAnimationFrame(resolve));
+            element.click(); await Promise.resolve();
             expect(element.className.trim()).toBe(base);
             expect(element.title).toBe(type + ' off');
             dispose(); element.remove();

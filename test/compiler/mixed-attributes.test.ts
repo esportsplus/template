@@ -10,7 +10,7 @@ import { NAMESPACE } from '../../src/compiler/constants';
 import parser from '../../src/compiler/parser';
 
 
-const tick = () => new Promise(resolve => requestAnimationFrame(resolve));
+const tick = () => Promise.resolve();
 
 function compile(source: string, args: Record<string, unknown> = {}, checked = true) {
     let parsed = checked

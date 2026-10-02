@@ -57,12 +57,6 @@ const LIFECYCLE_EVENTS = new Set<string>([
 
 const SLOT_HTML = '<!--$-->';
 
-const STATE_HYDRATING = 0;
-
-const STATE_NONE = 1;
-
-const STATE_WAITING = 2;
-
 const STORE = Symbol.for(`${PACKAGE_NAME}/store`);
 
 // Tail of every error the uncompiled html runtime throws. The build rejects any chunk containing
@@ -77,6 +71,6 @@ export {
     DIRECT_ATTACH_EVENTS,
     LIFECYCLE_EVENTS,
     PACKAGE_NAME,
-    SLOT_HTML, STATE_HYDRATING, STATE_NONE, STATE_WAITING, STORE,
+    SLOT_HTML, STORE,
     UNCOMPILED
 };

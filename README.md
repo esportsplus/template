@@ -6,7 +6,7 @@ High-performance, compiler-optimized HTML templating library for JavaScript/Type
 
 - **Compile-time transformation** - Templates converted to optimized code during build
 - **Zero runtime parsing** - No template parsing at runtime
-- **Reactive integration** - Works with `@esportsplus/reactivity` for dynamic updates
+- **Reactive integration** - Works with `@esportsplus/reactivity` for dynamic updates; changes reach the DOM at the end of the task that made them (reactivity's microtask pass, with array slots batching their own operations the same way), and `flush()` from `@esportsplus/reactivity` (or `slot.flush()` for an array slot) applies them synchronously
 - **Event delegation** - Efficient event handling with automatic delegation
 - **Lifecycle events** - `onconnect`, `ondisconnect`, `onrender`, `ontick`
 - **Async slots** - Async function support with fallback content in `EffectSlot`

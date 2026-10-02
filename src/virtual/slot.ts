@@ -4,7 +4,7 @@ import { ArraySlot } from '../slot/array';
 import { ondisconnect } from '../slot/cleanup';
 import { subscribeArray } from '../slot/subscriptions';
 import { Element } from '../types';
-import { clone, EMPTY_FRAGMENT, marker as MARKER, raf, untracked } from '../utilities';
+import { clone, EMPTY_FRAGMENT, marker as MARKER, untracked } from '../utilities';
 import { create, index, insert, offset, remove, reorder, set, size } from './cache';
 import type { Cache } from './cache';
 import { INDEX, observe, SIZE, SLOT, unobserve } from './measure';
@@ -48,7 +48,6 @@ class VirtualSlot<T> {
     private dirty = false;
     private disposed = false;
     private end = 0;
-    private frame: number | null = null;
     private hostCleanups: VoidFunction[] = [];
     private hostParent: HTMLElement | null = null;
     private jump = 0;
@@ -339,12 +338,6 @@ class VirtualSlot<T> {
         }
 
         this.disposed = true;
-
-        if (this.frame !== null) {
-            globalThis.cancelAnimationFrame(this.frame);
-            this.frame = null;
-        }
-
         this.scheduled = false;
 
         this.releaseHost();
@@ -671,9 +664,10 @@ class VirtualSlot<T> {
 
         this.scheduled = true;
 
-        this.frame = raf(() => {
-            this.frame = null;
-            this.run();
+        queueMicrotask(() => {
+            if (this.scheduled) {
+                this.run();
+            }
         });
     }
 

@@ -1,7 +1,7 @@
 import { read, root, signal, write, Reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
-import { clone, EMPTY_FRAGMENT, marker, raf, untracked } from '../utilities';
+import { clone, EMPTY_FRAGMENT, marker, untracked } from '../utilities';
 import { dispose as disposeGroups, ondisconnect, remove } from './cleanup';
 import { subscribeArray } from './subscriptions';
 
@@ -68,7 +68,6 @@ function lis(arr: number[]): Set<number> {
 
 class ArraySlot<T> {
     private disposed = false;
-    private frame: number | null = null;
     private marker: Element;
     private nodes: SlotGroup[] = [];
     private queue: ArraySlotOp<T>[] = [];
@@ -191,11 +190,6 @@ class ArraySlot<T> {
         this.queue = [];
         this.scheduled = false;
 
-        if (this.frame !== null) {
-            globalThis.cancelAnimationFrame(this.frame);
-            this.frame = null;
-        }
-
         let unsubscribers = this.unsubscribers;
 
         this.unsubscribers = [];
@@ -210,11 +204,6 @@ class ArraySlot<T> {
     flush() {
         if (this.disposed || !this.scheduled) {
             return;
-        }
-
-        if (this.frame !== null) {
-            globalThis.cancelAnimationFrame(this.frame);
-            this.frame = null;
         }
 
         this.run();
@@ -303,9 +292,12 @@ class ArraySlot<T> {
 
         this.scheduled = true;
 
-        this.frame = raf(() => {
-            this.frame = null;
-            this.run();
+        // Every change made in this task lands in one pass at its end; a flush() before then has
+        // already run it.
+        queueMicrotask(() => {
+            if (this.scheduled) {
+                this.run();
+            }
         });
     }
 

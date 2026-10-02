@@ -2,7 +2,7 @@ import { effect, onCleanup } from '@esportsplus/reactivity';
 import { isAsyncFunction } from '@esportsplus/utilities';
 import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable, SlotGroup } from '../types';
-import { raf, text } from '../utilities'
+import { text } from '../utilities'
 import { remove } from './cleanup';
 import render from './render';
 
@@ -26,7 +26,6 @@ class EffectSlot {
     disposer: VoidFunction | null;
     group: SlotGroup | null = null;
     mode: number;
-    scheduled = false;
     textnode: Node | null = null;
 
 
@@ -36,7 +35,7 @@ class EffectSlot {
         this.mode = mode;
 
         // Owner disposal removes the DOM range wholesale; only the flag is needed so late
-        // frame and promise work cannot write into detached nodes or create orphan effects
+        // promise work cannot write into detached nodes or create orphan effects
         onCleanup(() => {
             this.disposed = true;
         });
@@ -58,25 +57,14 @@ class EffectSlot {
             );
         }
         else {
-            let dispose = fn.length ? () => this.dispose() : undefined,
-                value: unknown;
+            let dispose = fn.length ? () => this.dispose() : undefined;
 
+            // Reruns already wait for reactivity's microtask, so each one writes straight away.
             this.disposer = effect(() => {
-                value = read( fn(dispose) );
+                let value = read( fn(dispose) );
 
-                if (!this.disposer) {
+                if (!this.disposed) {
                     this.update(value);
-                }
-                else if (!this.scheduled) {
-                    this.scheduled = true;
-
-                    raf(() => {
-                        this.scheduled = false;
-
-                        if (!this.disposed) {
-                            this.update(value);
-                        }
-                    });
                 }
             });
         }
