@@ -307,7 +307,7 @@ html`<div onwindowresize=${() => layout()}></div>`;
 Host events fire regardless of whether the event originated inside the owning
 element. Registration happens when the template binds the element, and template
 disposal removes it automatically. An owner out of the document is skipped, and
-one removed by native DOM calls is released (see [Foreign Removal](#foreign-removal)).
+one removed by native DOM calls is released (see [Removing Template Content](#removing-template-content)).
 Multiple owners each receive the event in registration order; register
 shared shortcuts once. Handlers receive the owning element as `this`; use
 `event.currentTarget` for the document or window.
@@ -350,7 +350,7 @@ Custom lifecycle events for DOM attachment:
 const connect = (handler: (el: HTMLElement) => void) =>
     html`<div onconnect="${handler}">Connected</div>`;
 
-// Called when element is removed from DOM
+// Called when the content that owns the element is released (see Removing Template Content)
 const disconnect = (handler: (el: HTMLElement) => void) =>
     html`<div ondisconnect="${handler}">Will disconnect</div>`;
 
@@ -381,38 +381,60 @@ or `onfirstpaint` listener) registers on that owner. Content built with no owner
 module scope, in an event handler, or after an `await`) has nowhere to register, so its cleanups wait on its nodes
 until a template insertion that contains them adopts them: `render()` into its root, a static slot into its owner, an
 effect or async slot into the content it shows, released when that content is replaced. Cleanups still unadopted at
-the next idle sweep stay with their nodes and are released by the [Foreign Removal](#foreign-removal) sweep once the
-node has been in the document and left it.
+the next idle sweep stay with their nodes and are released by the idle sweep (see
+[Removing Template Content](#removing-template-content)) once the node has been in the document and left it.
 
-### Foreign Removal
+### Removing Template Content
 
-Template disposal releases bindings as it removes nodes. Nodes removed by other code (`el.remove()`,
-`innerHTML = ''`, a host framework) are reclaimed without a `MutationObserver`:
+**Never remove or replace template-owned nodes by hand**: no `el.remove()`, `replaceWith`, `replaceChildren`,
+`removeChild`, `innerHTML`/`outerHTML`/`textContent`/`innerText` writes or `insertAdjacentHTML` on content a template
+rendered. Change what is rendered instead: return different content from an effect slot, change a reactive array, or
+call the disposer `render()` returned. Template removal releases the bindings first, then removes the nodes; nothing
+watches the DOM for other removals, so content removed any other way is only partly reclaimed.
 
-- A window/document handler whose element is out of the document is not run; if the element had been mounted, the
-  outermost slot taken out of the document with it is released at the end of the task.
-- An effect slot or reactive attribute that reruns on a mounted node now out of the document skips its work and is
-  released at the end of the task.
-- An idle sweep (`requestIdleCallback`, `setTimeout` fallback; about once a second, only while something is tracked)
-  checks the anchors of top-level slots only: `render()` roots, HMR instances, slots created outside any template, and
-  nodes holding unadopted cleanups. A mounted anchor found out of the document releases the outermost slot removed
-  with it, and everything it owns with it, so a removed container is released once however many bindings it holds,
-  including effects nothing they read ever changes again and content inside shadow roots.
+Nodes you create yourself (`document.createElement`, a third-party widget's DOM) are yours: appending them to a
+template element and removing them again is fine, as long as the template's own nodes stay where it put them.
 
-Foreign code removing only part of a template's content (a row, an element inside a mounted root) is detected by the
-guards alone, when an effect there reruns or a window/document event reaches a binding there, or once its top-level
-root leaves the document.
+What is still healed when other code removes template content, without a `MutationObserver`:
+
+- **A whole root.** An idle sweep (`requestIdleCallback`, `setTimeout` fallback; about once a second, only while
+  something is tracked) checks the anchors of top-level slots: `render()` roots, HMR instances, slots created outside
+  any template, and nodes holding unadopted cleanups. When a host removes the container, the outermost slot removed
+  with it is released, along with everything it owns, including effects nothing they read ever changes again and
+  content inside shadow roots.
+- **Window and document handlers.** A handler whose element is out of the document is never run; if the element had
+  been mounted, the outermost slot removed with it is released at the end of the task.
+- **Effects and reactive attributes.** One that reruns on a mounted node now out of the document skips its work and
+  is released at the end of the task.
+- **Moves.** A node removed and reinserted within the same task is kept, and an effect that skipped a rerun while it
+  was out runs again.
+
+What is not healed: an element removed by other code from content whose root is still mounted (a row, a panel inside
+a page). Its `ondisconnect` hook, and whatever its `onconnect`/`onfirstpaint` listeners created (observers, timers,
+subscriptions), stay alive until the enclosing slot or root is released, unless one of the guards above reaches it
+first.
 
 Errors thrown by these cleanups are reported through `reportError` (prefixed `@esportsplus/template:`), not thrown.
-
 Only content once seen in the document is released this way; content built but never inserted is left alone and
-stops being watched after about a minute. A node removed and reinserted within the same task (a move) is kept, and an
-effect that skipped a rerun while it was out runs again. Caveats:
+stops being watched after about a minute.
 
-- Mounted content kept out of the document past the end of a task, a rerun or a sweep is treated as removed, so a
-  detached view meant for reuse must be rebuilt, not reinserted.
-- Content rendered into an iframe's document is never seen as removed when the iframe is: its nodes still report
-  `isConnected`, so it is released only by template disposal.
+**Iframes.** Render within the document the template runs in; an iframe runs its own copy of the template. Content
+rendered from this document into an iframe's document still reports `isConnected` after the iframe is removed, so it
+is released only by template disposal.
+
+**Templates are factories.** Call a template each time you need its content; do not cache rendered nodes across
+effect runs or reinsert detached content. Content kept out of the document past the end of a task, a rerun or a sweep
+counts as removed, and content an effect run built is released by the next run, so either comes back with its
+bindings released. Static content (no bindings or hooks) is unaffected.
+
+**Compiler warning.** The Vite plugin warns, in `vite` and `vite build` alike, wherever a removal is written directly
+on template output: a call to `remove`, `replaceWith`, `replaceChildren`, `removeChild` or `insertAdjacentHTML`, or a
+write to `innerHTML`, `outerHTML`, `textContent` or `innerText`, whose target is an `html` result, the element a
+lifecycle hook (`onconnect`, `ondisconnect`, `onfirstpaint`, `ontick`) receives, `this` in an event handler written
+as a `function`, or a variable initialized from one of those and never reassigned. Only handlers written in the
+template itself are followed; anything it cannot trace (a handler passed in by name, a node found by
+`querySelector`, nodes you created) is not flagged, so no warning does not mean no violation. The `tsc` plugin does
+not warn.
 
 ### Direct Attach Events
 

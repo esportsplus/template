@@ -3,6 +3,8 @@ import { imports as sourceImports } from '@esportsplus/typescript/compiler';
 import type { ImportIntent, TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, NAMESPACE, PACKAGE_NAME, PACKAGE_REACTIVITY, SIGNAL } from './constants';
 import { generateCode } from './codegen';
+import { findRemovals } from './removal';
+import type { Removal } from './removal';
 import { findTemplateArtifacts } from './ts-parser';
 
 
@@ -39,13 +41,23 @@ function hasSignalImport(sourceFile: ts.SourceFile): boolean {
 
 
 // No text patterns: a file can reach `html` under any name (a barrel's rename, a default
-// re-export), so every file is resolved against the program and only its sites are compiled
-export default {
+// re-export), so every file is resolved against the program and only its sites are compiled.
+// 'report' receives each file's hand removals of template output; the tsc path has no channel
+// to warn through, so it passes none and they are not looked for.
+const compiler = (report: ((removals: Removal[]) => void) | null = null) => ({
     transform: (ctx: TransformContext) => {
         let artifacts = findTemplateArtifacts(ctx.sourceFile, ctx.checker, ctx.program);
 
         if (artifacts.escapes.length > 0) {
             throw escaped(ctx.sourceFile, artifacts.escapes);
+        }
+
+        if (report !== null) {
+            let removals = findRemovals(artifacts, ctx.sourceFile);
+
+            if (removals.length > 0) {
+                report(removals);
+            }
         }
 
         let { prepend, replacements, selectorFired } = generateCode(artifacts, ctx.sourceFile, ctx.checker);
@@ -69,4 +81,9 @@ export default {
 
         return { dependencies: artifacts.dependencies, imports, prepend, replacements };
     }
-};
+});
+
+
+export default compiler();
+export { compiler };
+export type { Removal };

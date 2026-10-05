@@ -1,10 +1,12 @@
 import { ts } from '@esportsplus/typescript';
 import { references } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, isEntrypoint, PACKAGE_NAME } from './constants';
+import { ENTRYPOINT, isEntrypoint, PACKAGE_NAME, REMOVALS } from './constants';
 import type { Entrypoint } from './constants';
 
 
 type Artifacts = {
+    // Names an assignment targets anywhere in the file: a `let` among them may not hold what it was initialized with
+    assigned: Set<string>;
     calls: ReactiveCallInfo[];
     // Names bound by a `const` declaration anywhere in the file: only these can fold, so any
     // other identifier is rejected without a checker round-trip
@@ -14,6 +16,8 @@ type Artifacts = {
     // Uses of `html` the compiler cannot lower: anything but a template tag, an
     // html.reactive()/html.virtual() callee, or a const alias of it
     escapes: ts.Node[];
+    // Accesses of DOM members that remove or replace nodes, whatever their receiver; see ./removal
+    removals: ts.PropertyAccessExpression[];
     // Expressions denoting this package's `html`: `html`, an alias, or `ns.html`
     sites: Set<ts.Node>;
     templates: TemplateInfo[];
@@ -118,6 +122,17 @@ function visit(node: ts.Node, depth: number, artifacts: Artifacts): void {
     ) {
         artifacts.constants.add(node.name.text);
     }
+    else if (ts.isPropertyAccessExpression(node) && REMOVALS.has(node.name.text)) {
+        artifacts.removals.push(node);
+    }
+    else if (
+        ts.isBinaryExpression(node) &&
+        ts.isIdentifier(node.left) &&
+        node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+        node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+    ) {
+        artifacts.assigned.add(node.left.text);
+    }
 
     let d = nextDepth(node, depth);
 
@@ -165,7 +180,16 @@ const extractTemplateParts = (template: ts.TemplateLiteral): { expressions: ts.E
 // reached through any import, barrel re-export, namespace or const alias is a site, and a
 // same-named local never is. Every site the compiler cannot lower is reported as an escape.
 const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): Artifacts => {
-    let artifacts: Artifacts = { calls: [], constants: new Set(), dependencies: [], escapes: [], sites: new Set(), templates: [] };
+    let artifacts: Artifacts = {
+            assigned: new Set(),
+            calls: [],
+            constants: new Set(),
+            dependencies: [],
+            escapes: [],
+            removals: [],
+            sites: new Set(),
+            templates: []
+        };
 
     if (checker && program) {
         let targets = new Set(references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT).map(references.key));

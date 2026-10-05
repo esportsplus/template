@@ -1,18 +1,22 @@
 import { plugin } from '@esportsplus/typescript/compiler';
 import type { SourceMapV3 } from '@esportsplus/typescript/compiler';
 import reactivity from '@esportsplus/reactivity/compiler';
-import template from '..';
+import { compiler } from '..';
+import type { Removal } from '..';
 import { apply, plugin as hmr } from '../hmr';
 import type { HmrState } from '../hmr';
 import { PACKAGE_NAME, UNCOMPILED } from '../constants';
 
+
+// The part of Rollup's transform context used here; absent when the hook is called directly
+type Context = { warn?: (message: string) => void } | undefined;
 
 type VitePlugin = {
     configResolved: (config: any) => void;
     enforce: 'pre';
     handleHotUpdate: (ctx: any) => any;
     name: string;
-    transform: (code: string, id: string, options?: { ssr?: boolean }) => { code: string; map: unknown } | null;
+    transform: (this: unknown, code: string, id: string, options?: { ssr?: boolean }) => { code: string; map: unknown } | null;
     watchChange: (id: string) => void;
 };
 
@@ -24,13 +28,47 @@ const REGEX_PATH_SEPARATOR = /\\/g;
 const RELOAD_WINDOW = 100;
 
 
+// The removal's offset in the source Vite passed in: the analysis ran on code an earlier plugin may have edited
+function locate(code: string, removal: Removal): number {
+    let at = -1;
+
+    for (let i = 0; i <= removal.occurrence; i++) {
+        at = code.indexOf(removal.text, at + 1);
+
+        if (at === -1) {
+            return removal.start;
+        }
+    }
+
+    return at;
+}
+
+function warning(code: string, id: string, removal: Removal): string {
+    let offset = locate(code, removal),
+        line = 1,
+        start = 0;
+
+    for (let at = code.indexOf('\n'); at !== -1 && at < offset; at = code.indexOf('\n', at + 1)) {
+        line++;
+        start = at + 1;
+    }
+
+    return `${PACKAGE_NAME}: ${id}:${line}:${offset - start + 1} \`${removal.text}\` removes or replaces ` +
+        `template-owned nodes by hand, so their lifecycle hooks and what they created stay alive until the content ` +
+        `that owns them is released. Change content through a slot, reactive array or render() disposer instead ` +
+        `(see README 'Removing template content').`;
+}
+
+
 export default ({ root }: { root?: string } = {}) => {
     let isDev = false,
         lastReload = 0,
+        // Set by the template compiler during the transform in progress, which runs synchronously
+        removals: Removal[] = [],
         state: HmrState = { id: null, plan: null, templates: new Set() },
         vitePlugin = plugin.vite({
             name: PACKAGE_NAME,
-            plugins: [hmr(state), reactivity, template],
+            plugins: [hmr(state), reactivity, compiler((found) => { removals = found; })],
             uncompiled: [UNCOMPILED]
         })({ root });
 
@@ -77,12 +115,20 @@ export default ({ root }: { root?: string } = {}) => {
 
             return result;
         },
-        transform(code: string, id: string, options?: { ssr?: boolean }) {
+        transform(this: unknown, code: string, id: string, options?: { ssr?: boolean }) {
             // The pipeline runs synchronously, so this handshake cannot interleave across modules
             state.id = isDev && options?.ssr !== true ? id.replace(REGEX_PATH_SEPARATOR, '/') : null;
             state.plan = null;
+            removals = [];
 
-            let result = vitePlugin.transform(code, id);
+            let context = this as Context,
+                result = vitePlugin.transform(code, id);
+
+            if (typeof context?.warn === 'function') {
+                for (let i = 0, n = removals.length; i < n; i++) {
+                    context.warn(warning(code, id.replace(REGEX_PATH_SEPARATOR, '/'), removals[i]));
+                }
+            }
 
             if (result === null || state.id === null || state.plan === null) {
                 return result;

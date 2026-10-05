@@ -11,6 +11,19 @@ const NAMESPACE = uid('template');
 
 const PACKAGE_REACTIVITY = '@esportsplus/reactivity';
 
+// DOM members that remove or replace nodes: methods are flagged when called, properties when assigned
+const REMOVALS = new Map<string, 'call' | 'write'>([
+    ['innerHTML', 'write'],
+    ['innerText', 'write'],
+    ['insertAdjacentHTML', 'call'],
+    ['outerHTML', 'write'],
+    ['remove', 'call'],
+    ['removeChild', 'call'],
+    ['replaceChildren', 'call'],
+    ['replaceWith', 'call'],
+    ['textContent', 'write']
+]);
+
 const SIGNAL = 'signal';
 
 
@@ -35,6 +48,6 @@ const isEntrypoint = (value: string): value is Entrypoint => {
 };
 
 
-export { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, isEntrypoint, NAMESPACE, PACKAGE_REACTIVITY, SIGNAL, TYPES };
+export { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, isEntrypoint, NAMESPACE, PACKAGE_REACTIVITY, REMOVALS, SIGNAL, TYPES };
 export type { Entrypoint };
 export { PACKAGE_NAME, UNCOMPILED } from '~/constants';
