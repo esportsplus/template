@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@esportsplus/reactivity':
-        specifier: ^0.39.0
-        version: 0.39.0
+        specifier: ^0.39.1
+        version: 0.39.1
       '@esportsplus/typescript':
         specifier: ^0.37.0
         version: 0.37.0
@@ -261,8 +261,8 @@ packages:
   '@esportsplus/cli-passthrough@0.0.19':
     resolution: {integrity: sha512-DRhP579js4sM+Faww6dcpJ2B+CqgjWBnMvpEY/b39mRJyT6W0u8ie1o1oRh2HnzxdhnYChW8XAR40POTuVhJnA==}
 
-  '@esportsplus/reactivity@0.39.0':
-    resolution: {integrity: sha512-gnI9RzgQw0a+1+slBejQsYMxSuEdzXM3L/7Uj5FqKiPG6khW4Oex78BMTh/pkAtMxwdMXIjeNhSRPHViG9BGfA==}
+  '@esportsplus/reactivity@0.39.1':
+    resolution: {integrity: sha512-JsoMLz71dKeyXa9aRWz5nEuBMC5qUgkI5zv9qeh2FIAA5/btcozBrtx1qMG7X0nu0GKyA9Ikns9HRyR3c8+R9Q==}
 
   '@esportsplus/typescript@0.37.0':
     resolution: {integrity: sha512-Mss/LKp12a4vEBZ59/ROQ0sWSLyTbU6dr9RA/+8q55it2nfBKWE4aMp6/YtQGFSzY+CZGDNbmmQ9oBMKKIo6yg==}
@@ -1200,7 +1200,7 @@ snapshots:
 
   '@esportsplus/cli-passthrough@0.0.19': {}
 
-  '@esportsplus/reactivity@0.39.0':
+  '@esportsplus/reactivity@0.39.1':
     dependencies:
       '@esportsplus/utilities': 0.28.6
 
