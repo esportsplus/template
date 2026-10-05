@@ -1,5 +1,5 @@
 import { onCleanup, root } from '@esportsplus/reactivity';
-import { context, enter, exit, track as watch } from './slot/cleanup';
+import { context, enter, exit, release, throws, track as watch, unowned } from './slot/cleanup';
 import type { Slot } from './slot/cleanup';
 import render from './slot/render';
 import { clone, EMPTY_FRAGMENT } from './utilities';
@@ -118,6 +118,9 @@ function build(entry: Entry, invocation: Invocation, impl: Function): DocumentFr
             return mount(instance, impl);
         });
 
+    // Built with no owner running (untracked inside a slot's run, or outside any), no owner disposes the root: its
+    // release waits on the start anchor for the slot that inserts it, as any slot's does
+    unowned(start, () => throws(release(instance, null)));
     fragment.append(start, render(content), end);
     entry.instances.add(instance);
     watch(instance);

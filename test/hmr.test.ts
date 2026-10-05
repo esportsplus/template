@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { reactive } from '@esportsplus/reactivity';
+import { flush, reactive, untrack } from '@esportsplus/reactivity';
 import { accept, callable, dispose, eager, factory, prune, revision } from '../src/hmr';
 import { ArraySlot } from '../src/slot/array';
 import { ondisconnect, sweep } from '../src/slot/cleanup';
@@ -254,6 +254,46 @@ describe('hmr', () => {
             });
 
             expect(calls).toEqual(['kept', 'gone']);
+        });
+
+        // A lazily mounted preview: a later run of the effect slot builds the example untracked, so no owner is running
+        it('releases an instance built untracked by an effect slot rerun when the slot replaces it', () => {
+            let calls: string[] = [],
+                container = document.createElement('div'),
+                released: string[] = [],
+                component = factory('release-untracked', 'default', make(calls, released)) as (label: string) => DocumentFragment,
+                state = reactive({ view: 'pending' }),
+                stop = render(container, () => () => state.view === 'shown' ? untrack(() => component('example')) : state.view);
+
+            document.body.appendChild(container);
+            state.view = 'shown';
+            flush();
+
+            expect(container.querySelectorAll('div')).toHaveLength(1);
+
+            state.view = 'away';
+            flush();
+
+            expect(released).toEqual(['example']);
+            expect(container.textContent).toBe('away');
+
+            stop();
+            container.remove();
+        });
+
+        it('releases an instance built with no owner once the slot it was inserted by is released', () => {
+            let calls: string[] = [],
+                container = document.createElement('div'),
+                released: string[] = [],
+                component = factory('release-ownerless', 'default', make(calls, released)) as (label: string) => DocumentFragment,
+                built = component('outside'),
+                stop = render(container, () => built);
+
+            expect(released).toEqual([]);
+
+            stop();
+
+            expect(released).toEqual(['outside']);
         });
 
         it('releases the replaced implementation once and keeps the new one', () => {
