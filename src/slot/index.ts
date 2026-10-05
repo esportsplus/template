@@ -1,6 +1,6 @@
 import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable } from '../types';
-import { adopt, context } from './cleanup';
+import { adopt } from './cleanup';
 import { EffectSlot } from './effect';
 import render from './render';
 
@@ -12,10 +12,8 @@ export default <T>(anchor: Element, renderable: Renderable<T>, mode: number = AN
     else {
         let node = render(renderable);
 
-        // Built outside any owner, it is owned by the slot's; with no owner here it waits for one that inserts it
-        if (context() !== null) {
-            adopt(node);
-        }
+        // Built outside any owner, it is owned by the slot's
+        adopt(node);
 
         if (mode === ANCHOR_MARKER) {
             anchor.after(node);

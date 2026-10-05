@@ -32,11 +32,14 @@ const SWEEP_LIMIT = 60;
 const TRACKED = 4;
 
 
-let cursor = 0,
-    // One long task can create and dispose many slots with no sweep in between to drop them
-    compactAt = 1024,
+// One long task can create and dispose many slots with no sweep in between to drop them
+let compactAt = 1024,
+    // Orphaned nodes already in the document when their first cleanup was registered: seen mounted from the start, so
+    // one removed before any sweep is still released
+    connected = new WeakSet<Node>(),
     // The slot whose content is being built: the parent of every slot created meanwhile
     current: Slot | null = null,
+    cursor = 0,
     healing: Slot[] = [],
     idle: (fn: (deadline?: IdleDeadline) => void) => void = typeof requestIdleCallback === 'function'
         ? (fn) => requestIdleCallback(fn, { timeout: SWEEP_DELAY })
@@ -141,6 +144,10 @@ function orphan(node: Orphan, fn: VoidFunction) {
     node[CLEANUP] = [fn];
     orphans.push(node);
 
+    if (node.isConnected) {
+        connected.add(node);
+    }
+
     if (!scheduled) {
         schedule(SWEEP_DELAY);
     }
@@ -225,7 +232,7 @@ function settle() {
 
                     throws(drain(fns, null));
                 },
-                state: 0
+                state: connected.has(node) ? MOUNTED : 0
             };
 
         track(slot);
@@ -246,8 +253,13 @@ function throws(errors: unknown[] | null) {
 }
 
 
-// Hands the orphaned cleanups of nodes inside 'content' to the running owner; call before 'content' is inserted
+// Hands the orphaned cleanups of nodes inside 'content' to the running owner; call before 'content' is inserted. With no
+// owner running (a slot built inside a detached root) they stay pending for an enclosing slot to claim.
 const adopt = (content: Node) => {
+    if (!hasOwner()) {
+        return;
+    }
+
     let fns = claim(content);
 
     if (fns !== null) {
