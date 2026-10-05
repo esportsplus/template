@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { reactive } from '@esportsplus/reactivity';
 import { accept, callable, dispose, eager, factory, prune, revision } from '../src/hmr';
+import { ArraySlot } from '../src/slot/array';
+import { ondisconnect, sweep } from '../src/slot/cleanup';
+import type { Element } from '../src/types';
+
+import render from '../src/render';
 
 
 function comments(container: HTMLElement): Comment[] {
@@ -196,6 +202,87 @@ describe('hmr', () => {
             prune('prune-module');
 
             expect(container.childNodes).toHaveLength(0);
+        });
+    });
+
+    describe('instance release', () => {
+        function make(calls: string[], released: string[] = []) {
+            return () => function (label: string) {
+                let div = document.createElement('div');
+
+                calls.push(label);
+                ondisconnect(div as unknown as Element, () => released.push(label));
+
+                return div;
+            };
+        }
+
+        it('forgets an instance its owner released', () => {
+            let calls: string[] = [],
+                container = document.createElement('div'),
+                impl = make(calls),
+                component = factory('release-owner', 'default', impl) as (label: string) => DocumentFragment,
+                rows = reactive(['kept', 'gone']),
+                slot = new ArraySlot(rows, (label: string) => component(label));
+
+            document.body.appendChild(container);
+            container.appendChild(slot.fragment);
+            rows.pop();
+            slot.flush();
+            update('release-owner', () => {
+                factory('release-owner', 'default', impl);
+            });
+
+            expect(calls).toEqual(['kept', 'gone', 'kept']);
+
+            container.remove();
+        });
+
+        it('forgets an instance foreign code removed once swept', () => {
+            let calls: string[] = [],
+                container = document.createElement('div'),
+                impl = make(calls),
+                component = factory('release-sweep', 'default', impl) as (label: string) => DocumentFragment;
+
+            document.body.appendChild(container);
+            render(container, () => [component('kept'), component('gone')]);
+            sweep();
+            container.remove();
+            sweep();
+            update('release-sweep', () => {
+                factory('release-sweep', 'default', impl);
+            });
+
+            expect(calls).toEqual(['kept', 'gone']);
+        });
+
+        it('releases the replaced implementation once and keeps the new one', () => {
+            let calls: string[] = [],
+                container = document.createElement('div'),
+                released: string[] = [],
+                impl = make(calls, released),
+                component = factory('release-remount', 'default', impl) as (label: string) => DocumentFragment,
+                stop = render(container, () => component('one'));
+
+            update('release-remount', () => {
+                factory('release-remount', 'default', impl);
+            });
+
+            expect(released).toEqual(['one']);
+            expect(container.querySelectorAll('div')).toHaveLength(1);
+
+            stop();
+
+            expect(released).toEqual(['one', 'one']);
+            expect(container.childNodes).toHaveLength(0);
+
+            let spy = vi.fn();
+
+            update('release-remount', () => {
+                factory('release-remount', 'default', () => spy);
+            });
+
+            expect(spy).not.toHaveBeenCalled();
         });
     });
 });

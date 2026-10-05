@@ -2,8 +2,8 @@ import { read, root, signal, write, Reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
 import { clone, EMPTY_FRAGMENT, marker, untracked } from '../utilities';
-import { dispose as disposeGroups, ondisconnect, remove } from './cleanup';
-import { subscribeArray } from './subscriptions';
+import { context, detach, enter, exit, ondisconnect, release, throws, track } from './cleanup';
+import type { Slot } from './cleanup';
 
 
 type ArraySlotOp<T> =
@@ -18,6 +18,14 @@ type ArraySlotOp<T> =
     | { op: 'shift' }
     | { op: 'sort'; order: number[] };
 
+// A row: its nodes and the root that owns everything its template bound
+type Item = Slot & SlotGroup;
+
+
+// Releases rows and leaves their nodes in place
+function dispose(items: Item[]) {
+    throws(releases(items));
+}
 
 function lis(arr: number[]): Set<number> {
     let n = arr.length;
@@ -66,50 +74,96 @@ function lis(arr: number[]): Set<number> {
 }
 
 
-class ArraySlot<T> {
-    private disposed = false;
-    private marker: Element;
-    private nodes: SlotGroup[] = [];
+function releases(items: Item[]): unknown[] | null {
+    let errors: unknown[] | null = null;
+
+    for (let i = 0, n = items.length; i < n; i++) {
+        errors = release(items[i], errors);
+    }
+
+    return errors;
+}
+
+// Releases rows, then removes their nodes
+function remove(items: Item[]) {
+    let errors = releases(items);
+
+    for (let i = 0, n = items.length; i < n; i++) {
+        detach(items[i]);
+    }
+
+    throws(errors);
+}
+
+
+class ArraySlot<T> implements Slot {
+    anchor: Element;
+    disposed = false;
+    private nodes: Item[] = [];
+    parent: Slot | null;
     private queue: ArraySlotOp<T>[] = [];
     private scheduled = false;
     private signal;
     private soleChild: boolean;
-    private template: (value: T) => SlotGroup;
-    private unsubscribers: VoidFunction[] = [];
+    state = 0;
+    private template: (value: T) => Item;
+    private unsubscribe: VoidFunction[] = [];
 
     readonly fragment: DocumentFragment;
 
 
-    constructor(private array: Reactive<T[]>, template: (value: T) => DocumentFragment | Text, soleChild: boolean = false) {
-        let fragment = this.fragment = clone(EMPTY_FRAGMENT);
+    // 'managed': the slot's owner (a VirtualSlot) disposes it, so it registers nothing on the running owner
+    constructor(private array: Reactive<T[]>, template: (value: T) => DocumentFragment | Text, soleChild: boolean = false, managed: boolean = false) {
+        let fragment = this.fragment = clone(EMPTY_FRAGMENT),
+            slot = this;
 
-        this.marker = marker.cloneNode() as unknown as Element;
+        this.anchor = marker.cloneNode() as unknown as Element;
+        this.parent = context();
         this.signal = signal(untracked(array).length);
         this.soleChild = soleChild;
+        // Each row gets a root of its own, outside any owner: rows come and go with the array, and dispose()
+        // releases the ones left
         this.template = function (data) {
-            let dispose: VoidFunction,
-                frag = root((d) => {
-                    dispose = d;
-                    return template(data);
-                }),
-                group = {
-                    head: frag.firstChild as unknown as Element,
-                    tail: frag.lastChild as unknown as Element
-                };
+            let item = {
+                    anchor: null,
+                    disposed: false,
+                    head: null,
+                    parent: slot,
+                    release: null,
+                    state: 0,
+                    tail: null
+                } as unknown as Item,
+                frag = root((dispose) => {
+                    let parent = enter(item);
 
+                    item.release = dispose;
+
+                    try {
+                        return template(data);
+                    }
+                    finally {
+                        exit(parent);
+                    }
+                });
+
+            item.anchor = item.head = frag.firstChild as unknown as Element;
+            item.tail = frag.lastChild as unknown as Element;
             fragment.append(frag);
-            ondisconnect(group.head, dispose!);
 
-            return group;
+            return item;
         };
 
-        fragment.append(this.marker);
-        ondisconnect(this.marker as unknown as Element, () => this.dispose());
+        fragment.append(this.anchor);
+
+        if (!managed) {
+            ondisconnect(this.anchor, () => this.dispose());
+            track(this);
+        }
 
         if (untracked(array).length) {
             root(() => {
                 let n = untracked(array).length,
-                    nodes = new Array<SlotGroup>(n);
+                    nodes = new Array<Item>(n);
 
                 for (let i = 0; i < n; i++) {
                     nodes[i] = this.template(array[i]);
@@ -119,60 +173,50 @@ class ArraySlot<T> {
             });
         }
 
-        this.unsubscribers.push(
-            subscribeArray(array, 'clear', () => {
+        this.unsubscribe.push(
+            array.on('clear', () => {
                 this.queue.length = 0;
                 this.schedule({ op: 'clear' });
             }),
-            subscribeArray(array, 'concat', ({ items }) => {
+            array.on('concat', ({ items }) => {
                 this.schedule({ items, op: 'concat' });
             }),
-            subscribeArray(array, 'pop', () => {
+            array.on('pop', () => {
                 this.schedule({ op: 'pop' });
             }),
-            subscribeArray(array, 'push', ({ items }) => {
+            array.on('push', ({ items }) => {
                 this.schedule({ items, op: 'push' });
             }),
-            subscribeArray(array, 'reverse', () => {
+            array.on('reverse', () => {
                 this.schedule({ op: 'reverse' });
             }),
-            subscribeArray(array, 'set', ({ index, item }) => {
+            array.on('set', ({ index, item }) => {
                 this.schedule({ op: 'set', item, index });
             }),
-            subscribeArray(array, 'shift', () => {
+            array.on('shift', () => {
                 this.schedule({ op: 'shift' });
             }),
-            subscribeArray(array, 'sort', ({ order }) => {
+            array.on('sort', ({ order }) => {
                 this.schedule({ op: 'sort', order });
             }),
-            subscribeArray(array, 'splice', ({ deleteCount, items, start }) => {
+            array.on('splice', ({ deleteCount, items, start }) => {
                 this.schedule({ deleteCount, items, op: 'splice', start });
             }),
-            subscribeArray(array, 'unshift', ({ items }) => {
+            array.on('unshift', ({ items }) => {
                 this.schedule({ items, op: 'unshift' });
             })
         );
     }
 
 
-    private anchor(index: number = this.nodes.length - 1) {
-        let node = this.nodes[index];
-
-        if (node) {
-            return node.tail || node.head;
-        }
-
-        return this.marker;
-    }
-
     private clear() {
         if (this.soleChild) {
-            let parent = this.marker.parentNode;
+            let parent = this.anchor.parentNode;
 
             if (parent) {
-                disposeGroups(this.nodes.splice(0));
+                dispose(this.nodes.splice(0));
                 parent.textContent = '';
-                parent.append(this.marker);
+                parent.append(this.anchor);
                 return;
             }
         }
@@ -190,15 +234,15 @@ class ArraySlot<T> {
         this.queue = [];
         this.scheduled = false;
 
-        let unsubscribers = this.unsubscribers;
+        let unsubscribe = this.unsubscribe;
 
-        this.unsubscribers = [];
+        this.unsubscribe = [];
 
-        for (let i = 0, n = unsubscribers.length; i < n; i++) {
-            unsubscribers[i]();
+        for (let i = 0, n = unsubscribe.length; i < n; i++) {
+            unsubscribe[i]();
         }
 
-        disposeGroups(this.nodes.splice(0));
+        dispose(this.nodes.splice(0));
     }
 
     flush() {
@@ -207,6 +251,17 @@ class ArraySlot<T> {
         }
 
         this.run();
+    }
+
+    // The node a row inserted after 'index' goes after
+    private last(index: number = this.nodes.length - 1) {
+        let node = this.nodes[index];
+
+        if (node) {
+            return node.tail || node.head;
+        }
+
+        return this.anchor;
     }
 
     private pop() {
@@ -218,7 +273,7 @@ class ArraySlot<T> {
     }
 
     private push(items: T[]) {
-        let anchor = this.anchor(),
+        let anchor = this.last(),
             nodes = this.nodes;
 
         for (let i = 0, n = items.length; i < n; i++) {
@@ -226,6 +281,10 @@ class ArraySlot<T> {
         }
 
         anchor.after(this.fragment);
+    }
+
+    release() {
+        this.dispose();
     }
 
     private run() {
@@ -317,21 +376,21 @@ class ArraySlot<T> {
             remove(nodes.splice(0));
 
             let m = untracked(this.array).length,
-                rebuilt = new Array<SlotGroup>(m);
+                rebuilt = new Array<Item>(m);
 
             for (let i = 0; i < m; i++) {
                 rebuilt[i] = this.template(this.array[i]);
             }
 
             this.nodes = rebuilt;
-            this.marker.after(this.fragment);
+            this.anchor.after(this.fragment);
             return;
         }
 
         let end: Node | null = n > 0 ? nodes[n - 1].tail.nextSibling : null,
             keep = lis(order),
-            parent = this.marker.parentNode,
-            sorted = new Array(n) as SlotGroup[];
+            parent = this.anchor.parentNode,
+            sorted = new Array(n) as Item[];
 
         for (let i = 0; i < n; i++) {
             sorted[i] = nodes[order[i]];
@@ -375,12 +434,11 @@ class ArraySlot<T> {
     private splice(start: number, deleteCount: number = this.nodes.length, items: T[]) {
         let nodes = this.nodes;
 
+        remove(nodes.splice(start, deleteCount));
+
         if (!items.length) {
-            remove(nodes.splice(start, deleteCount));
             return;
         }
-
-        remove(nodes.splice(start, deleteCount));
 
         let rest = nodes.splice(start);
 
@@ -392,7 +450,7 @@ class ArraySlot<T> {
             nodes.push(rest[i]);
         }
 
-        this.anchor(start - 1).after(this.fragment);
+        this.last(start - 1).after(this.fragment);
     }
 
     private sync() {
@@ -403,7 +461,7 @@ class ArraySlot<T> {
             return;
         }
 
-        let parent = this.marker.parentNode;
+        let parent = this.anchor.parentNode;
 
         if (parent && parent.isConnected && 'moveBefore' in parent) {
             let ref: Node | null = nodes[0].tail.nextSibling;
@@ -436,18 +494,18 @@ class ArraySlot<T> {
             }
         }
 
-        this.marker.after(this.fragment);
+        this.anchor.after(this.fragment);
     }
 
     private unshift(items: T[]) {
-        let groups = new Array<SlotGroup>(items.length);
+        let groups = new Array<Item>(items.length);
 
         for (let i = 0, n = items.length; i < n; i++) {
             groups[i] = this.template(items[i]);
         }
 
         this.nodes = groups.concat(this.nodes);
-        this.marker.after(this.fragment);
+        this.anchor.after(this.fragment);
     }
 
 

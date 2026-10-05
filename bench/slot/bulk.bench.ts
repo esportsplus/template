@@ -3,8 +3,6 @@ import { flush } from '../krausest/setup';
 import { reactive } from '@esportsplus/reactivity';
 import { test } from 'vitest';
 import { ArraySlot } from '../../src/slot/array';
-import { dispose, remove } from '../../src/slot/cleanup';
-import { SlotGroup } from '../../src/types';
 import { template } from '../../src/utilities';
 
 
@@ -21,18 +19,6 @@ function build(n: number): number[] {
     return items;
 }
 
-function groups(n: number): SlotGroup[] {
-    let pool = new Array<SlotGroup>(n);
-
-    for (let i = 0; i < n; i++) {
-        let element = document.createElement('div') as unknown as SlotGroup['head'];
-
-        pool[i] = { head: element, tail: element };
-    }
-
-    return pool;
-}
-
 function row(value: number) {
     let fragment = ROW() as DocumentFragment;
 
@@ -40,21 +26,6 @@ function row(value: number) {
 
     return fragment;
 }
-
-
-// Detached single-node groups isolate the group walk + call overhead instead of drowning it in jsdom mount cost
-test('slot/cleanup — bulk group teardown (10k detached groups)', async ({ bench }) => {
-    let pool = groups(10000);
-
-    await bench.compare(
-        bench('dispose 10k groups', () => {
-            dispose(pool);
-        }),
-        bench('remove 10k groups', () => {
-            remove(pool);
-        })
-    );
-});
 
 
 test('slot/array — bulk ops (regression guard)', async ({ bench }) => {

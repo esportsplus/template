@@ -1,7 +1,47 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { effect, flush, read, root, signal, write } from '@esportsplus/reactivity';
 import { CLEANUP } from '../../src/constants';
-import { dispose, ondisconnect, remove } from '../../src/slot/cleanup';
+import { adopt, claim, detach, enter, exit, ondisconnect, release, sweep, throws } from '../../src/slot/cleanup';
+import type { Slot } from '../../src/slot/cleanup';
+import { EffectSlot } from '../../src/slot/effect';
+import { marker } from '../../src/utilities';
 import type { Element, SlotGroup } from '../../src/types';
+
+
+type Group = Slot & SlotGroup;
+
+
+// A group owned the way an array row is: a root of its own, with the group as the slot being built
+function owned(head: Node, tail: Node, build: () => void = () => {}): Group {
+    let group = {
+            anchor: head,
+            disposed: false,
+            head,
+            parent: null,
+            release: null,
+            state: 0,
+            tail
+        } as unknown as Group;
+
+    root((dispose) => {
+        let parent = enter(group);
+
+        group.release = dispose;
+
+        try {
+            build();
+        }
+        finally {
+            exit(parent);
+        }
+    });
+
+    return group;
+}
+
+function tick() {
+    return new Promise<void>(resolve => queueMicrotask(resolve));
+}
 
 
 describe('slot/cleanup', () => {
@@ -12,502 +52,240 @@ describe('slot/cleanup', () => {
         document.body.appendChild(container);
     });
 
+    afterEach(() => {
+        container.remove();
+        vi.restoreAllMocks();
+    });
+
     describe('ondisconnect', () => {
-        it('registers cleanup function on element', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup = vi.fn();
+        it('registers on the owner of the slot being built, not on the node', () => {
+            let element = document.createElement('div') as unknown as Element,
+                cleanup = vi.fn(),
+                group = owned(element, element, () => ondisconnect(element, cleanup));
 
-            ondisconnect(element as unknown as Element, cleanup);
+            expect(element[CLEANUP]).toBeUndefined();
+            expect(cleanup).not.toHaveBeenCalled();
 
-            expect(element[CLEANUP]).toBeInstanceOf(Array);
-            expect((element[CLEANUP] as VoidFunction[]).length).toBe(1);
-            expect((element[CLEANUP] as VoidFunction[])[0]).toBe(cleanup);
-        });
-
-        it('registers multiple cleanup functions', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup1 = vi.fn(),
-                cleanup2 = vi.fn(),
-                cleanup3 = vi.fn();
-
-            ondisconnect(element as unknown as Element, cleanup1);
-            ondisconnect(element as unknown as Element, cleanup2);
-            ondisconnect(element as unknown as Element, cleanup3);
-
-            expect((element[CLEANUP] as VoidFunction[]).length).toBe(3);
-        });
-
-        it('preserves existing cleanup functions when adding new ones', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup1 = vi.fn(),
-                cleanup2 = vi.fn();
-
-            ondisconnect(element as unknown as Element, cleanup1);
-            ondisconnect(element as unknown as Element, cleanup2);
-
-            expect((element[CLEANUP] as VoidFunction[])[0]).toBe(cleanup1);
-            expect((element[CLEANUP] as VoidFunction[])[1]).toBe(cleanup2);
-        });
-    });
-
-    describe('remove', () => {
-        it('removes single element from DOM', () => {
-            let element = document.createElement('div') as Element;
-
-            container.appendChild(element as unknown as Node);
-
-            let group: SlotGroup = { head: element, tail: element };
-
-            remove([group]);
-
-            expect(container.children.length).toBe(0);
-        });
-
-        it('calls cleanup function when removing element', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup = vi.fn();
-
-            container.appendChild(element);
-            ondisconnect(element as unknown as Element, cleanup);
-
-            let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
-
-            remove([group]);
+            group.release();
 
             expect(cleanup).toHaveBeenCalledTimes(1);
         });
 
-        it('calls multiple cleanup functions in reverse order', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                callOrder: number[] = [],
-                cleanup1 = vi.fn(() => callOrder.push(1)),
-                cleanup2 = vi.fn(() => callOrder.push(2)),
-                cleanup3 = vi.fn(() => callOrder.push(3));
+        it('registers on a reactivity owner the caller runs under, and runs once', async () => {
+            let element = document.createElement('div') as unknown as Element,
+                cleanup = vi.fn(),
+                stop = root((dispose) => {
+                    ondisconnect(element, cleanup);
+                    return dispose;
+                });
 
-            container.appendChild(element);
-            ondisconnect(element as unknown as Element, cleanup1);
-            ondisconnect(element as unknown as Element, cleanup2);
-            ondisconnect(element as unknown as Element, cleanup3);
+            stop();
 
-            let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
+            expect(cleanup).toHaveBeenCalledTimes(1);
 
-            remove([group]);
+            await tick();
+            container.appendChild(element as unknown as Node);
+            sweep();
+            element.remove();
+            sweep();
 
-            expect(callOrder).toEqual([3, 2, 1]);
-        });
-
-        it('removes range of elements (head to tail)', () => {
-            let first = document.createElement('span') as Element,
-                middle = document.createElement('span') as Element,
-                last = document.createElement('span') as Element;
-
-            container.appendChild(first as unknown as Node);
-            container.appendChild(middle as unknown as Node);
-            container.appendChild(last as unknown as Node);
-
-            let group: SlotGroup = { head: first, tail: last };
-
-            remove([group]);
-
-            expect(container.children.length).toBe(0);
-        });
-
-        it('calls cleanup on all elements in range', () => {
-            let first = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
-                middle = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
-                last = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
-                cleanup1 = vi.fn(),
-                cleanup2 = vi.fn(),
-                cleanup3 = vi.fn();
-
-            container.appendChild(first);
-            container.appendChild(middle);
-            container.appendChild(last);
-
-            ondisconnect(first as unknown as Element, cleanup1);
-            ondisconnect(middle as unknown as Element, cleanup2);
-            ondisconnect(last as unknown as Element, cleanup3);
-
-            let group: SlotGroup = { head: first as unknown as Element, tail: last as unknown as Element };
-
-            remove([group]);
-
-            expect(cleanup1).toHaveBeenCalledTimes(1);
-            expect(cleanup2).toHaveBeenCalledTimes(1);
-            expect(cleanup3).toHaveBeenCalledTimes(1);
-        });
-
-        it('removes multiple groups', () => {
-            let group1Head = document.createElement('div') as Element,
-                group1Tail = document.createElement('div') as Element,
-                group2Head = document.createElement('div') as Element,
-                group2Tail = document.createElement('div') as Element;
-
-            container.appendChild(group1Head as unknown as Node);
-            container.appendChild(group1Tail as unknown as Node);
-            container.appendChild(group2Head as unknown as Node);
-            container.appendChild(group2Tail as unknown as Node);
-
-            remove([
-                { head: group1Head, tail: group1Tail },
-                { head: group2Head, tail: group2Tail }
-            ]);
-
-            expect(container.children.length).toBe(0);
-        });
-
-        it('handles group where head equals tail (single node)', () => {
-            let single = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup = vi.fn();
-
-            container.appendChild(single);
-            ondisconnect(single as unknown as Element, cleanup);
-
-            let group: SlotGroup = { head: single as unknown as Element, tail: single as unknown as Element };
-
-            remove([group]);
-
-            expect(container.children.length).toBe(0);
             expect(cleanup).toHaveBeenCalledTimes(1);
         });
 
-        it('handles group with no tail (uses head as tail)', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown };
+        it('keeps a cleanup made in a detached root inside a slot build, rather than losing it', () => {
+            let element = document.createElement('div') as unknown as Element,
+                cleanup = vi.fn(),
+                group = owned(element, element, () => {
+                    root(() => ondisconnect(element, cleanup));
+                });
 
-            container.appendChild(element);
+            group.release();
 
-            let group = { head: element as unknown as Element } as SlotGroup;
+            expect(cleanup).not.toHaveBeenCalled();
+            expect(element[CLEANUP]).toHaveLength(1);
 
-            remove([group]);
-
-            expect(container.children.length).toBe(0);
-        });
-
-        it('handles elements without cleanup functions', () => {
-            let element = document.createElement('div') as Element;
-
-            container.appendChild(element as unknown as Node);
-
-            let group: SlotGroup = { head: element, tail: element };
-
-            expect(() => remove([group])).not.toThrow();
-            expect(container.children.length).toBe(0);
-        });
-
-        it('clears cleanup array after calling functions', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup = vi.fn();
-
-            container.appendChild(element);
-            ondisconnect(element as unknown as Element, cleanup);
-
-            let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
-
-            remove([group]);
-
-            expect((element[CLEANUP] as VoidFunction[]).length).toBe(0);
-        });
-
-        it('handles text nodes in range', () => {
-            let first = document.createElement('span') as Element,
-                textNode = document.createTextNode('text') as unknown as Element,
-                last = document.createElement('span') as Element;
-
-            container.appendChild(first as unknown as Node);
-            container.appendChild(textNode as unknown as Node);
-            container.appendChild(last as unknown as Node);
-
-            let group: SlotGroup = { head: first, tail: last };
-
-            remove([group]);
-
-            expect(container.childNodes.length).toBe(0);
-        });
-
-        it('handles comment nodes in range', () => {
-            let first = document.createElement('span') as Element,
-                comment = document.createComment('comment') as unknown as Element,
-                last = document.createElement('span') as Element;
-
-            container.appendChild(first as unknown as Node);
-            container.appendChild(comment as unknown as Node);
-            container.appendChild(last as unknown as Node);
-
-            let group: SlotGroup = { head: first, tail: last };
-
-            remove([group]);
-
-            expect(container.childNodes.length).toBe(0);
-        });
-    });
-
-    describe('dispose', () => {
-        it('runs cleanup functions without removing nodes', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup = vi.fn();
-
-            container.appendChild(element);
-            ondisconnect(element as unknown as Element, cleanup);
-
-            let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
-
-            dispose([group]);
+            (element[CLEANUP] as VoidFunction[])[0]();
 
             expect(cleanup).toHaveBeenCalledTimes(1);
-            expect(container.children.length).toBe(1);
         });
 
-        it('runs cleanup tail to head across a range and removes no nodes', () => {
-            let first = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
-                middle = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
-                last = document.createElement('span') as HTMLElement & { [key: symbol]: unknown },
-                callOrder: number[] = [];
+        it('keeps cleanups of content built outside any owner on the node, in order', () => {
+            let element = document.createElement('div') as unknown as Element,
+                calls: number[] = [];
 
-            container.appendChild(first);
-            container.appendChild(middle);
-            container.appendChild(last);
+            ondisconnect(element, () => calls.push(1));
+            ondisconnect(element, () => calls.push(2));
 
-            ondisconnect(first as unknown as Element, () => callOrder.push(1));
-            ondisconnect(middle as unknown as Element, () => callOrder.push(2));
-            ondisconnect(last as unknown as Element, () => callOrder.push(3));
+            let fns = element[CLEANUP] as VoidFunction[];
 
-            let group: SlotGroup = { head: first as unknown as Element, tail: last as unknown as Element };
+            expect(fns).toHaveLength(2);
 
-            dispose([group]);
+            fns[0]();
+            fns[1]();
 
-            expect(callOrder).toEqual([3, 2, 1]);
-            expect(container.childNodes.length).toBe(3);
-        });
-
-        it('empties the cleanup array after running its functions', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup = vi.fn();
-
-            container.appendChild(element);
-            ondisconnect(element as unknown as Element, cleanup);
-
-            let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
-
-            dispose([group]);
-
-            expect((element[CLEANUP] as VoidFunction[]).length).toBe(0);
-        });
-
-        it('runs cleanup for multiple groups and removes no nodes', () => {
-            let group1 = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                group2 = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup1 = vi.fn(),
-                cleanup2 = vi.fn();
-
-            container.appendChild(group1);
-            container.appendChild(group2);
-            ondisconnect(group1 as unknown as Element, cleanup1);
-            ondisconnect(group2 as unknown as Element, cleanup2);
-
-            dispose([
-                { head: group1 as unknown as Element, tail: group1 as unknown as Element },
-                { head: group2 as unknown as Element, tail: group2 as unknown as Element }
-            ]);
-
-            expect(cleanup1).toHaveBeenCalledTimes(1);
-            expect(cleanup2).toHaveBeenCalledTimes(1);
-            expect(container.children.length).toBe(2);
-        });
-
-        it('handles elements without cleanup functions', () => {
-            let element = document.createElement('div') as Element;
-
-            container.appendChild(element as unknown as Node);
-
-            let group: SlotGroup = { head: element, tail: element };
-
-            expect(() => dispose([group])).not.toThrow();
-            expect(container.children.length).toBe(1);
+            expect(calls).toEqual([1, 2]);
         });
     });
 
-    describe('nested cleanup (B11)', () => {
-        it('fires cleanup registered on a descendant element', () => {
-            let outer = document.createElement('div') as Element,
-                inner = document.createElement('span') as Element,
-                cleanup = vi.fn();
+    describe('release', () => {
+        it('releases the owner in registration order and marks the slot disposed, once', () => {
+            let element = document.createElement('div') as unknown as Element,
+                calls: string[] = [],
+                group = owned(element, element, () => {
+                    ondisconnect(element, () => calls.push('1'));
+                    ondisconnect(element, () => calls.push('2'));
+                    ondisconnect(element, () => calls.push('3'));
+                });
+
+            expect(release(group, null)).toBeNull();
+            expect(release(group, null)).toBeNull();
+            expect(calls).toEqual(['1', '2', '3']);
+            expect(group.disposed).toBe(true);
+        });
+
+        it('runs every cleanup when one throws and hands the error back', () => {
+            let element = document.createElement('div') as unknown as Element,
+                calls: string[] = [],
+                group = owned(element, element, () => {
+                    ondisconnect(element, () => calls.push('a'));
+                    ondisconnect(element, () => { throw new Error('boom'); });
+                    ondisconnect(element, () => calls.push('b'));
+                }),
+                errors = release(group, null);
+
+            expect(calls).toEqual(['a', 'b']);
+            expect(errors).toHaveLength(1);
+            expect(() => throws(errors)).toThrow('boom');
+            expect(group.disposed).toBe(true);
+        });
+
+        it('cascades into everything nested without walking the DOM', () => {
+            let outer = document.createElement('div') as unknown as Element,
+                inner = document.createElement('span') as unknown as Element,
+                anchor = marker.cloneNode() as unknown as Element,
+                cleanup = vi.fn(),
+                runs = 0,
+                s = signal(0);
 
             outer.appendChild(inner as unknown as Node);
+            inner.appendChild(anchor as unknown as Node);
             container.appendChild(outer as unknown as Node);
-            ondisconnect(inner, cleanup);
 
-            remove([{ head: outer, tail: outer }]);
+            let group = owned(outer, outer, () => {
+                    ondisconnect(inner, cleanup);
+                    new EffectSlot(anchor, () => { runs++; return read(s); });
+                    effect(() => { read(s); });
+                });
+
+            let walker = vi.spyOn(document, 'createTreeWalker');
+
+            release(group, null);
+            write(s, 1);
+            flush();
 
             expect(cleanup).toHaveBeenCalledTimes(1);
-            expect(container.children.length).toBe(0);
-        });
-
-        it('fires descendant cleanup before the parent cleanup', () => {
-            let outer = document.createElement('div') as Element,
-                inner = document.createElement('span') as Element,
-                callOrder: string[] = [];
-
-            outer.appendChild(inner as unknown as Node);
-            container.appendChild(outer as unknown as Node);
-            ondisconnect(outer, () => callOrder.push('outer'));
-            ondisconnect(inner, () => callOrder.push('inner'));
-
-            remove([{ head: outer, tail: outer }]);
-
-            expect(callOrder).toEqual(['inner', 'outer']);
-        });
-
-        it('skips the descendant query for elements without children', () => {
-            let element = document.createElement('div') as Element,
-                spy = vi.spyOn(element as unknown as HTMLElement, 'querySelectorAll');
-
-            container.appendChild(element as unknown as Node);
-            ondisconnect(element, vi.fn());
-
-            remove([{ head: element, tail: element }]);
-
-            expect(spy).not.toHaveBeenCalled();
+            expect(runs).toBe(1);
+            expect(walker).not.toHaveBeenCalled();
         });
     });
 
-    describe('node-capable subtree cleanup', () => {
-        it('fires cleanup registered on a descendant comment node', () => {
-            let outer = document.createElement('div') as Element,
-                comment = document.createComment('anchor') as unknown as Element,
-                cleanup = vi.fn();
-
-            outer.appendChild(comment as unknown as Node);
-            container.appendChild(outer as unknown as Node);
-            ondisconnect(comment, cleanup);
-
-            remove([{ head: outer, tail: outer }]);
-
-            expect(cleanup).toHaveBeenCalledTimes(1);
-            expect(container.children.length).toBe(0);
-        });
-
-        it('fires cleanup registered on a descendant text node', () => {
-            let outer = document.createElement('div') as Element,
-                textnode = document.createTextNode('text') as unknown as Element,
-                cleanup = vi.fn();
-
-            outer.appendChild(textnode as unknown as Node);
-            container.appendChild(outer as unknown as Node);
-            ondisconnect(textnode, cleanup);
-
-            remove([{ head: outer, tail: outer }]);
-
-            expect(cleanup).toHaveBeenCalledTimes(1);
-        });
-
-        it('reaches cleanup registered before the host is inserted', () => {
-            let host = document.createElement('div') as Element,
-                inner = document.createElement('span') as Element,
-                cleanup = vi.fn();
-
-            host.appendChild(inner as unknown as Node);
-            ondisconnect(inner, cleanup);
-
-            container.appendChild(host as unknown as Node);
-            remove([{ head: host, tail: host }]);
-
-            expect(cleanup).toHaveBeenCalledTimes(1);
-            expect(container.children.length).toBe(0);
-        });
-
-        it('drains every callback even when one throws', () => {
-            let element = document.createElement('div') as Element,
-                calls: string[] = [];
+    describe('detach', () => {
+        it('removes a single node', () => {
+            let element = document.createElement('div') as unknown as Element;
 
             container.appendChild(element as unknown as Node);
-            ondisconnect(element, () => calls.push('a'));
-            ondisconnect(element, () => { throw new Error('boom'); });
-            ondisconnect(element, () => calls.push('b'));
+            detach({ head: element, tail: element });
 
-            expect(() => remove([{ head: element, tail: element }])).toThrow('boom');
-            expect(calls).toEqual(['b', 'a']);
             expect(container.children.length).toBe(0);
         });
 
-        it('repeated removal is a no-op', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                cleanup = vi.fn();
+        it('removes a range, text and comment nodes included, and nothing past it', () => {
+            let first = document.createElement('span') as unknown as Element,
+                last = document.createElement('span') as unknown as Element,
+                after = document.createElement('p');
 
-            container.appendChild(element);
-            ondisconnect(element as unknown as Element, cleanup);
+            container.append(first as unknown as Node, document.createTextNode('text'), document.createComment('c'), last as unknown as Node, after);
+            detach({ head: first, tail: last });
 
-            let group: SlotGroup = { head: element as unknown as Element, tail: element as unknown as Element };
-
-            remove([group]);
-            expect(cleanup).toHaveBeenCalledTimes(1);
-
-            expect(() => remove([group])).not.toThrow();
-            expect(cleanup).toHaveBeenCalledTimes(1);
+            expect(container.childNodes.length).toBe(1);
+            expect(container.firstChild).toBe(after);
         });
     });
 
-    describe('disposal hardening', () => {
-        it('reaches cleanup registered on a descendant comment anchor', () => {
-            let element = document.createElement('div') as Element,
-                comment = document.createComment('anchor') as unknown as Element,
-                cleanup = vi.fn();
+    describe('content built outside any owner', () => {
+        it('is adopted by the owner inserting it in the same task', () => {
+            let content = document.createElement('div') as unknown as Element,
+                inner = document.createElement('span') as unknown as Element,
+                cleanup = vi.fn(),
+                stray = document.createElement('p') as unknown as Element,
+                strayCleanup = vi.fn();
 
-            element.appendChild(comment as unknown as Node);
-            container.appendChild(element as unknown as Node);
+            content.appendChild(inner as unknown as Node);
+            ondisconnect(inner, cleanup);
+            ondisconnect(stray, strayCleanup);
 
-            ondisconnect(comment, cleanup);
+            let stop = root((dispose) => {
+                    adopt(content as unknown as Node);
+                    return dispose;
+                });
 
-            remove([{ head: element, tail: element }]);
+            expect(inner[CLEANUP]).toBeUndefined();
+            expect(stray[CLEANUP]).toHaveLength(1);
+
+            stop();
 
             expect(cleanup).toHaveBeenCalledTimes(1);
-            expect(container.childNodes.length).toBe(0);
+            expect(strayCleanup).not.toHaveBeenCalled();
         });
 
-        it('fires cleanup registered before insertion once the fragment is removed', () => {
+        it('claims only the nodes inside the content', () => {
             let fragment = document.createDocumentFragment(),
-                element = document.createElement('div') as Element,
+                inside = document.createElement('div') as unknown as Element,
+                outside = document.createElement('div') as unknown as Element;
+
+            fragment.appendChild(inside as unknown as Node);
+            ondisconnect(inside, () => {});
+            ondisconnect(inside, () => {});
+            ondisconnect(outside, () => {});
+
+            expect(claim(fragment)).toHaveLength(2);
+            expect(claim(fragment)).toBeNull();
+            expect(outside[CLEANUP]).toHaveLength(1);
+        });
+
+        it('is released once mounted and then removed, if never adopted', async () => {
+            let element = document.createElement('div') as unknown as Element,
                 cleanup = vi.fn();
 
-            fragment.appendChild(element as unknown as Node);
             ondisconnect(element, cleanup);
+            await tick();
 
-            container.appendChild(fragment);
+            sweep();
 
-            remove([{ head: element, tail: element }]);
-
-            expect(cleanup).toHaveBeenCalledTimes(1);
-            expect(container.childNodes.length).toBe(0);
-        });
-
-        it('drains every cleanup even when one throws', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
-                calls: string[] = [];
-
-            container.appendChild(element);
-            ondisconnect(element as unknown as Element, () => {
-                calls.push('first');
-                throw new Error('boom');
-            });
-            ondisconnect(element as unknown as Element, () => calls.push('second'));
-
-            expect(() => dispose([{ head: element as unknown as Element, tail: element as unknown as Element }]))
-                .toThrow('boom');
-
-            expect(calls).toEqual(['second', 'first']);
-        });
-
-        it('repeated disposal is a no-op', () => {
-            let element = document.createElement('div') as Element,
-                cleanup = vi.fn();
+            expect(cleanup).not.toHaveBeenCalled();
 
             container.appendChild(element as unknown as Node);
-            ondisconnect(element, cleanup);
-
-            dispose([{ head: element, tail: element }]);
-            dispose([{ head: element, tail: element }]);
+            sweep();
+            element.remove();
+            sweep();
 
             expect(cleanup).toHaveBeenCalledTimes(1);
+            expect(element[CLEANUP]).toBeUndefined();
+        });
+
+        it('is never released while never mounted', async () => {
+            let element = document.createElement('div') as unknown as Element,
+                cleanup = vi.fn();
+
+            ondisconnect(element, cleanup);
+            await tick();
+
+            for (let i = 0; i < 100; i++) {
+                sweep();
+            }
+
+            expect(cleanup).not.toHaveBeenCalled();
+            expect(element[CLEANUP]).toHaveLength(1);
         });
     });
-
 });

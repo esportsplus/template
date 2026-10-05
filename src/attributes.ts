@@ -3,6 +3,8 @@ import { isArray, isObject } from '@esportsplus/utilities';
 import { ATTRIBUTE_DELIMITERS, STORE } from './constants';
 import { Attributes, Element } from './types';
 import { runtime } from './event';
+import { context as current, stale, unowned } from './slot/cleanup';
+import type { Slot } from './slot/cleanup';
 
 
 type Context = {
@@ -155,13 +157,26 @@ function property(ctx: Context | null, element: Element, id: null | number, name
 // the same task as the change, and its flush() makes it synchronous.
 function reactive(element: Element, name: string, value: unknown) {
     let ctx = context(element),
-        fn = (name === 'class' || name === 'style') ? list : property;
+        fn = (name === 'class' || name === 'style') ? list : property,
+        mounted = false,
+        parent = current(),
+        slot: Slot | null = null,
+        stop: VoidFunction;
 
     ctx.effect ??= 0;
 
     let id = ctx.effect++;
 
-    effect(() => {
+    stop = effect(() => {
+        if (element.isConnected) {
+            mounted = true;
+        }
+        // Out of the document after being seen in it: idle until the end of the task tells a move from a removal
+        else if (mounted) {
+            stale(slot ??= { anchor: element, disposed: false, parent, release: stop, state: 0 });
+            return;
+        }
+
         let next: unknown,
             v = (value as Function)(element);
 
@@ -183,6 +198,8 @@ function reactive(element: Element, name: string, value: unknown) {
             apply(element, name, next);
         }
     });
+
+    unowned(element, stop);
 }
 
 

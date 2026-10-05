@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { remove } from '../../src/slot/cleanup';
+import { root } from '@esportsplus/reactivity';
 import onactive from '../../src/event/onactive';
 import type { Element } from '../../src/types';
 
@@ -134,10 +134,14 @@ describe('event/onactive', () => {
             element = document.createElement('div') as unknown as Element;
 
         container.appendChild(element as unknown as Node);
-        onactive(element, 'touchmove', () => { calls++; });
+
+        let dispose = root((d) => {
+                onactive(element, 'touchmove', () => { calls++; });
+                return d;
+            });
 
         element.dispatchEvent(pointer('pointerdown', 'touch'));
-        remove([{ head: element as unknown as Element, tail: element as unknown as Element }]);
+        dispose();
         element.dispatchEvent(new TouchEvent('touchmove'));
         element.dispatchEvent(pointer('pointerdown', 'touch'));
         element.dispatchEvent(new TouchEvent('touchmove'));

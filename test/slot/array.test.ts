@@ -1132,20 +1132,20 @@ describe('slot/ArraySlot', () => {
             let arr = reactive(['a', 'b', 'c'] as string[]),
                 cleanups = 0,
                 spansAtCleanup: number[] = [],
-                slot = new ArraySlot(arr, tmpl, true);
+                slot = new ArraySlot(arr, (value: string) => {
+                    let frag = tmpl(value);
+
+                    ondisconnect(frag.firstChild as unknown as Element, () => {
+                        cleanups++;
+                        spansAtCleanup.push(container.querySelectorAll('span').length);
+                    });
+
+                    return frag;
+                }, true);
 
             container.appendChild(slot.fragment);
 
-            let spans = container.querySelectorAll('span');
-
-            expect(spans.length).toBe(3);
-
-            for (let i = 0, n = spans.length; i < n; i++) {
-                ondisconnect(spans[i] as unknown as Element, () => {
-                    cleanups++;
-                    spansAtCleanup.push(container.querySelectorAll('span').length);
-                });
-            }
+            expect(container.querySelectorAll('span').length).toBe(3);
 
             arr.clear();
 
@@ -1168,12 +1168,19 @@ describe('slot/ArraySlot', () => {
         });
 
         it('is behaviourally identical to the unflagged clear (marker retained, rows gone, cleanups fired)', async () => {
-            let flagged = reactive(['a', 'b'] as string[]),
-                flaggedCleanups = 0,
-                flaggedSlot = new ArraySlot(flagged, tmpl, true),
-                unflagged = reactive(['a', 'b'] as string[]),
+            let flaggedCleanups = 0,
                 unflaggedCleanups = 0,
-                unflaggedSlot = new ArraySlot(unflagged, tmpl, false),
+                counted = (count: () => void) => (value: string) => {
+                    let frag = tmpl(value);
+
+                    ondisconnect(frag.firstChild as unknown as Element, count);
+
+                    return frag;
+                },
+                flagged = reactive(['a', 'b'] as string[]),
+                flaggedSlot = new ArraySlot(flagged, counted(() => flaggedCleanups++), true),
+                unflagged = reactive(['a', 'b'] as string[]),
+                unflaggedSlot = new ArraySlot(unflagged, counted(() => unflaggedCleanups++), false),
                 flaggedHost = document.createElement('div'),
                 unflaggedHost = document.createElement('div');
 
@@ -1181,14 +1188,6 @@ describe('slot/ArraySlot', () => {
             container.appendChild(unflaggedHost);
             flaggedHost.appendChild(flaggedSlot.fragment);
             unflaggedHost.appendChild(unflaggedSlot.fragment);
-
-            let flaggedSpans = flaggedHost.querySelectorAll('span'),
-                unflaggedSpans = unflaggedHost.querySelectorAll('span');
-
-            for (let i = 0, n = flaggedSpans.length; i < n; i++) {
-                ondisconnect(flaggedSpans[i] as unknown as Element, () => flaggedCleanups++);
-                ondisconnect(unflaggedSpans[i] as unknown as Element, () => unflaggedCleanups++);
-            }
 
             flagged.clear();
             unflagged.clear();
@@ -1257,6 +1256,68 @@ describe('slot/ArraySlot', () => {
             expect(container.querySelectorAll('span').length).toBe(2);
         });
 
+        it('releases a removed row in registration order while its nodes are still in place', () => {
+            let calls: string[] = [],
+                arr = reactive(['a', 'b'] as string[]),
+                slot = new ArraySlot(arr, (value: string) => {
+                    let frag = document.createDocumentFragment(),
+                        span = document.createElement('span');
+
+                    frag.appendChild(span);
+                    ondisconnect(span as unknown as Element, () => calls.push(value + '1:' + span.isConnected));
+                    onCleanup(() => calls.push(value + '2'));
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+            arr.shift();
+            slot.flush();
+
+            expect(calls).toEqual(['a1:true', 'a2']);
+            expect(container.querySelectorAll('span').length).toBe(1);
+        });
+
+        it('releases every removed row when one row cleanup throws, still removes them, then throws', () => {
+            let released: string[] = [],
+                arr = reactive(['a', 'b', 'c'] as string[]),
+                slot = new ArraySlot(arr, (value: string) => {
+                    let frag = document.createDocumentFragment();
+
+                    frag.appendChild(document.createElement('span'));
+                    onCleanup(() => {
+                        if (value === 'a') {
+                            throw new Error('boom');
+                        }
+
+                        released.push(value);
+                    });
+
+                    return frag as unknown as DocumentFragment;
+                });
+
+            container.appendChild(slot.fragment);
+            arr.splice(0, 3);
+
+            expect(() => slot.flush()).toThrow('boom');
+            expect(released).toEqual(['b', 'c']);
+            expect(container.querySelectorAll('span').length).toBe(0);
+        });
+
+        it('repeated disposal is a no-op', () => {
+            let disposed = 0,
+                arr = reactive(['a'] as string[]),
+                slot = new ArraySlot(arr, () => {
+                    onCleanup(() => disposed++);
+
+                    return document.createDocumentFragment().appendChild(document.createElement('i')).parentNode as DocumentFragment;
+                });
+
+            slot.dispose();
+            slot.dispose();
+
+            expect(disposed).toBe(1);
+        });
     });
 
     describe('flush', () => {

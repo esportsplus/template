@@ -13,6 +13,7 @@ const ATTRIBUTE_DELIMITERS: Record<string, string> = {
     style: ';'
 };
 
+// Holds the cleanups of content built outside any owner until a template insertion adopts them
 const CLEANUP = Symbol.for(`${PACKAGE_NAME}/cleanup`);
 
 const DIRECT_ATTACH_EVENTS = new Set<string>([

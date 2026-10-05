@@ -709,6 +709,16 @@ describe('virtual/VirtualSlot', () => {
         });
     });
 
+    describe('ownership', () => {
+        it('builds its inner array slot as its own child, so it is not watched as a top-level slot', () => {
+            let slot = setup([1, 2, 3]),
+                inner = (slot as unknown as { arraySlot: { parent: unknown; state: number } }).arraySlot;
+
+            expect(inner.parent).toBe(slot);
+            expect(inner.state & 4).toBe(0);
+        });
+    });
+
     describe('disposal', () => {
         it('releases observers, listeners, and spacers', async () => {
             let slot = setup(Array.from({ length: 100 }, (_, i) => i));
@@ -718,20 +728,20 @@ describe('virtual/VirtualSlot', () => {
             deliver([[scroller, 200], ...rows().map((row) => [row, 100] as [Element, number])]);
             await flush();
 
-            let remove = vi.spyOn(scroller, 'removeEventListener'),
+            let onScroll = vi.spyOn(slot as unknown as { onScroll: VoidFunction }, 'onScroll'),
                 range = slot.range;
 
             slot.dispose();
 
-            expect(remove).toHaveBeenCalledWith('scroll', expect.any(Function));
             expect(observers.every((observer) => !observer.targets.has(scroller))).toBe(true);
             expect(scroller.querySelectorAll('div[style]').length).toBe(0);
 
             scroll(500);
 
+            expect(onScroll).not.toHaveBeenCalled();
             expect(slot.range).toEqual(range);
 
-            remove.mockRestore();
+            onScroll.mockRestore();
         });
     });
 });

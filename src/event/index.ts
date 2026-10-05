@@ -1,6 +1,7 @@
 import { defineProperty } from '@esportsplus/utilities';
 import { DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS, PACKAGE_NAME, PASSIVE_EVENTS } from '../constants';
-import { ondisconnect as disconnect } from '../slot';
+import { context, heal, MOUNTED, ondisconnect as disconnect } from '../slot/cleanup';
+import type { Slot } from '../slot/cleanup';
 import { Attributes, Element } from '../types';
 import onactive from './onactive';
 import onconnect from './onconnect';
@@ -8,11 +9,16 @@ import onfirstpaint from './onfirstpaint';
 import ontick from './ontick';
 
 
-type Binding = { element: Element; listener: Function | undefined; once: boolean; remove: VoidFunction };
+// Delegated bindings live on their element: a detached target's event never reaches the document, so they carry no
+// slot state
+type Binding = { listener: Function | undefined; once: boolean; release: VoidFunction };
+
+// A slot of its own so a window/document dispatch that finds its element removed can heal what owned it
+type HostBinding = Binding & Slot & { anchor: Element };
 
 type Host = Document | Window;
 
-type Registration = { counter: number; key: symbol; members: Set<Binding> | null; release: VoidFunction };
+type Registration = { counter: number; key: symbol; members: Set<HostBinding> | null; release: VoidFunction };
 
 
 let passive = new Set<string>(PASSIVE_EVENTS),
@@ -24,38 +30,37 @@ function attach(element: Element, registration: Registration, listener: Function
     let key = registration.key,
         members = registration.members,
         previous = element[key] as Binding | undefined,
-        binding: Binding = {
-            element,
-            listener,
-            once,
-            remove: () => {
-                if (binding.listener === undefined) {
-                    return;
-                }
-
-                binding.listener = undefined;
-
-                if (members) {
-                    members.delete(binding);
-                }
-
-                if (element[key] === binding) {
-                    element[key] = undefined;
-                }
-
-                registration.release();
+        release = () => {
+            if (binding.listener === undefined) {
+                return;
             }
-        };
+
+            binding.listener = undefined;
+
+            if (members) {
+                (binding as HostBinding).disposed = true;
+                members.delete(binding as HostBinding);
+            }
+
+            if (element[key] === binding) {
+                element[key] = undefined;
+            }
+
+            registration.release();
+        },
+        binding: Binding = members
+            ? { anchor: element, disposed: false, listener, once, parent: context(), release, state: 0 } as HostBinding
+            : { listener, once, release };
 
     element[key] = binding;
     registration.counter++;
 
     if (members) {
-        members.add(binding);
+        members.add(binding as HostBinding);
     }
 
-    previous?.remove();
-    disconnect(element, binding.remove);
+    previous?.release();
+    disconnect(element, release);
 }
 
 function delegated(key: symbol) {
@@ -69,7 +74,7 @@ function delegated(key: symbol) {
                 let listener = binding.listener;
 
                 if (binding.once) {
-                    binding.remove();
+                    binding.release();
                 }
 
                 defineProperty(e, 'currentTarget', {
@@ -93,21 +98,35 @@ function delegated(key: symbol) {
     };
 }
 
-function global(members: Set<Binding>) {
+function global(members: Set<HostBinding>) {
     return (e: Event) => {
         let errors: unknown[] | null = null;
 
         // Live iteration: a member removed mid-dispatch is skipped, one added fires this event
         for (let binding of members) {
+            let element = binding.anchor;
+
+            // Out of the document the element is not run; once seen in it, being out means foreign code removed it.
+            // Delegated events need no such check: a detached target's event never reaches the document.
+            if (!element.isConnected) {
+                if (binding.state & MOUNTED) {
+                    heal(binding);
+                }
+
+                continue;
+            }
+
+            binding.state |= MOUNTED;
+
             let listener = binding.listener;
 
             if (binding.once) {
-                binding.remove();
+                binding.release();
             }
 
             // Host listeners run with their owning element, matching element and delegated listeners
             try {
-                listener!.call(binding.element, e);
+                listener!.call(element, e);
             }
             catch (error) {
                 (errors ??= []).push(error);
@@ -124,7 +143,7 @@ function global(members: Set<Binding>) {
 
 function register(host: Host, event: string, name: string): Registration {
     let key = Symbol(),
-        members = name === event ? null : new Set<Binding>(),
+        members = name === event ? null : new Set<HostBinding>(),
         handler = members ? global(members) : delegated(key),
         registration: Registration = {
             counter: 0,

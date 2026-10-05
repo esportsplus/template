@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { delegate, on, ondisconnect, runtime } from '../../src/event';
+import { root } from '@esportsplus/reactivity';
 import { CLEANUP } from '../../src/constants';
-import { remove } from '../../src/slot/cleanup';
 import type { Element } from '../../src/types';
 
 
@@ -182,9 +182,13 @@ describe('event/index', () => {
                 focused = false;
 
             container.appendChild(element);
-            on(element as unknown as Element, 'focus', () => { focused = true; });
 
-            remove([{ head: element as unknown as Element, tail: element as unknown as Element }]);
+            let dispose = root((d) => {
+                    on(element as unknown as Element, 'focus', () => { focused = true; });
+                    return d;
+                });
+
+            dispose();
             element.dispatchEvent(new FocusEvent('focus'));
 
             expect(focused).toBe(false);
@@ -365,9 +369,15 @@ describe('event/index', () => {
                 calls: string[] = [];
 
             container.append(a as unknown as Node, b as unknown as Node);
-            delegate(a, 'mousemove', () => calls.push('a'));
+
+            let dispose = root((d) => {
+                    delegate(a, 'mousemove', () => calls.push('a'));
+                    return d;
+                });
+
             delegate(b, 'mousemove', () => calls.push('b'));
-            remove([{ head: a, tail: a }]);
+            dispose();
+            a.remove();
             b.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
             container.appendChild(c as unknown as Node);
             delegate(c, 'mousemove', () => calls.push('c'));

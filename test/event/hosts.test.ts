@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { delegate, on, ondocument, onwindow, runtime } from '../../src/event';
 import { setProperties } from '../../src/attributes';
-import { remove } from '../../src/slot/cleanup';
+import { CLEANUP } from '../../src/constants';
 import type { Attributes, Element } from '../../src/types';
 
 
@@ -11,6 +11,19 @@ type Mode = 'delegate' | 'direct' | 'document' | 'window';
 const attach = { delegate, direct: on, document: ondocument, window: onwindow };
 
 const target = (mode: Mode, element: Element) => mode === 'document' ? document.body : mode === 'window' ? window : element;
+
+
+// Bound outside any owner, an element's cleanups wait on it for an owner to adopt them; this runs them as one would
+function release(element: Element) {
+    let fns = element[CLEANUP] as VoidFunction[] | undefined;
+
+    element[CLEANUP] = undefined;
+    element.remove();
+
+    for (let i = 0, n = fns?.length ?? 0; i < n; i++) {
+        fns![i]();
+    }
+}
 
 
 describe('event hosts', () => {
@@ -27,7 +40,7 @@ describe('event hosts', () => {
 
     afterEach(() => {
         for (let i = 0, n = owners.length; i < n; i++) {
-            remove([{ head: owners[i] }]);
+            release(owners[i]);
         }
 
         owners = [];
@@ -47,7 +60,7 @@ describe('event hosts', () => {
 
             expect(count).toBe(1);
 
-            remove([{ head: element }]);
+            release(element);
             trigger();
 
             expect(count).toBe(1);
@@ -94,7 +107,7 @@ describe('event hosts', () => {
             delegate(a, 'click', first);
             delegate(b, 'click', second);
 
-            remove([{ head: a }]);
+            release(a);
             owners.shift();
 
             a.click();
@@ -145,7 +158,7 @@ describe('event hosts', () => {
             expect(element.hasAttribute('ondocumentkeydown')).toBe(false);
             expect(element.hasAttribute('onwindowresize')).toBe(false);
 
-            remove([{ head: element }]);
+            release(element);
             owners.shift();
             document.dispatchEvent(new KeyboardEvent('keydown'));
             window.dispatchEvent(new Event('resize'));
@@ -172,7 +185,7 @@ describe('event hosts', () => {
             expect(first).toHaveBeenCalledTimes(1);
             expect(second).toHaveBeenCalledTimes(1);
 
-            remove([{ head: a }]);
+            release(a);
             owners.shift();
 
             expect(resizes(detach)).toBe(0);
@@ -181,7 +194,7 @@ describe('event hosts', () => {
 
             expect(second).toHaveBeenCalledTimes(2);
 
-            remove([{ head: b }]);
+            release(b);
             owners.shift();
 
             expect(resizes(detach)).toBe(1);

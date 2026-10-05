@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { read, signal, write } from '@esportsplus/reactivity';
+import { flush, read, signal, write } from '@esportsplus/reactivity';
 import { CLEANUP } from '../src/constants';
 import { ondisconnect } from '../src/slot/cleanup';
+import { EffectSlot } from '../src/slot/effect';
 import type { Element } from '../src/types';
+import { marker } from '../src/utilities';
 
 import render from '../src/render';
 
@@ -21,25 +23,25 @@ describe('render', () => {
 
     describe('basic rendering', () => {
         it('renders string content', () => {
-            render(container, 'Hello World');
+            render(container, () => 'Hello World');
 
             expect(container.textContent).toContain('Hello World');
         });
 
         it('renders number content', () => {
-            render(container, 42);
+            render(container, () => 42);
 
             expect(container.textContent).toContain('42');
         });
 
         it('appends content after anchor', () => {
-            render(container, 'New Content');
+            render(container, () => 'New Content');
 
             expect(container.textContent).toContain('New Content');
         });
 
         it('appends anchor marker', () => {
-            render(container, 'Content');
+            render(container, () => 'Content');
 
             let hasMarker = Array.from(container.childNodes).some(
                 node => node.nodeType === Node.COMMENT_NODE && node.textContent === '$'
@@ -56,8 +58,8 @@ describe('render', () => {
             expect(container.textContent).toContain('Dynamic Content');
         });
 
-        it('creates EffectSlot for function', () => {
-            render(container, () => 'Effect Content');
+        it('creates EffectSlot for a factory returning a function', () => {
+            render(container, () => () => 'Effect Content');
 
             expect(container.textContent).toContain('Effect Content');
         });
@@ -71,7 +73,7 @@ describe('render', () => {
             span.textContent = 'Fragment Span';
             frag.appendChild(span);
 
-            render(container, frag);
+            render(container, () => frag);
 
             expect(container.querySelector('span')?.textContent).toBe('Fragment Span');
         });
@@ -81,7 +83,7 @@ describe('render', () => {
 
             div.textContent = 'Rendered Div';
 
-            render(container, div);
+            render(container, () => div);
 
             expect(container.querySelector('div')?.textContent).toBe('Rendered Div');
         });
@@ -89,7 +91,7 @@ describe('render', () => {
 
     describe('array rendering', () => {
         it('renders array of strings', () => {
-            render(container, ['One', 'Two', 'Three']);
+            render(container, () => ['One', 'Two', 'Three']);
 
             expect(container.textContent).toContain('One');
             expect(container.textContent).toContain('Two');
@@ -103,7 +105,7 @@ describe('render', () => {
             span1.textContent = 'Span 1';
             span2.textContent = 'Span 2';
 
-            render(container, [span1, span2]);
+            render(container, () => [span1, span2]);
 
             expect(container.querySelectorAll('span').length).toBe(2);
         });
@@ -113,7 +115,7 @@ describe('render', () => {
 
             span.textContent = 'Element';
 
-            render(container, ['Text', span, 42]);
+            render(container, () => ['Text', span, 42]);
 
             expect(container.textContent).toContain('Text');
             expect(container.querySelector('span')?.textContent).toBe('Element');
@@ -123,35 +125,35 @@ describe('render', () => {
 
     describe('falsy values', () => {
         it('handles null', () => {
-            render(container, null);
+            render(container, () => null);
 
             expect(container.childNodes.length).toBe(1);
             expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
 
         it('handles undefined', () => {
-            render(container, undefined);
+            render(container, () => undefined);
 
             expect(container.childNodes.length).toBe(1);
             expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
 
         it('handles false', () => {
-            render(container, false);
+            render(container, () => false);
 
             expect(container.childNodes.length).toBe(1);
             expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
 
         it('handles empty string', () => {
-            render(container, '');
+            render(container, () => '');
 
             expect(container.childNodes.length).toBe(1);
             expect(container.firstChild?.nodeType).toBe(Node.COMMENT_NODE);
         });
 
         it('renders 0', () => {
-            render(container, 0);
+            render(container, () => 0);
 
             expect(container.textContent).toContain('0');
         });
@@ -159,7 +161,7 @@ describe('render', () => {
 
     describe('disposer', () => {
         it('removes static content and the anchor', () => {
-            let dispose = render(container, ['One', 'Two']);
+            let dispose = render(container, () => ['One', 'Two']);
 
             expect(container.textContent).toBe('OneTwo');
 
@@ -170,7 +172,7 @@ describe('render', () => {
 
         it('stops reactive content and ignores a pending update', async () => {
             let s = signal('before'),
-                dispose = render(container, () => read(s)),
+                dispose = render(container, () => () => read(s)),
                 textnode = container.lastChild!;
 
             expect(textnode.nodeValue).toBe('before');
@@ -191,7 +193,7 @@ describe('render', () => {
 
             ondisconnect(container as unknown as Element, other);
 
-            let dispose = render(container, { onclick: () => { clicks++; }, title: () => read(s) }, 'Content');
+            let dispose = render(container, { onclick: () => { clicks++; }, title: () => read(s) }, () => 'Content');
 
             container.click();
 
@@ -205,7 +207,55 @@ describe('render', () => {
             expect(clicks).toBe(1);
             expect(container.title).toBe('a');
             expect(other).not.toHaveBeenCalled();
-            expect((container as unknown as Element)[CLEANUP]).toEqual([other]);
+            expect((container as unknown as Element)[CLEANUP]).toHaveLength(1);
+        });
+    });
+
+    describe('factory', () => {
+        it('calls the factory once, untracked, and leaves a returned function reactive', () => {
+            let calls = 0,
+                s = signal('a');
+
+            render(container, () => {
+                calls++;
+                read(s);
+
+                return () => read(s);
+            });
+
+            write(s, 'b');
+            flush();
+
+            expect(calls).toBe(1);
+            expect(container.textContent).toBe('b');
+        });
+
+        it('owns what the factory builds: the slots it creates have a parent, and dispose releases them', () => {
+            let released = vi.fn(),
+                runs = 0,
+                s = signal(0),
+                slot: EffectSlot | null = null,
+                stop = render(container, () => {
+                    let div = document.createElement('div'),
+                        anchor = marker.cloneNode();
+
+                    div.appendChild(anchor);
+                    ondisconnect(div as unknown as Element, released);
+                    slot = new EffectSlot(anchor as unknown as Element, () => { runs++; return read(s); });
+
+                    return div;
+                });
+
+            expect(slot!.parent).not.toBeNull();
+            expect((container.firstElementChild as unknown as Element)[CLEANUP]).toBeUndefined();
+
+            stop();
+            write(s, 1);
+            flush();
+
+            expect(released).toHaveBeenCalledTimes(1);
+            expect(runs).toBe(1);
+            expect(container.childNodes.length).toBe(0);
         });
     });
 });

@@ -1,8 +1,8 @@
-import { reactive, read, signal, write, Reactive } from '@esportsplus/reactivity';
+import { read, signal, write, Reactive, ReactiveArray } from '@esportsplus/reactivity';
 import { onconnect } from '../event';
 import { ArraySlot } from '../slot/array';
-import { ondisconnect } from '../slot/cleanup';
-import { subscribeArray } from '../slot/subscriptions';
+import { context, enter, exit, ondisconnect, track } from '../slot/cleanup';
+import type { Slot } from '../slot/cleanup';
 import { Element } from '../types';
 import { clone, EMPTY_FRAGMENT, marker as MARKER, untracked } from '../utilities';
 import { create, index, insert, offset, remove, reorder, set, size } from './cache';
@@ -38,7 +38,7 @@ function findScroller(node: Node): HTMLElement | Window {
 }
 
 
-class VirtualSlot<T> {
+class VirtualSlot<T> implements Slot {
     private anchored: boolean;
     private array: Reactive<T[]>;
     private arraySlot: ArraySlot<T>;
@@ -46,15 +46,17 @@ class VirtualSlot<T> {
     private connected = false;
     private direction = 0;
     private dirty = false;
-    private disposed = false;
+    disposed = false;
     private end = 0;
-    private hostCleanups: VoidFunction[] = [];
+    // Aborts the scroll/resize listeners of the current host
+    private host: AbortController | null = null;
     private hostParent: HTMLElement | null = null;
     private jump = 0;
     private lengthSignal;
     private listTop = 0;
     private marker: Element;
     private offset = 0;
+    parent: Slot | null;
     private pending: { align: Align; index: number } | null = null;
     private pinned = false;
     private rangeSignal;
@@ -65,7 +67,8 @@ class VirtualSlot<T> {
     private spacerBottom: HTMLElement;
     private spacerTop: HTMLElement;
     private start = 0;
-    private unsubscribers: VoidFunction[] = [];
+    state = 0;
+    private unsubscribe: VoidFunction[] = [];
     private viewportElement: Element | null = null;
     private viewportSize = 0;
     private windowed: Reactive<T[]>;
@@ -78,10 +81,12 @@ class VirtualSlot<T> {
     constructor(array: Reactive<T[]>, template: (value: T) => DocumentFragment | Text, options: VirtualOptions = {}) {
         this.anchored = options.anchor === 'end';
         this.array = array;
+        this.parent = context();
         this.cache = create(untracked(array).length, 200);
         this.lengthSignal = signal(untracked(array).length);
         this.rangeSignal = signal<[number, number]>([0, 0]);
-        this.windowed = reactive([] as T[]);
+        // Disposed by dispose(); built directly so nothing registers on the running owner
+        this.windowed = new ReactiveArray<T>() as unknown as Reactive<T[]>;
 
         let fragment = this.fragment = clone(EMPTY_FRAGMENT) as DocumentFragment;
 
@@ -89,17 +94,25 @@ class VirtualSlot<T> {
         this.spacerTop = document.createElement('div');
         this.spacerBottom = document.createElement('div');
 
-        this.arraySlot = new ArraySlot(this.windowed, (value) => {
-            let frag = template(value),
-                head = frag.firstChild as unknown as Element;
+        // Built as this slot's child, and managed: dispose() disposes it
+        let parent = enter(this);
 
-            if (head) {
-                (head as any)[SLOT] = this;
-                ondisconnect(head, () => unobserve(head));
-            }
+        try {
+            this.arraySlot = new ArraySlot(this.windowed, (value) => {
+                let frag = template(value),
+                    head = frag.firstChild as unknown as Element;
 
-            return frag;
-        });
+                if (head) {
+                    (head as any)[SLOT] = this;
+                    ondisconnect(head, () => unobserve(head));
+                }
+
+                return frag;
+            }, false, true);
+        }
+        finally {
+            exit(parent);
+        }
 
         fragment.append(this.marker);
         fragment.append(this.spacerTop);
@@ -107,47 +120,48 @@ class VirtualSlot<T> {
         fragment.append(this.spacerBottom);
 
         ondisconnect(this.marker, () => this.dispose());
+        track(this);
 
-        this.unsubscribers.push(
-            subscribeArray(array, 'clear', () => {
+        this.unsubscribe.push(
+            array.on('clear', () => {
                 this.removed(0, this.cache.length);
                 this.reset = true;
                 this.refresh();
             }),
-            subscribeArray(array, 'concat', ({ items }) => {
+            array.on('concat', ({ items }) => {
                 this.inserted(untracked(array).length - items.length, items.length);
                 this.refresh();
             }),
-            subscribeArray(array, 'pop', () => {
+            array.on('pop', () => {
                 this.removed(untracked(array).length, 1);
                 this.refresh();
             }),
-            subscribeArray(array, 'push', ({ items }) => {
+            array.on('push', ({ items }) => {
                 this.inserted(untracked(array).length - items.length, items.length);
                 this.refresh();
             }),
-            subscribeArray(array, 'reverse', () => {
+            array.on('reverse', () => {
                 this.permuteReverse();
                 this.refresh();
             }),
-            subscribeArray(array, 'set', () => {
+            array.on('set', () => {
                 this.replaced();
                 this.refresh();
             }),
-            subscribeArray(array, 'shift', () => {
+            array.on('shift', () => {
                 this.removed(0, 1);
                 this.refresh();
             }),
-            subscribeArray(array, 'sort', ({ order }) => {
+            array.on('sort', ({ order }) => {
                 this.permuteSort(order);
                 this.refresh();
             }),
             // ReactiveArray dispatches the resolved start and the count actually removed
-            subscribeArray(array, 'splice', ({ deleteCount, items, start }) => {
+            array.on('splice', ({ deleteCount, items, start }) => {
                 this.combine(start, deleteCount, items.length);
                 this.refresh();
             }),
-            subscribeArray(array, 'unshift', ({ items }) => {
+            array.on('unshift', ({ items }) => {
                 this.inserted(0, items.length);
                 this.refresh();
             })
@@ -263,17 +277,13 @@ class VirtualSlot<T> {
         return clamp(value, 0, max < 0 ? 0 : max);
     }
 
-    private anchor(): number {
-        return offset(this.cache, this.start);
-    }
-
     private atEnd(): boolean {
         return this.offset + this.viewportSize >= offset(this.cache, this.cache.length) - 1;
     }
 
     private combine(at: number, count: number, added: number) {
         let cache = this.cache,
-            before = this.anchor();
+            before = this.top();
 
         if (count) {
             remove(cache, at, count);
@@ -290,7 +300,7 @@ class VirtualSlot<T> {
             this.dirty = true;
         }
 
-        this.jump += this.anchor() - before;
+        this.jump += this.top() - before;
     }
 
     commit() {
@@ -342,12 +352,12 @@ class VirtualSlot<T> {
 
         this.releaseHost();
 
-        let unsubscribers = this.unsubscribers;
+        let unsubscribe = this.unsubscribe;
 
-        this.unsubscribers = [];
+        this.unsubscribe = [];
 
-        for (let i = 0, n = unsubscribers.length; i < n; i++) {
-            unsubscribers[i]();
+        for (let i = 0, n = unsubscribe.length; i < n; i++) {
+            unsubscribe[i]();
         }
 
         this.arraySlot.dispose();
@@ -378,7 +388,7 @@ class VirtualSlot<T> {
             return;
         }
 
-        let before = this.anchor();
+        let before = this.top();
 
         insert(this.cache, at, count);
 
@@ -389,7 +399,7 @@ class VirtualSlot<T> {
             this.dirty = true;
         }
 
-        this.jump += this.anchor() - before;
+        this.jump += this.top() - before;
     }
 
     private measureRendered(): boolean {
@@ -525,14 +535,13 @@ class VirtualSlot<T> {
         this.schedule();
     }
 
+    release() {
+        this.dispose();
+    }
+
     private releaseHost() {
-        let cleanups = this.hostCleanups;
-
-        this.hostCleanups = [];
-
-        for (let i = 0, n = cleanups.length; i < n; i++) {
-            cleanups[i]();
-        }
+        this.host?.abort();
+        this.host = null;
 
         if (this.viewportElement) {
             unobserve(this.viewportElement);
@@ -545,7 +554,7 @@ class VirtualSlot<T> {
             return;
         }
 
-        let before = this.anchor();
+        let before = this.top();
 
         remove(this.cache, at, count);
 
@@ -556,7 +565,7 @@ class VirtualSlot<T> {
             this.dirty = true;
         }
 
-        this.jump += this.anchor() - before;
+        this.jump += this.top() - before;
     }
 
     // A mutation entirely above the window moves the same rows to new indices: renumber
@@ -606,15 +615,17 @@ class VirtualSlot<T> {
         // Anchor on row `start`: a measurement, or the estimate drift it triggers, moves rows
         // below it by however much its offset moved, so the viewport follows by the same amount.
         // Rows inside the window never move the anchor, which is what makes backward scroll safe.
-        let before = this.anchor();
+        let before = this.top();
 
         set(this.cache, index, height);
 
-        this.jump += this.anchor() - before;
+        this.jump += this.top() - before;
     }
 
     private resolve() {
         let scroller = findScroller(this.marker);
+
+        let host = this.host = new AbortController();
 
         this.scroller = scroller;
         this.hostParent = this.marker.parentElement;
@@ -630,8 +641,7 @@ class VirtualSlot<T> {
                 this.commit();
             };
 
-            window.addEventListener('resize', resize, { passive: true });
-            this.hostCleanups.push(() => window.removeEventListener('resize', resize));
+            window.addEventListener('resize', resize, { passive: true, signal: host.signal });
         }
         else {
             let element = scroller as HTMLElement;
@@ -652,8 +662,7 @@ class VirtualSlot<T> {
         let target: EventTarget = this.scroller,
             scroll = () => this.onScroll();
 
-        target.addEventListener('scroll', scroll, { passive: true });
-        this.hostCleanups.push(() => target.removeEventListener('scroll', scroll));
+        target.addEventListener('scroll', scroll, { passive: true, signal: host.signal });
     }
 
     private run() {
@@ -748,6 +757,11 @@ class VirtualSlot<T> {
         }
     }
 
+    // Offset of the first rendered row
+    private top(): number {
+        return offset(this.cache, this.start);
+    }
+
     private updateSpacers() {
         let total = offset(this.cache, this.cache.length),
             top = offset(this.cache, this.start),
@@ -779,6 +793,10 @@ class VirtualSlot<T> {
         this.written = this.offset === before ? -1 : this.offset;
     }
 
+
+    get anchor() {
+        return this.marker;
+    }
 
     get length() {
         return read(this.lengthSignal);

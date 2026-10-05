@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLEANUP } from '../../src/constants';
+import { effect, flush, onCleanup, read, root, signal, write } from '@esportsplus/reactivity';
 import type { Element } from '../../src/types';
 
 
@@ -142,5 +143,60 @@ describe('event/onfirstpaint', () => {
 
         expect(called).toBe(false);
         expect(callbacks.length).toBe(0);
+    });
+
+    describe('ownership', () => {
+        it('runs the listener untracked, in a root released with the owner of the element', () => {
+            let disposeOwner = () => {},
+                element = document.createElement('div') as unknown as Element,
+                runs = 0,
+                released = vi.fn(),
+                s = signal(0);
+
+            container.appendChild(element as unknown as Node);
+            root((dispose) => {
+                disposeOwner = dispose;
+                onfirstpaint(element, () => {
+                    read(s);
+                    onCleanup(released);
+                    effect(() => { runs++; read(s); });
+                });
+            });
+            advanceFrame();
+        advanceFrame();
+
+            expect(runs).toBe(1);
+
+            write(s, 1);
+            flush();
+
+            expect(runs).toBe(2);
+            expect(released).not.toHaveBeenCalled();
+
+            disposeOwner();
+            write(s, 2);
+            flush();
+
+            expect(runs).toBe(2);
+            expect(released).toHaveBeenCalledTimes(1);
+        });
+
+        it('stops waiting once its owner is released before the element connects', () => {
+            let called = false,
+                disposeOwner = () => {},
+                element = document.createElement('div') as unknown as Element;
+
+            root((dispose) => {
+                disposeOwner = dispose;
+                onfirstpaint(element, () => { called = true; });
+            });
+            disposeOwner();
+            container.appendChild(element as unknown as Node);
+            advanceFrame();
+            advanceFrame();
+
+            expect(called).toBe(false);
+            expect(callbacks.length).toBe(0);
+        });
     });
 });

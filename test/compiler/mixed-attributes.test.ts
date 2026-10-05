@@ -3,7 +3,6 @@ import { stripTypeScriptTypes } from 'node:module';
 import { languageService } from '@esportsplus/typescript/compiler';
 import { reactive, read, root, signal, write } from '@esportsplus/reactivity';
 import * as runtime from '../../src';
-import { remove as cleanupRemove } from '../../src/slot/cleanup';
 import { generateCode } from '../../src/compiler/codegen';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 import { NAMESPACE } from '../../src/compiler/constants';
@@ -339,13 +338,18 @@ describe('compiled host bindings and unquoted attributes', () => {
         '<button ondocumentkeydown="${handler}" aria-label=${label} data-state=${() => "ready"}></button>',
         '<button ${{ ondocumentkeydown: handler }} aria-label=${label} data-state=${() => "ready"}></button>',
         '<button ${properties} aria-label=${label} data-state=${() => "ready"}></button>'
-    ])('registers and cleans up %s', markup => {
+    ])('registers and releases with its owner %s', markup => {
         let calls = 0,
+            dispose = () => {},
             handler = () => { calls++; },
-            { value, result } = compile(
-                'let value = html`' + markup + '`;',
-                { handler, label: 'Search', properties: { ondocumentkeydown: handler } }
-            ),
+            { value, result } = root(stop => {
+                dispose = stop;
+
+                return compile(
+                    'let value = html`' + markup + '`;',
+                    { handler, label: 'Search', properties: { ondocumentkeydown: handler } }
+                );
+            }),
             element = value.firstChild as runtime.Element;
 
         document.body.append(value);
@@ -365,10 +369,13 @@ describe('compiled host bindings and unquoted attributes', () => {
 
         expect(calls).toBe(1);
 
-        cleanupRemove([{ head: element }]);
+        // Still in the document: only the owner's disposal can be what stops it
+        dispose();
         document.dispatchEvent(new KeyboardEvent('keydown'));
 
         expect(calls).toBe(1);
+
+        element.remove();
     });
 
     it.each([
@@ -389,11 +396,17 @@ describe('compiled host bindings and unquoted attributes', () => {
 
     it('once bindings fire a single time and window bindings receive the owner', () => {
         let clicks = 0,
+            dispose = () => {},
+            resizes = 0,
             self: unknown = null,
-            { value } = compile(
-                'let value = html`<button onceclick=${click} onwindowresize=${resize}></button>`;',
-                { click: () => { clicks++; }, resize: function (this: unknown) { self = this; } }
-            ),
+            { value } = root(stop => {
+                dispose = stop;
+
+                return compile(
+                    'let value = html`<button onceclick=${click} onwindowresize=${resize}></button>`;',
+                    { click: () => { clicks++; }, resize: function (this: unknown) { resizes++; self = this; } }
+                );
+            }),
             element = value.firstChild as HTMLElement;
 
         document.body.append(value);
@@ -404,7 +417,12 @@ describe('compiled host bindings and unquoted attributes', () => {
         expect(clicks).toBe(1);
         expect(self).toBe(element);
 
-        cleanupRemove([{ head: element as unknown as runtime.Element }]);
+        dispose();
+        window.dispatchEvent(new Event('resize'));
+
+        expect(resizes).toBe(1);
+
+        element.remove();
     });
 
     it('unquoted aria effects update without swallowing the next attribute', async () => {

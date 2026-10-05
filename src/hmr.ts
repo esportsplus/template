@@ -1,5 +1,6 @@
-import { root } from '@esportsplus/reactivity';
-import { CLEANUP } from './constants';
+import { onCleanup, root } from '@esportsplus/reactivity';
+import { context, enter, exit, track as watch } from './slot/cleanup';
+import type { Slot } from './slot/cleanup';
 import render from './slot/render';
 import { clone, EMPTY_FRAGMENT } from './utilities';
 
@@ -15,12 +16,13 @@ type Entry = {
     wrapper: Function | null;
 };
 
-type Instance = {
+// Owned by whatever was building when the factory ran; 'dispose' releases the current implementation's content, which
+// a remount swaps out while the instance lives on
+type Instance = Slot & {
     dispose: VoidFunction | null;
     end: Comment;
     invocation: Invocation;
     start: Comment;
-    status: 'idle' | 'mounted' | 'replacing';
 };
 
 type Invocation = {
@@ -36,42 +38,12 @@ let entries = new Map<string, Entry>(),
 const key = (moduleId: string, exportId: string): string => moduleId + '\u0000' + exportId;
 
 
-function drain(calls: VoidFunction[]): void {
-    for (let i = 0, n = calls.length; i < n; i++) {
-        calls[i]();
-    }
-}
+// Releases the current implementation's content, then detaches its nodes while keeping the anchors
+function clear(instance: Instance): void {
+    let { dispose, end, start } = instance;
 
-function snapshot(node: Node, calls: VoidFunction[]): void {
-    let fns = (node as any)[CLEANUP] as VoidFunction[] | undefined;
-
-    if (fns !== undefined) {
-        while (fns.length) {
-            calls.push(fns.pop()!);
-        }
-    }
-}
-
-// Stage-1 cleanup traversal: drain every cleanup registered on comment/text/element anchors
-// between the start and end comments, then detach the owned nodes while keeping the anchors.
-function clearRange(start: Comment, end: Comment): void {
-    let calls: VoidFunction[] = [],
-        parent = start.parentNode;
-
-    if (parent) {
-        let walker = document.createTreeWalker(
-                parent,
-                NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT
-            );
-
-        walker.currentNode = start;
-
-        for (let node = walker.nextNode(); node !== null && node !== end; node = walker.nextNode()) {
-            snapshot(node, calls);
-        }
-    }
-
-    drain(calls);
+    instance.dispose = null;
+    dispose?.();
 
     let node: ChildNode | null = start.nextSibling;
 
@@ -122,21 +94,33 @@ function build(entry: Entry, invocation: Invocation, impl: Function): DocumentFr
     let fragment = clone(EMPTY_FRAGMENT),
         start = document.createComment('hmr'),
         end = document.createComment('hmr'),
-        dispose: VoidFunction | null = null,
-        content = root((disposer) => {
-            dispose = disposer;
-            return Reflect.apply(impl, invocation.thisArg, invocation.args);
+        instance = {
+            anchor: start,
+            disposed: false,
+            dispose: null,
+            end,
+            invocation,
+            parent: context(),
+            release: null,
+            start,
+            state: 0
+        } as unknown as Instance,
+        content = root((release) => {
+            instance.release = release;
+
+            // Disposing whatever owns the instance forgets it, so a later remount does not rebuild it
+            onCleanup(() => {
+                entry.instances.delete(instance);
+                instance.dispose?.();
+                instance.dispose = null;
+            });
+
+            return mount(instance, impl);
         });
 
     fragment.append(start, render(content), end);
-
-    entry.instances.add({
-        dispose,
-        end,
-        invocation,
-        start,
-        status: 'mounted'
-    });
+    entry.instances.add(instance);
+    watch(instance);
 
     return fragment;
 }
@@ -220,45 +204,48 @@ function wrapperFor(entry: Entry, impl: Function, tracked: boolean): Function {
     return wrapper;
 }
 
+// Builds an implementation's content in a root of its own: owned by the instance's root while that is building, and
+// released through 'dispose' when a remount replaces it
+function mount(instance: Instance, impl: Function): unknown {
+    return root((dispose) => {
+        let parent = enter(instance);
+
+        instance.dispose = dispose;
+
+        try {
+            return Reflect.apply(impl, instance.invocation.thisArg, instance.invocation.args);
+        }
+        finally {
+            exit(parent);
+        }
+    });
+}
+
 function remount(entry: Entry): void {
     let impl = entry.pending!;
 
     entry.pending = null;
 
     for (let instance of entry.instances) {
-        instance.status = 'replacing';
-        clearRange(instance.start, instance.end);
-        instance.dispose?.();
-        instance.dispose = null;
+        clear(instance);
     }
 
     for (let instance of entry.instances) {
-        let fragment = clone(EMPTY_FRAGMENT),
-            dispose: VoidFunction | null = null,
-            content = root((disposer) => {
-                dispose = disposer;
-                return Reflect.apply(impl, instance.invocation.thisArg, instance.invocation.args);
-            });
+        let fragment = clone(EMPTY_FRAGMENT);
 
-        fragment.append(render(content));
+        fragment.append(render(mount(instance, impl)));
         instance.end.parentNode?.insertBefore(fragment, instance.end);
-        instance.dispose = dispose;
-        instance.status = 'mounted';
     }
 
     entry.current = impl;
 }
 
-function teardown(instance: Instance, removeAnchors: boolean): void {
-    clearRange(instance.start, instance.end);
-    instance.dispose?.();
-    instance.dispose = null;
-    instance.status = 'idle';
-
-    if (removeAnchors) {
-        instance.start.remove();
-        instance.end.remove();
-    }
+function teardown(instance: Instance): void {
+    clear(instance);
+    instance.release();
+    instance.disposed = true;
+    instance.start.remove();
+    instance.end.remove();
 }
 
 
@@ -378,8 +365,8 @@ const prune = (moduleId: string): void => {
             continue;
         }
 
-        for (let instance of entry.instances) {
-            teardown(instance, true);
+        for (let instance of [...entry.instances]) {
+            teardown(instance);
         }
 
         entry.instances.clear();

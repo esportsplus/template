@@ -1,4 +1,4 @@
-import { ondisconnect } from '../slot';
+import { ondisconnect } from '../slot/cleanup';
 import { Element } from '../types';
 
 
