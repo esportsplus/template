@@ -67,8 +67,8 @@ const message = (text: string) => html`<div>${text}</div>`;
 // Dynamic attributes
 const button = (cls: string) => html`<button class="${cls}">Click</button>`;
 
-// Render to DOM
-render(document.body, greeting);
+// Render to DOM: render() takes a factory and builds the content inside its own root
+render(document.body, () => greeting);
 ```
 
 ## Template Syntax
@@ -306,8 +306,9 @@ html`<div onwindowresize=${() => layout()}></div>`;
 
 Host events fire regardless of whether the event originated inside the owning
 element. Registration happens when the template binds the element, and template
-disposal removes it automatically. Native DOM removal alone does not run template
-cleanup. Multiple owners each receive the event in registration order; register
+disposal removes it automatically. An owner out of the document is skipped, and
+one removed by native DOM calls is released (see [Foreign Removal](#foreign-removal)).
+Multiple owners each receive the event in registration order; register
 shared shortcuts once. Handlers receive the owning element as `this`; use
 `event.currentTarget` for the document or window.
 Replacing an event binding on the same owner removes the previous registration.
@@ -361,6 +362,57 @@ const firstpaint = (handler: (el: HTMLElement) => void) =>
 const tick = (handler: (dispose: () => void, el: HTMLElement) => void) =>
     html`<div ontick="${handler}">Animating</div>`;
 ```
+
+### Ownership and Cleanup
+
+Every binding a template makes (listeners, host events, reactive attributes, lifecycle hooks, nested slots) belongs
+to the reactivity owner building it: the `render()` root, an array row, an effect slot's current run, or an HMR
+instance. Disposing an owner releases everything nested in it, then its nodes are removed; nothing walks the removed
+DOM. Cleanups run in registration order, and compiled templates register descendants first, so a child's cleanups
+run before its parent's.
+
+An effect slot's content is built inside the effect, so it belongs to the run that built it: the next run releases it.
+A run that returns the same node or array slot as the last one leaves it in place, and a text update rewrites the text
+node; neither releases anything the slot does not own. Content the slot shows but did not build (a node built by the
+surrounding template) keeps its bindings until its own owner is disposed.
+
+Content built while a reactivity owner runs (a template slot, a `root()` or `effect()` of your own, an `onconnect`
+or `onfirstpaint` listener) registers on that owner. Content built with no owner at all (an `html` template called at
+module scope, in an event handler, or after an `await`) has nowhere to register, so its cleanups wait on its nodes
+until a template insertion that contains them adopts them: `render()` into its root, a static slot into its owner, an
+effect or async slot into the content it shows, released when that content is replaced. Cleanups still unadopted at
+the next idle sweep stay with their nodes and are released by the [Foreign Removal](#foreign-removal) sweep once the
+node has been in the document and left it.
+
+### Foreign Removal
+
+Template disposal releases bindings as it removes nodes. Nodes removed by other code (`el.remove()`,
+`innerHTML = ''`, a host framework) are reclaimed without a `MutationObserver`:
+
+- A window/document handler whose element is out of the document is not run; if the element had been mounted, the
+  outermost slot taken out of the document with it is released at the end of the task.
+- An effect slot or reactive attribute that reruns on a mounted node now out of the document skips its work and is
+  released at the end of the task.
+- An idle sweep (`requestIdleCallback`, `setTimeout` fallback; about once a second, only while something is tracked)
+  checks the anchors of top-level slots only: `render()` roots, HMR instances, slots created outside any template, and
+  nodes holding unadopted cleanups. A mounted anchor found out of the document releases the outermost slot removed
+  with it, and everything it owns with it, so a removed container is released once however many bindings it holds,
+  including effects nothing they read ever changes again and content inside shadow roots.
+
+Foreign code removing only part of a template's content (a row, an element inside a mounted root) is detected by the
+guards alone, when an effect there reruns or a window/document event reaches a binding there, or once its top-level
+root leaves the document.
+
+Errors thrown by these cleanups are reported through `reportError` (prefixed `@esportsplus/template:`), not thrown.
+
+Only content once seen in the document is released this way; content built but never inserted is left alone and
+stops being watched after about a minute. A node removed and reinserted within the same task (a move) is kept, and an
+effect that skipped a rerun while it was out runs again. Caveats:
+
+- Mounted content kept out of the document past the end of a task, a rerun or a sweep is treated as removed, so a
+  detached view meant for reuse must be rebuilt, not reinserted.
+- Content rendered into an iframe's document is never seen as removed when the iframe is: its nodes still report
+  `isConnected`, so it is released only by template disposal.
 
 ### Direct Attach Events
 
@@ -456,18 +508,21 @@ type Factory<A, C, R> = {
 
 Content effects receive a disposer that tears down their slot; attribute effects receive the element they are bound to. `component()` returns a `Factory`, whose `bind` presets a partial set of attributes.
 
-### render(parent, renderable)
+### render(parent, factory) / render(parent, attributes, factory)
 
-Mounts a renderable into the parent and returns a disposer. Calling it removes the
-mounted content, stops its reactive bindings, and unbinds any attributes `render`
-set on the parent. Pending frame or async work from the mounted content is dropped.
+Calls the factory once, untracked, inside a root of its own and mounts what it returns into the parent; returns a
+disposer. Everything the factory builds is owned by that root, so its slots are nested under it. A factory returning a
+function renders that function reactively, as any function slot does. Calling the disposer removes the mounted
+content, stops its reactive bindings, and unbinds any attributes `render` set on the parent. Pending frame or async
+work from the mounted content is dropped.
 
 ```typescript
 import { html, render } from '@esportsplus/template';
 
-const app = html`<div>App</div>`;
-const dispose = render(document.getElementById('root'), app);
+const App = () => html`<div>App</div>`;
+const dispose = render(document.getElementById('root'), () => App());
 
+render(document.body, { class: 'dark' }, () => App());
 dispose();
 ```
 
@@ -518,7 +573,7 @@ const TodoApp = (state: {
 `;
 
 // Mount
-render(document.body, TodoApp(/* state */));
+render(document.body, () => TodoApp(/* state */));
 ```
 
 ## How Transformation Works
