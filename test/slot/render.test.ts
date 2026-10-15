@@ -1,6 +1,17 @@
-import { describe, expect, it } from 'vitest';
-import { render } from '../../src/slot';
-import { fragment, text } from '../../src/utilities';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { flush, read, signal, write } from '@esportsplus/reactivity';
+import { EffectSlot, render } from '../../src/slot';
+import { fragment, marker, text } from '../../src/utilities';
+import type { Element } from '../../src/types';
+
+
+function span(value: string) {
+    let element = document.createElement('span');
+
+    element.textContent = value;
+
+    return element;
+}
 
 
 describe('slot/render', () => {
@@ -203,6 +214,160 @@ describe('slot/render', () => {
             let result = render(obj);
 
             expect(result.nodeType).toBe(Node.TEXT_NODE);
+        });
+    });
+
+    describe('function handling', () => {
+        let container: HTMLElement;
+
+        beforeEach(() => {
+            container = document.createElement('div');
+            document.body.appendChild(container);
+        });
+
+        afterEach(() => {
+            document.body.removeChild(container);
+        });
+
+        it('renders a top-level function as an effect slot', () => {
+            container.appendChild(render(() => 'Hello'));
+
+            expect(container.textContent).toBe('Hello');
+        });
+
+        it('renders a function inside a single-item array as an effect slot', () => {
+            container.appendChild(render([() => 'Hello']));
+
+            expect(container.textContent).toBe('Hello');
+        });
+
+        it('renders a function alongside other array items in order', () => {
+            container.appendChild(render(['a', () => 'b', 'c']));
+
+            expect(container.textContent).toBe('abc');
+        });
+
+        it('renders a function inside a nested array', () => {
+            container.appendChild(render(['a', ['b', () => span('c')]]));
+
+            expect(container.textContent).toBe('abc');
+            expect(container.querySelector('span')!.textContent).toBe('c');
+        });
+
+        it('updates the DOM when a function in an array reads a changed signal', () => {
+            let s = signal('before');
+
+            container.appendChild(render(['a', () => span(read(s))]));
+
+            expect(container.textContent).toBe('abefore');
+
+            write(s, 'after');
+            flush();
+
+            expect(container.textContent).toBe('aafter');
+            expect(container.querySelectorAll('span').length).toBe(1);
+        });
+    });
+
+    describe('function handling inside effects', () => {
+        let anchor: Element,
+            container: HTMLElement;
+
+        beforeEach(() => {
+            container = document.createElement('div');
+            anchor = marker.cloneNode() as unknown as Element;
+            container.appendChild(anchor as unknown as Node);
+            document.body.appendChild(container);
+        });
+
+        afterEach(() => {
+            document.body.removeChild(container);
+        });
+
+        it('renders an array of functions returned from an effect', () => {
+            let s = signal('before');
+
+            new EffectSlot(anchor, () => [() => read(s)]);
+
+            expect(container.textContent).toBe('before');
+
+            write(s, 'after');
+            flush();
+
+            expect(container.textContent).toBe('after');
+        });
+
+        it('leaves no stale nodes when an outer effect reruns after its trailing inner slot swapped content', () => {
+            let inner = signal('x'),
+                outer = signal(1);
+
+            new EffectSlot(anchor, () => [
+                span('head' + read(outer)),
+                () => [span(read(inner) + '1'), span(read(inner) + '2')]
+            ]);
+
+            // An effect created after its parent read a signal runs in the next stabilize pass
+            flush();
+
+            expect(container.textContent).toBe('head1x1x2');
+
+            write(inner, 'y');
+            flush();
+
+            expect(container.textContent).toBe('head1y1y2');
+
+            write(outer, 2);
+            flush();
+
+            expect(container.textContent).toBe('head2y1y2');
+            expect(container.querySelectorAll('span').length).toBe(3);
+
+            write(inner, 'z');
+            flush();
+
+            expect(container.textContent).toBe('head2z1z2');
+            expect(container.querySelectorAll('span').length).toBe(3);
+        });
+
+        it('stops inner effects from a previous outer run', () => {
+            let outer = signal(1),
+                runs: number[] = [],
+                signals: ReturnType<typeof signal<string>>[] = [];
+
+            new EffectSlot(anchor, () => {
+                let index = read(outer) - 1,
+                    s = signal('a');
+
+                runs[index] = 0;
+                signals[index] = s;
+
+                return [() => {
+                    runs[index]++;
+
+                    return read(s);
+                }];
+            });
+
+            flush();
+
+            expect(runs).toEqual([1]);
+
+            write(outer, 2);
+            flush();
+
+            expect(runs).toEqual([1, 1]);
+
+            write(signals[0], 'b');
+            flush();
+
+            expect(runs).toEqual([1, 1]);
+            expect(container.textContent).toBe('a');
+
+            write(signals[1], 'c');
+            flush();
+
+            expect(runs).toEqual([1, 2]);
+            expect(container.textContent).toBe('c');
         });
     });
 });

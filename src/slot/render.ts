@@ -1,12 +1,27 @@
 import { isArray } from '@esportsplus/utilities';
 import { ARRAY_SLOT } from '../constants';
-import { clone, EMPTY_FRAGMENT, text } from '../utilities';
+import { clone, EMPTY_FRAGMENT, marker, text } from '../utilities';
+import type { Element } from '../types';
 import { ArraySlot } from './array';
+import { EffectSlot } from './effect';
 
 
 export default function render(value: unknown): Node {
     if (value == null || value === false || value === '') {
         return EMPTY_FRAGMENT;
+    }
+
+    // Functions reach here only from runtime values (array items, effect results); inline ones are compiled to slots
+    if (typeof value === 'function') {
+        let anchor = marker.cloneNode() as unknown as Element,
+            fragment = clone(EMPTY_FRAGMENT) as DocumentFragment;
+
+        // The slot inserts after the anchor, so the anchor needs a parent first. The closing text node keeps the slot's
+        // content inside an enclosing group: content landing after the group's last node would outlive its detach.
+        fragment.append(anchor, text(''));
+        new EffectSlot(anchor, value as (...args: any[]) => any);
+
+        return fragment;
     }
 
     if (typeof value !== 'object') {

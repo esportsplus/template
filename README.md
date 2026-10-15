@@ -190,6 +190,9 @@ const progress = (state: { width: number }) =>
     html`<div style="${() => `width: ${state.width}px`}"></div>`;
 ```
 
+Functions passed at runtime are reactive too, including inside arrays: a component's content such as
+`[header, () => state.body]` renders the function as its own effect slot, as does an array returned from an effect.
+
 ### Array Slots
 
 For reactive arrays, use `html.reactive`:
@@ -501,7 +504,7 @@ const circle = (fill: string) =>
 
 ```typescript
 type Renderable<T> = ArraySlot<T> | DocumentFragment | Effect<T> | Node | NodeList | Primitive | Renderable<T>[];
-type Effect<T> = (dispose: VoidFunction) => Renderable<T>;
+type Effect<T> = (dispose: VoidFunction) => T extends unknown[] ? Renderable<T>[] : Renderable<T>;
 type Element<T extends HTMLElement = HTMLElement> = T & Attributes<T>;
 type Attribute<T extends HTMLElement = HTMLElement> = Primitive | ((element: T) => Primitive | Primitive[]);
 type Attributes<T extends HTMLElement = HTMLElement> = {
