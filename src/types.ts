@@ -12,7 +12,7 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
     // Once, in the frame after the one that first paints the element
     onfirstpaint?: Callback<[element: T]>;
     ontick?: Callback<[dispose: VoidFunction, element: T]>;
-    style?: Attribute<T> | Attribute<T>[];
+    style?: StyleAttribute<T> | StyleAttribute<T>[];
 } & {
     // Elements never fire a DOM resize event; window resizes bind through 'onwindowresize'
     [K in Exclude<keyof GlobalEventHandlersEventMap, 'resize'> as `on${K}` | `once${K}`]?: Handler<T, GlobalEventHandlersEventMap[K]>;
@@ -46,10 +46,17 @@ type SlotGroup = {
     tail: Element;
 };
 
+// Declarations by property name; a null, undefined, false or empty value leaves the declaration out
+type Style = Record<string, Primitive>;
+
+type StyleAttribute<T extends HTMLElement = HTMLElement> =
+    Callback<[element: T], Primitive | Style | (Primitive | Style)[]> | ((...args: any[]) => void) | Primitive | Style;
+
 
 export type {
     Attribute, Attributes,
     Effect, Element,
     Renderable,
-    SlotGroup
+    SlotGroup,
+    Style, StyleAttribute
 };

@@ -188,7 +188,19 @@ const toggle = (state: { active: boolean }) =>
 // Reactive style
 const progress = (state: { width: number }) =>
     html`<div style="${() => `width: ${state.width}px`}"></div>`;
+
+// A class array and a style object, each diffed whole into one write
+const panel = (state: { active: boolean, depth?: number }) =>
+    html`<div ${{
+        class: () => ['panel', state.active && '--active'],
+        style: () => ({ '--depth': state.depth, opacity: 0 })
+    }}></div>`;
 ```
+
+A class or style binding may return an array, which is merged entry by entry: falsy entries drop out. A style
+value may also be an object of declarations by property name; a `null`, `undefined`, `false` or empty value leaves its
+declaration out, so the object can keep one shape while declarations come and go. Numbers, `0` included, are written as
+they are.
 
 Functions passed at runtime are reactive too, including inside arrays: a component's content such as
 `[header, () => state.body]` renders the function as its own effect slot, as does an array returned from an effect.
@@ -507,9 +519,11 @@ type Renderable<T> = ArraySlot<T> | DocumentFragment | Effect<T> | Node | NodeLi
 type Effect<T> = (dispose: VoidFunction) => T extends unknown[] ? Renderable<T>[] : Renderable<T>;
 type Element<T extends HTMLElement = HTMLElement> = T & Attributes<T>;
 type Attribute<T extends HTMLElement = HTMLElement> = Primitive | ((element: T) => Primitive | Primitive[]);
+type Style = Record<string, Primitive>;
+type StyleAttribute<T extends HTMLElement = HTMLElement> = Primitive | Style | ((element: T) => Primitive | Style | (Primitive | Style)[]);
 type Attributes<T extends HTMLElement = HTMLElement> = {
     class?: Attribute<T> | Attribute<T>[];
-    style?: Attribute<T> | Attribute<T>[];
+    style?: StyleAttribute<T> | StyleAttribute<T>[];
     onconnect?: (element: T) => void;
     ondisconnect?: (element: T) => void;
     onfirstpaint?: (element: T) => void;

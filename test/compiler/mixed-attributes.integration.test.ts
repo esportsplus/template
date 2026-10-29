@@ -135,6 +135,47 @@ describe('mixed attributes through compiler plugins', () => {
         expect(output).not.toContain('html`');
     });
 
+    it('binds a returned class array and style object through a compiled spread', async () => {
+        let fixture = mkdtempSync(join(root, '.fixture-mixed-'));
+        fixtures.push(fixture);
+        let path = join(fixture, 'lists.ts'),
+            source = [
+                "import { html } from '@esportsplus/template';",
+                "import { reactive } from '@esportsplus/reactivity';",
+                'export default () => {',
+                '    let state = reactive({ active: false, depth: 1 as number | undefined });',
+                '    return { state, view: html`<div class="base" style="color: red" ${{',
+                "        class: () => ['overlay', state.active && '--active'],",
+                "        style: () => ({ '--depth': state.depth, opacity: 0 })",
+                '    }}></div>` };',
+                '};'
+            ].join('\n');
+        writeFileSync(path, source);
+        writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', target: 'esnext', strict: true, types: [] }, files: ['./lists.ts'] }));
+        let plugin = vite({ root: fixture });
+        plugin.configResolved({ root: fixture, command: 'build' });
+        let output = plugin.transform(source, path.replace(/\\/g, '/'))!.code,
+            { state, view } = execute(output, { '@esportsplus/reactivity': reactivity, '@esportsplus/template': runtime })();
+        document.body.append(view);
+        let element = document.body.firstElementChild as HTMLElement;
+        expect([...element.classList].sort()).toEqual(['base', 'overlay']);
+        expect(element.style.color).toBe('red');
+        expect(element.style.getPropertyValue('--depth')).toBe('1');
+        expect(element.style.opacity).toBe('0');
+        state.active = true;
+        state.depth = 3;
+        await Promise.resolve();
+        expect([...element.classList].sort()).toEqual(['--active', 'base', 'overlay']);
+        expect(element.style.getPropertyValue('--depth')).toBe('3');
+        state.active = false;
+        state.depth = undefined;
+        await Promise.resolve();
+        expect([...element.classList].sort()).toEqual(['base', 'overlay']);
+        expect(element.style.getPropertyValue('--depth')).toBe('');
+        expect(element.style.color).toBe('red');
+        expect(element.style.opacity).toBe('0');
+    });
+
     it('compiles templates written through an alias and a namespace import', () => {
         let fixture = mkdtempSync(join(root, '.fixture-mixed-'));
         fixtures.push(fixture);

@@ -48,6 +48,41 @@ function attribute(name: string, element: Element) {
     return name.indexOf('-') !== -1 || element['ownerSVGElement'] != null || !(name in element);
 }
 
+// Every part a class or style value names: a string split on the list's delimiter, an array entry by
+// entry, and a style object's entries as declarations. Null, undefined, false and empty values name
+// nothing, so a style object keeps one shape and drops a declaration by leaving it undefined.
+function collect(name: string, delimiter: string, value: unknown, into: string[]) {
+    if (value == null || value === false || value === '') {
+        return;
+    }
+
+    if (typeof value === 'string') {
+        let parts = value.split(delimiter);
+
+        for (let i = 0, n = parts.length; i < n; i++) {
+            let part = parts[i].trim();
+
+            if (part !== '') {
+                into.push(part);
+            }
+        }
+    }
+    else if (isArray(value)) {
+        for (let i = 0, n = value.length; i < n; i++) {
+            collect(name, delimiter, value[i], into);
+        }
+    }
+    else if (name === 'style' && isObject(value)) {
+        for (let key in value) {
+            let declaration = (value as Record<string, unknown>)[key];
+
+            if (typeof declaration === 'number' || (typeof declaration === 'string' && declaration !== '')) {
+                into.push(`${key}: ${declaration}`);
+            }
+        }
+    }
+}
+
 function context(element: Element) {
     return (element[STORE] ??= { element }) as Context;
 }
@@ -74,32 +109,31 @@ function list(ctx: Context | null, element: Element, id: null | number, name: st
     let dynamic = listState.dynamic;
 
     if (id === null) {
-        if (value && typeof value === 'string') {
+        let parts: string[] = [];
+
+        collect(name, delimiter, value, parts);
+
+        for (let i = 0, n = parts.length; i < n; i++) {
             changed = true;
-            listState.static += (listState.static ? delimiter : '') + value;
+            listState.static += (listState.static ? delimiter : '') + parts[i];
         }
     }
-    else if ((ctx.raw ??= [])[id] !== value) {
-        let hot: Record<PropertyKey, true> = {};
+    // An array or object is diffed whole each run: it may be the same instance with new contents
+    else if (typeof value === 'object' || (ctx.raw ??= [])[id] !== value) {
+        let hot: Record<PropertyKey, true> = {},
+            parts: string[] = [];
 
-        if (value && typeof value === 'string') {
-            let part: string | undefined,
-                parts = (value as string).split(delimiter);
+        collect(name, delimiter, value, parts);
 
-            while ((part = parts.pop()) !== undefined) {
-                part = part.trim();
+        for (let i = 0, n = parts.length; i < n; i++) {
+            let part = parts[i];
 
-                if (part === '') {
-                    continue;
-                }
-
-                if (!dynamic.has(part)) {
-                    changed = true;
-                    dynamic.add(part);
-                }
-
-                hot[part] = true;
+            if (!dynamic.has(part)) {
+                changed = true;
+                dynamic.add(part);
             }
+
+            hot[part] = true;
         }
 
         let cold = (ctx.cold ??= {})[id];
@@ -115,7 +149,7 @@ function list(ctx: Context | null, element: Element, id: null | number, name: st
             }
         }
 
-        ctx.raw[id] = value;
+        (ctx.raw ??= [])[id] = value;
         ctx.cold[id] = hot;
     }
 
@@ -180,7 +214,8 @@ function reactive(element: Element, name: string, value: unknown) {
         let next: unknown,
             v = (value as Function)(element);
 
-        if (v == null || typeof v !== 'object') {
+        // A class or style list takes a returned array or style object whole, as one diff and one write
+        if (fn === list || v == null || typeof v !== 'object') {
             next = fn(ctx, element, id, name, v);
         }
         else if (isArray(v)) {
@@ -207,13 +242,7 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
     if (typeof value === 'function') {
         reactive(element, name, value);
     }
-    else if (typeof value !== 'object') {
-        let next = list(null, element, null, name, value);
-
-        if (next !== undefined) {
-            apply(element, name, next);
-        }
-    }
+    // A static array can hold functions, so each entry binds on its own
     else if (isArray(value)) {
         for (let i = 0, n = value.length; i < n; i++) {
             let v = value[i];
@@ -223,6 +252,13 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
             }
 
             setList(element, name, v);
+        }
+    }
+    else {
+        let next = list(null, element, null, name, value);
+
+        if (next !== undefined) {
+            apply(element, name, next);
         }
     }
 };

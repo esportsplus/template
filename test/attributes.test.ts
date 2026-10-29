@@ -592,6 +592,203 @@ describe('attributes', () => {
         });
     });
 
+    describe('class arrays and style objects', () => {
+        it('keeps every entry of an array a class binding returns', async () => {
+            let s = signal('b');
+
+            setList(element as unknown as Element, 'class', () => ['a', read(s)]);
+
+            expect([...element.classList].sort()).toEqual(['a', 'b']);
+
+            write(s, 'c');
+
+            await Promise.resolve();
+
+            expect([...element.classList].sort()).toEqual(['a', 'c']);
+        });
+
+        it('drops false, null and empty entries of a returned class array', async () => {
+            let s = signal(false);
+
+            setList(element as unknown as Element, 'class', () => ['a', read(s) && 'b', null, '', undefined]);
+
+            expect(element.className).toBe('a');
+
+            write(s, true);
+
+            await Promise.resolve();
+
+            expect([...element.classList].sort()).toEqual(['a', 'b']);
+        });
+
+        it('writes a returned class array once per change', async () => {
+            let a = signal(true),
+                b = signal(true),
+                writes = 0;
+
+            setList(element as unknown as Element, 'class', () => [read(a) && 'x', read(b) && 'y', 'z']);
+
+            let observer = new MutationObserver((records) => {
+                writes += records.length;
+            });
+
+            observer.observe(element, { attributeFilter: ['class'], attributes: true });
+            write(a, false);
+            write(b, false);
+
+            await Promise.resolve();
+            await new Promise((resolve) => setTimeout(resolve));
+
+            expect(element.className).toBe('z');
+            expect(writes).toBe(1);
+
+            observer.disconnect();
+        });
+
+        it('keeps a static class beside a returned class array', async () => {
+            let s = signal('b');
+
+            element.setAttribute('class', 'static');
+            setList(element as unknown as Element, 'class', () => ['a', read(s)]);
+            write(s, 'c');
+
+            await Promise.resolve();
+
+            expect([...element.classList].sort()).toEqual(['a', 'c', 'static']);
+        });
+
+        it('applies a static style object, skipping null, undefined, false and empty values', () => {
+            setList(element as unknown as Element, 'style', {
+                '--depth': 2,
+                color: 'red',
+                height: undefined,
+                margin: false,
+                opacity: 0,
+                padding: '',
+                width: null
+            });
+
+            expect(element.style.getPropertyValue('--depth')).toBe('2');
+            expect(element.style.color).toBe('red');
+            expect(element.style.opacity).toBe('0');
+            expect(element.style.height).toBe('');
+            expect(element.style.margin).toBe('');
+            expect(element.style.padding).toBe('');
+            expect(element.style.width).toBe('');
+        });
+
+        it('merges a style object with the static style attribute', () => {
+            element.setAttribute('style', 'color: red');
+            setList(element as unknown as Element, 'style', { 'font-size': '14px' });
+
+            expect(element.style.color).toBe('red');
+            expect(element.style.fontSize).toBe('14px');
+        });
+
+        it('updates and removes properties of a returned style object', async () => {
+            let depth = signal<number | undefined>(1);
+
+            setList(element as unknown as Element, 'style', () => ({ '--depth': read(depth), color: 'red' }));
+
+            expect(element.style.getPropertyValue('--depth')).toBe('1');
+
+            write(depth, 2);
+
+            await Promise.resolve();
+
+            expect(element.style.getPropertyValue('--depth')).toBe('2');
+            expect(element.style.color).toBe('red');
+
+            write(depth, undefined);
+
+            await Promise.resolve();
+
+            expect(element.style.getPropertyValue('--depth')).toBe('');
+            expect(element.style.color).toBe('red');
+        });
+
+        it('does not write a returned style object whose declarations are unchanged', async () => {
+            let other = signal(0),
+                writes = 0;
+
+            setList(element as unknown as Element, 'style', () => ({ color: read(other) >= 0 ? 'red' : 'blue' }));
+
+            let observer = new MutationObserver((records) => {
+                writes += records.length;
+            });
+
+            observer.observe(element, { attributeFilter: ['style'], attributes: true });
+            write(other, 1);
+
+            await Promise.resolve();
+            await new Promise((resolve) => setTimeout(resolve));
+
+            expect(element.style.color).toBe('red');
+            expect(writes).toBe(0);
+
+            observer.disconnect();
+        });
+
+        it('keeps a static style beside a returned style object', async () => {
+            let width = signal('10px');
+
+            element.setAttribute('style', 'color: red');
+            setList(element as unknown as Element, 'style', () => ({ width: read(width) }));
+            write(width, '20px');
+
+            await Promise.resolve();
+
+            expect(element.style.color).toBe('red');
+            expect(element.style.width).toBe('20px');
+        });
+
+        it('mixes style strings and objects in one returned array', async () => {
+            let s = signal('1');
+
+            setList(element as unknown as Element, 'style', () => ['color: red', { '--a': read(s) }]);
+
+            expect(element.style.color).toBe('red');
+            expect(element.style.getPropertyValue('--a')).toBe('1');
+
+            write(s, '2');
+
+            await Promise.resolve();
+
+            expect(element.style.color).toBe('red');
+            expect(element.style.getPropertyValue('--a')).toBe('2');
+        });
+
+        it('composes separate class bindings without either dropping the other', async () => {
+            let a = signal(true),
+                b = signal(true);
+
+            setList(element as unknown as Element, 'class', () => [read(a) && 'a', 'shared']);
+            setList(element as unknown as Element, 'class', () => [read(b) && 'b']);
+            write(a, false);
+
+            await Promise.resolve();
+
+            expect([...element.classList].sort()).toEqual(['b', 'shared']);
+        });
+
+        it('routes a class array and style object through setProperties', async () => {
+            let active = signal(false),
+                depth = signal(1);
+
+            setProperties(element as unknown as Element, {
+                class: () => ['overlay', read(active) && '--active'],
+                style: () => ({ '--depth': read(depth) })
+            });
+            write(active, true);
+            write(depth, 3);
+
+            await Promise.resolve();
+
+            expect([...element.classList].sort()).toEqual(['--active', 'overlay']);
+            expect(element.style.getPropertyValue('--depth')).toBe('3');
+        });
+    });
+
     describe('setProperties event handler routing', () => {
         it('routes onclick handler function to runtime/delegate', () => {
             let clicked = false;
