@@ -132,7 +132,7 @@ describe('compiler/virtual', () => {
                 let instance = vite({ root });
 
                 instance.configResolved({ command: 'serve', root, server: {} });
-                instance.transform(source, file);
+                instance.transform.handler(source, file);
 
                 let result = await instance.handleHotUpdate({
                     file,

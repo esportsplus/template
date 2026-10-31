@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { root } from '@esportsplus/reactivity';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
-import type { Element, Renderable } from '../../src/types';
+import type { Element } from '../../src/types';
 
 
 describe('slot/EffectSlot (async)', () => {

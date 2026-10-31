@@ -10,7 +10,7 @@ describe('attributes', () => {
 
     beforeEach(() => {
         container = document.createElement('div');
-        element = document.createElement('div') as HTMLElement & Record<symbol, unknown>;
+        element = document.createElement('div') as unknown as HTMLElement & Record<symbol, unknown>;
         container.appendChild(element);
         document.body.appendChild(container);
     });
@@ -350,7 +350,7 @@ describe('attributes', () => {
         });
 
         it('renders for as an attribute', () => {
-            let label = document.createElement('label') as HTMLElement & Record<symbol, unknown>;
+            let label = document.createElement('label') as unknown as HTMLElement & Record<symbol, unknown>;
 
             setProperty(label as unknown as Element, 'for', 'field');
 

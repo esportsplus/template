@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ts } from '@esportsplus/typescript';
 import { languageService } from '@esportsplus/typescript/compiler';
+import type { TransformContext } from '@esportsplus/typescript/compiler';
 import { selectorComparison } from '../../src/compiler/ts-analyzer';
 
 import transform from '../../src/compiler';
@@ -15,10 +16,11 @@ function createCheckerContext(source: string) {
     return { checker, sourceFile };
 }
 
+// Syntax only: no checker or program, which the compiler's analysis takes as optional
 function createContext(source: string) {
     let sourceFile = languageService.parse(process.cwd() + '/test.ts', source);
 
-    return { checker: undefined, sourceFile };
+    return { code: source, shared: new Map(), sourceFile } as TransformContext;
 }
 
 function findBinary(node: ts.Node): ts.BinaryExpression | undefined {

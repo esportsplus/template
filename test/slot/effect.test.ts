@@ -164,9 +164,11 @@ describe('slot/EffectSlot', () => {
             let disposerCalled = false;
             let originalDisposer = slot.disposer;
 
+            expect(originalDisposer).toBeTypeOf('function');
+
             slot.disposer = () => {
                 disposerCalled = true;
-                originalDisposer();
+                originalDisposer?.();
             };
 
             slot.dispose();
@@ -353,7 +355,7 @@ describe('slot/EffectSlot', () => {
             frag.appendChild(span1);
             frag.appendChild(span2);
 
-            let slot = new EffectSlot(anchor, (dispose) => frag);
+            let slot = new EffectSlot(anchor, () => frag);
 
             expect(container.querySelector('span')).not.toBeNull();
             expect(slot.group).not.toBeNull();
@@ -365,7 +367,7 @@ describe('slot/EffectSlot', () => {
         });
 
         it('dispose with textnode removes text and anchor', () => {
-            let slot = new EffectSlot(anchor, (dispose) => 'Hello text');
+            let slot = new EffectSlot(anchor, () => 'Hello text');
 
             expect(container.textContent).toContain('Hello text');
             expect(slot.textnode).not.toBeNull();

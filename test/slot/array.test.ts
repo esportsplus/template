@@ -939,8 +939,7 @@ describe('slot/ArraySlot', () => {
 
     describe('disconnect cleanup', () => {
         it('cleans up nodes when cleared', async () => {
-            let cleanupCount = 0,
-                arr = reactive(['a', 'b', 'c'] as string[]),
+            let arr = reactive(['a', 'b', 'c'] as string[]),
                 slot = new ArraySlot(arr, (s) => {
                     let frag = document.createDocumentFragment(),
                         span = document.createElement('span');

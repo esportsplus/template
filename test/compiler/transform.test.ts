@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { languageService } from '@esportsplus/typescript/compiler';
+import type { TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, NAMESPACE } from '../../src/compiler/constants';
 
 import transform from '../../src/compiler';
@@ -8,10 +9,11 @@ import transform from '../../src/compiler';
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
 
 
+// Syntax only: no checker or program, which the compiler's analysis takes as optional
 function createContext(source: string) {
     let sourceFile = languageService.parse(process.cwd() + '/test.ts', source);
 
-    return { checker: undefined, sourceFile };
+    return { code: source, shared: new Map(), sourceFile } as TransformContext;
 }
 
 

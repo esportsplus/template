@@ -160,7 +160,7 @@ describe('hmr', () => {
         });
 
         it('preserves arity', () => {
-            let component = factory('factory-arity', 'default', () => function (a: number, b: number, c: number) {
+            let component = factory('factory-arity', 'default', () => function (_a: number, _b: number, _c: number) {
                 return document.createElement('div');
             });
 

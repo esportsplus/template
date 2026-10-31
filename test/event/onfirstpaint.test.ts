@@ -125,11 +125,11 @@ describe('event/onfirstpaint', () => {
 
     it('stops waiting once the element is disposed', () => {
         let called = false,
-            element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown };
+            element = document.createElement('div') as unknown as Element;
 
         container.appendChild(element);
 
-        onfirstpaint(element as unknown as Element, () => { called = true; });
+        onfirstpaint(element, () => { called = true; });
         advanceFrame();
 
         let cleanups = element[CLEANUP] as VoidFunction[];

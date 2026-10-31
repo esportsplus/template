@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { reactive } from '@esportsplus/reactivity';
 import html from '../src/html';
 
 
@@ -23,11 +24,11 @@ describe('html', () => {
         });
 
         it('throws when called without compilation', () => {
-            expect(() => html.reactive([] as unknown[], () => document.createDocumentFragment())).toThrow();
+            expect(() => html.reactive(reactive([] as unknown[]), () => document.createDocumentFragment())).toThrow();
         });
 
         it('throws with appropriate error message', () => {
-            expect(() => html.reactive([] as unknown[], () => document.createDocumentFragment())).toThrow(/vite-plugin/i);
+            expect(() => html.reactive(reactive([] as unknown[]), () => document.createDocumentFragment())).toThrow(/vite-plugin/i);
         });
     });
 });

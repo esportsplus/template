@@ -26,7 +26,7 @@ describe('hmr/integration', () => {
 
     const component = (label: string) => {
         let count = signal(0),
-            root = template('<div><span class="label"></span><button class="btn">+</button><span class="count"></span></div>')(),
+            root = template('<div><span class="label"></span><button class="btn">+</button><span class="count"></span></div>')() as DocumentFragment,
             button = root.querySelector('.btn') as Element,
             countElement = root.querySelector('.count') as Element,
             labelElement = root.querySelector('.label') as Element;
