@@ -17,7 +17,7 @@ type Removal = {
 type Handlers = Map<ts.Node, number>;
 
 
-const ATTRIBUTE = /(?:^|\s)(on[a-z]+)\s*=\s*["']?$/i;
+const ATTRIBUTE = /(?:^|\s)(on[a-z]*)\s*=\s*["']?$/i;
 
 const ELEMENT_PARAMETER: Record<string, number> = { onconnect: 0, ondisconnect: 0, onfirstpaint: 0, ontick: 1 };
 

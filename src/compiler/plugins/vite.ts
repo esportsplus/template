@@ -16,17 +16,40 @@ type VitePlugin = {
     enforce: 'pre';
     handleHotUpdate: (ctx: any) => any;
     name: string;
-    transform: (this: unknown, code: string, id: string, options?: { ssr?: boolean }) => { code: string; map: unknown } | null;
+    transform: {
+        filter: { id: { exclude: RegExp[]; include: RegExp } };
+        handler: (this: unknown, code: string, id: string, options?: { ssr?: boolean }) => { code: string; map: unknown } | null;
+    };
     watchChange: (id: string) => void;
 };
 
 
-const FILE_REGEX = /\.[tj]sx?$/;
+// Query parameters of Vite asset imports: the code such a module is given is not the file's own source
+const ASSETS = new Set(['inline', 'init', 'no-inline', 'raw', 'sharedworker', 'url', 'worker']);
+
+const FILE_REGEX = /\.[cm]?[tj]sx?$/;
+
+const REGEX_NODE_MODULES = /[\\/]node_modules[\\/]/;
 
 const REGEX_PATH_SEPARATOR = /\\/g;
 
+// A script module's id, with or without a query
+const REGEX_SCRIPT = /\.[cm]?[tj]sx?(?:\?|$)/;
+
+const REGEX_VIRTUAL = /^\0/;
+
 const RELOAD_WINDOW = 100;
 
+
+function isAsset(query: string): boolean {
+    for (let key of new URLSearchParams(query).keys()) {
+        if (ASSETS.has(key)) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 // The removal's offset in the source Vite passed in: the analysis ran on code an earlier plugin may have edited
 function locate(code: string, removal: Removal): number {
@@ -115,26 +138,45 @@ export default ({ root }: { root?: string } = {}) => {
 
             return result;
         },
-        transform(this: unknown, code: string, id: string, options?: { ssr?: boolean }) {
-            // The pipeline runs synchronously, so this handshake cannot interleave across modules
-            state.id = isDev && options?.ssr !== true ? id.replace(REGEX_PATH_SEPARATOR, '/') : null;
-            state.plan = null;
-            removals = [];
+        transform: {
+            // Lets Vite skip every other module without calling in
+            filter: { id: { exclude: [REGEX_NODE_MODULES, REGEX_VIRTUAL], include: REGEX_SCRIPT } },
+            handler(this: unknown, code: string, id: string, options?: { ssr?: boolean }) {
+                let query = id.indexOf('?'),
+                    path = query === -1 ? id : id.slice(0, query);
 
-            let context = this as Context,
-                result = vitePlugin.transform(code, id);
-
-            if (typeof context?.warn === 'function') {
-                for (let i = 0, n = removals.length; i < n; i++) {
-                    context.warn(warning(code, id.replace(REGEX_PATH_SEPARATOR, '/'), removals[i]));
+                // The filter again, for a host that does not apply it; a queried module is the file's own source
+                // (`?worker_file`) unless it is an asset import
+                if (
+                    REGEX_VIRTUAL.test(id) ||
+                    REGEX_NODE_MODULES.test(path) ||
+                    !FILE_REGEX.test(path) ||
+                    (query !== -1 && isAsset(id.slice(query + 1)))
+                ) {
+                    return null;
                 }
-            }
 
-            if (result === null || state.id === null || state.plan === null) {
-                return result;
-            }
+                // The pipeline runs synchronously, so this handshake cannot interleave across modules. HMR wraps a
+                // module under its own id only.
+                state.id = isDev && options?.ssr !== true && query === -1 ? path.replace(REGEX_PATH_SEPARATOR, '/') : null;
+                state.plan = null;
+                removals = [];
 
-            return apply(result.code, result.map as SourceMapV3, state.id, state.plan) ?? result;
+                let context = this as Context,
+                    result = vitePlugin.transform(code, path);
+
+                if (typeof context?.warn === 'function') {
+                    for (let i = 0, n = removals.length; i < n; i++) {
+                        context.warn(warning(code, path.replace(REGEX_PATH_SEPARATOR, '/'), removals[i]));
+                    }
+                }
+
+                if (result === null || state.id === null || state.plan === null) {
+                    return result;
+                }
+
+                return apply(result.code, result.map as SourceMapV3, state.id, state.plan) ?? result;
+            }
         }
     } satisfies VitePlugin;
 };

@@ -145,21 +145,134 @@ describe('compiler/codegen', () => {
         });
     });
 
-    describe('generateCode - event attributes', () => {
-        it('generates delegate for standard event', () => {
-            let { result } = codegen(`let x = html\`<div onclick=\${handler}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+    describe('generateCode - element paths', () => {
+        it('declares an ancestor two slot paths part at once, and walks from it', () => {
+            let { result } = codegen('let x = html`<div><section><ul><li><a>${a}</a><b>${b}</b><i class=${c}></i></li></ul></section><p>${d}</p><p>${e}</p></div>`;');
+            let code = result.replacements[0].generate(EMPTY),
+                root = /let (\w+) =/.exec(code)![1],
+                declarations = code.slice(code.indexOf('let '), code.indexOf(';')).split(',\n').slice(1);
 
-            expect(code).toContain(`${NAMESPACE}.delegate(`);
-            expect(code).toContain("'click'");
+            // Only the first declaration walks from the root; every other starts at a declared element
+            expect(declarations.filter(line => line.includes(root))).toHaveLength(1);
+            expect(code.split(`${root}.firstChild`)).toHaveLength(2);
+            expect(declarations).toHaveLength(6);
         });
 
-        it('generates direct attach for focus event', () => {
-            let { result } = codegen(`let x = html\`<div onfocus=\${handler}>text</div>\`;`);
+        it('declares no ancestor a single path walks through alone', () => {
+            let { result } = codegen('let x = html`<div><section><ul><li>${a}</li></ul></section></div>`;');
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`${NAMESPACE}.on(`);
-            expect(code).toContain("'focus'");
+            expect(code.slice(code.indexOf('let '), code.indexOf(';')).split(',\n')).toHaveLength(2);
+        });
+    });
+
+    describe('generateCode - event attributes', () => {
+        it('routes plain events at build time with no options argument', () => {
+            let { result } = codegen(`let x = html\`<div onclick=\${handler} onfocus=\${focus}>text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.delegate\\(\\w+, 'click', handler\\);`));
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.direct\\(\\w+, 'focus', focus\\);`));
+            expect(result.prepend).toHaveLength(1);
+        });
+
+        it.each([
+            ['onclick', 'delegate', 'click'],
+            ['onClick', 'delegate', 'click'],
+            ['onkeydown', 'delegate', 'keydown'],
+            ['ontouchstart', 'delegate', 'touchstart'],
+            ['onwheel', 'delegate', 'wheel'],
+            ['ondomcontentloaded', 'delegate', 'domcontentloaded'],
+            ['onDOMContentLoaded', 'delegate', 'domcontentloaded'],
+            ['oncustom', 'delegate', 'custom'],
+            ['onwiggle', 'delegate', 'wiggle'],
+            ['ondocked', 'delegate', 'docked'],
+            ['onfocus', 'direct', 'focus'],
+            ['onscroll', 'direct', 'scroll'],
+            ['onsubmit', 'direct', 'submit'],
+            ['oncancel', 'direct', 'cancel'],
+            ['onmouseenter', 'direct', 'mouseenter'],
+            ['ondocumentkeydown', 'ondocument', 'keydown'],
+            ['onDocumentKeyDown', 'ondocument', 'keydown'],
+            ['ondocumentfocus', 'ondocument', 'focus'],
+            ['onwindowresize', 'onwindow', 'resize'],
+            ['onWindowScroll', 'onwindow', 'scroll']
+        ])('emits %s as %s(element, %s, handler) in a template and an expanded spread', (key, route, event) => {
+            for (let source of [`<div ${key}=\${handler}>text</div>`, `<div \${{ ${key}: handler }}>text</div>`]) {
+                let { result } = codegen(`let x = html\`${source}\`;`),
+                    code = result.replacements[0].generate(EMPTY);
+
+                expect(code).toMatch(new RegExp(`${NAMESPACE}\\.${route}\\(\\w+, '${event}', handler\\);`));
+                expect(result.prepend).toHaveLength(1);
+            }
+        });
+
+        it('hoists one { once: true } constant shared by every once binding', () => {
+            let { result } = codegen(`let x = html\`<div onceclick=\${a} oncefocus=\${b} oncedocumentkeydown=\${c} oncewindowresize=\${d}>text</div><p \${{ onceClick: e }}></p>\`;`);
+            let code = result.replacements[0].generate(EMPTY),
+                hoisted = result.prepend.filter(line => line.endsWith('= { once: true };'));
+
+            expect(hoisted).toHaveLength(1);
+
+            let id = hoisted[0].slice('const '.length, hoisted[0].indexOf(' ='));
+
+            expect(code).toContain(`${NAMESPACE}.delegate(`);
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.delegate\\(\\w+, 'click', a, ${id}\\);`));
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.direct\\(\\w+, 'focus', b, ${id}\\);`));
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.ondocument\\(\\w+, 'keydown', c, ${id}\\);`));
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.onwindow\\(\\w+, 'resize', d, ${id}\\);`));
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.delegate\\(\\w+, 'click', e, ${id}\\);`));
+            expect(code).not.toContain('{ once: true }');
+        });
+
+        it('shares the hoisted { once: true } constant across templates in a file', () => {
+            let { result } = codegen(`let x = html\`<div onceclick=\${a}></div>\`, y = html\`<span oncewindowresize=\${b}></span>\`;`);
+
+            expect(result.prepend.filter(line => line.endsWith('= { once: true };'))).toHaveLength(1);
+        });
+
+        it('binds document and window keys on their host, tied to the element', () => {
+            let { result } = codegen(`let x = html\`<div ondocumentkeydown=\${a} onwindowresize=\${b}>text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.ondocument\\(\\w+, 'keydown', a\\);`));
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.onwindow\\(\\w+, 'resize', b\\);`));
+            expect(code).not.toContain('document);');
+            expect(code).not.toContain('window);');
+        });
+
+        it('emits only routed event calls, never a runtime-routed one', () => {
+            let { result } = codegen(`let x = html\`<div onclick=\${a} onfocus=\${b} ondocumentkeydown=\${c} onwindowresize=\${d} \${{ onceinput: e }}>text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code).not.toContain(`${NAMESPACE}.runtime(`);
+            expect(code.match(new RegExp(`${NAMESPACE}\\.(delegate|direct|ondocument|onwindow)\\(`, 'g'))).toHaveLength(5);
+        });
+
+        it('rejects an on key, in a template and a spread, pointing to onconnect', () => {
+            expect(() => codegen(`let x = html\`<div on=\${a}></div>\`;`)).toThrow(`@esportsplus/template: 'on' is not an attribute; bind listeners through onconnect's second argument`);
+            expect(() => codegen(`let x = html\`<div \${{ on: a }}></div>\`;`)).toThrow(`'on' is not an attribute`);
+        });
+
+        it.each([
+            ['onconnect', 'onconnect'],
+            ['onConnect', 'onconnect'],
+            ['ondisconnect', 'ondisconnect'],
+            ['onfirstpaint', 'onfirstpaint'],
+            ['ontick', 'ontick']
+        ])('emits %s as a %s hook call, in a template and a spread', (key, hook) => {
+            for (let source of [`<div ${key}=\${handler}>text</div>`, `<div \${{ ${key}: handler }}>text</div>`]) {
+                let { result } = codegen(`let x = html\`${source}\`;`);
+
+                expect(result.replacements[0].generate(EMPTY)).toMatch(new RegExp(`${NAMESPACE}\\.${hook}\\(\\w+, handler\\);`));
+            }
+        });
+
+        it('leaves a non-function spread to setProperties, whose runtime() routes its keys', () => {
+            let { result } = codegen(`let x = html\`<div \${attributes}>text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code).toMatch(new RegExp(`${NAMESPACE}\\.setProperties\\(\\w+, attributes\\);`));
         });
 
         it('generates lifecycle call for onconnect', () => {
@@ -176,12 +289,9 @@ describe('compiler/codegen', () => {
             expect(code).toContain(`${NAMESPACE}.onfirstpaint(`);
         });
 
-        it('generates onactive call for a cancelable gesture listener', () => {
-            let { result } = codegen(`let x = html\`<div onactivetouchmove=\${handler}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
-
-            expect(code).toContain(`${NAMESPACE}.onactive(`);
-            expect(code).toContain("'touchmove', handler)");
+        it.each(['onactivetouchmove', 'onceactivewheel'])('rejects %s', name => {
+            expect(() => codegen(`let x = html\`<div ${name}=\${handler}>text</div>\`;`)).toThrow(`'${name}' is not an event attribute`);
+            expect(() => codegen(`let x = html\`<div \${{ ${name}: handler }}>text</div>\`;`)).toThrow(`'${name}' is not an event attribute`);
         });
 
         it('registers lifecycle hooks of nested templates and descendants before their ancestors', () => {
@@ -433,7 +543,7 @@ describe('compiler/codegen', () => {
             let code = result.replacements[0].generate(EMPTY);
 
             expect(code).toContain(`${NAMESPACE}.delegate(`);
-            expect(code).toContain("'click'");
+            expect(code).toContain("'click', handler);");
         });
 
         it('falls back to setProperties for computed property name', () => {

@@ -284,7 +284,9 @@ const isConstDeclaration = (node: ts.Node): node is ts.VariableDeclaration & { i
 // Enumerating a bounded, immutable parameter gives static clones without copying
 // factory bodies across modules or relying on bundler inlining. Unknown runtime
 // values still take the original generic binding path.
-const specialize = (expressions: ts.Expression[], checker?: ts.Checker, names?: Set<string>): Variant[] => {
+// 'immutables' remembers, per parameter, what immutable() found: every template under a function asks about the
+// same parameters, and each answer walks the whole function body
+const specialize = (expressions: ts.Expression[], immutables: Map<ts.Symbol, boolean>, checker?: ts.Checker, names?: Set<string>): Variant[] => {
     if (!checker || expressions.length === 0) {
         return [];
     }
@@ -318,8 +320,17 @@ const specialize = (expressions: ts.Expression[], checker?: ts.Checker, names?: 
 
                 candidates.delete(node.text);
 
-                if (values && immutable(declaration as ts.ParameterDeclaration & { name: ts.Identifier }, symbol, checker)) {
-                    parameters.set(symbol, { name: node.text, values });
+                if (values) {
+                    let safe = immutables.get(symbol);
+
+                    if (safe === undefined) {
+                        safe = immutable(declaration as ts.ParameterDeclaration & { name: ts.Identifier }, symbol, checker);
+                        immutables.set(symbol, safe);
+                    }
+
+                    if (safe) {
+                        parameters.set(symbol, { name: node.text, values });
+                    }
                 }
             }
         }

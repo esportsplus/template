@@ -52,7 +52,7 @@ describe('compiler/vite-hmr', () => {
     describe('dev transform', () => {
         it('wraps an eager default export and self-accepts', () => {
             let instance = plugin(root, { command: 'serve', server: {} }),
-                result = instance.transform(EAGER, id(root, '__hmr_eager.ts'));
+                result = instance.transform.handler(EAGER, id(root, '__hmr_eager.ts'));
 
             expect(result).not.toBeNull();
             expect(result!.code).toContain('@esportsplus/template/hmr');
@@ -65,7 +65,7 @@ describe('compiler/vite-hmr', () => {
 
         it('wraps a factory default and its named export', () => {
             let instance = plugin(root, { command: 'serve', server: {} }),
-                result = instance.transform(FACTORY, id(root, '__hmr_factory.ts'));
+                result = instance.transform.handler(FACTORY, id(root, '__hmr_factory.ts'));
 
             expect(result).not.toBeNull();
             expect(result!.code).toContain('@esportsplus/template/hmr');
@@ -80,8 +80,8 @@ describe('compiler/vite-hmr', () => {
         // shift every later mapping, so dev output must keep build output's line layout
         it('keeps the line layout of the non-HMR output', () => {
             let source = FACTORY + '\nconst marker = 1;',
-                build = plugin(root, { command: 'build' }).transform(source, id(root, '__hmr_layout_build.ts'))!.code.split('\n'),
-                serve = plugin(root, { command: 'serve', server: {} }).transform(source, id(root, '__hmr_layout_serve.ts'))!.code.split('\n');
+                build = plugin(root, { command: 'build' }).transform.handler(source, id(root, '__hmr_layout_build.ts'))!.code.split('\n'),
+                serve = plugin(root, { command: 'serve', server: {} }).transform.handler(source, id(root, '__hmr_layout_serve.ts'))!.code.split('\n');
 
             expect(serve.join('\n')).toContain('import.meta.hot.accept(');
             expect(serve.findIndex(line => line.includes('const marker'))).toBe(build.findIndex(line => line.includes('const marker')));
@@ -89,7 +89,7 @@ describe('compiler/vite-hmr', () => {
 
         it('does not self-accept unsupported modules', () => {
             let instance = plugin(root, { command: 'serve', server: {} }),
-                result = instance.transform(UNSUPPORTED, id(root, '__hmr_unsupported.ts'));
+                result = instance.transform.handler(UNSUPPORTED, id(root, '__hmr_unsupported.ts'));
 
             expect(result).not.toBeNull();
             expect(result!.code).not.toContain('import.meta.hot');
@@ -99,7 +99,7 @@ describe('compiler/vite-hmr', () => {
 
         it('does not wrap a route factory whose default returns a non-renderable', () => {
             let instance = plugin(root, { command: 'serve', server: {} }),
-                result = instance.transform(ROUTE_FACTORY, id(root, '__hmr_route.ts'));
+                result = instance.transform.handler(ROUTE_FACTORY, id(root, '__hmr_route.ts'));
 
             expect(result).not.toBeNull();
             expect(result!.code).not.toContain('.factory(');
@@ -122,7 +122,7 @@ describe('compiler/vite-hmr', () => {
                     declaration
                 ].join('\n'),
                 instance = plugin(root, { command: 'serve', server: {} }),
-                result = instance.transform(code, id(root, '__hmr_generic_route.ts'));
+                result = instance.transform.handler(code, id(root, '__hmr_generic_route.ts'));
 
             expect(result).not.toBeNull();
             expect(result!.code).not.toContain('@esportsplus/template/hmr');
@@ -136,7 +136,7 @@ describe('compiler/vite-hmr', () => {
                         `export default (): ${returnType} => html\`<div>page</div>\` as ${returnType};`
                     ].join('\n'),
                     instance = plugin(root, { command: 'serve', server: {} }),
-                    result = instance.transform(code, id(root, '__hmr_return_type.ts'));
+                    result = instance.transform.handler(code, id(root, '__hmr_return_type.ts'));
 
                 expect(result!.code).toContain('.factory(');
                 expect(result!.code).toContain('import.meta.hot.accept(');
@@ -184,7 +184,7 @@ describe('compiler/vite-hmr', () => {
             try {
                 let instance = plugin(fixture, { command: 'serve', server: {} });
 
-                instance.transform(source, file);
+                instance.transform.handler(source, file);
 
                 let result = await instance.handleHotUpdate({
                         file,
@@ -206,7 +206,7 @@ describe('compiler/vite-hmr', () => {
     describe('production isolation', () => {
         it('emits no HMR in build mode', () => {
             let instance = plugin(root, { command: 'build' }),
-                result = instance.transform(EAGER, id(root, '__hmr_prod.ts'));
+                result = instance.transform.handler(EAGER, id(root, '__hmr_prod.ts'));
 
             expect(result).not.toBeNull();
             expect(result!.code).not.toContain('import.meta.hot');
@@ -218,7 +218,7 @@ describe('compiler/vite-hmr', () => {
 
         it('emits no HMR for `vite build --mode development`', () => {
             let instance = plugin(root, { command: 'build', mode: 'development' }),
-                result = instance.transform(FACTORY, id(root, '__hmr_prod_dev_mode.ts'));
+                result = instance.transform.handler(FACTORY, id(root, '__hmr_prod_dev_mode.ts'));
 
             expect(result).not.toBeNull();
             expect(result!.code).not.toContain('import.meta.hot');
@@ -229,7 +229,7 @@ describe('compiler/vite-hmr', () => {
 
         it('emits no HMR for SSR transforms', () => {
             let instance = plugin(root, { command: 'serve', server: {} }),
-                result = instance.transform(EAGER, id(root, '__hmr_ssr.ts'), { ssr: true });
+                result = instance.transform.handler(EAGER, id(root, '__hmr_ssr.ts'), { ssr: true });
 
             expect(result).not.toBeNull();
             expect(result!.code).not.toContain('import.meta.hot');

@@ -85,8 +85,8 @@ describe('compiler/integration', () => {
             expect(prepend[0]).not.toContain('onclick');
             expect(prepend[0]).toContain(`${NAMESPACE}.template(`);
 
-            expect(output).toContain(`${NAMESPACE}.delegate(`);
-            expect(output).toContain("'click'");
+            expect(output).toMatch(new RegExp(`${NAMESPACE}\\.delegate\\(\\w+, 'click', handler\\);`));
+            expect(output).toContain("'click', handler);");
             expect(output).toContain('handler');
         });
     });

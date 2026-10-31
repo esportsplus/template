@@ -32,10 +32,12 @@ describe('compiler/removal', () => {
             }
 
             expect(found(`html\`<div ontick=\${(dispose, element) => { element.${removal}; }}></div>\`;`)).toHaveLength(1);
+            expect(found(`html\`<div onconnect=\${(element, on) => { element.${removal}; }}></div>\`;`)).toHaveLength(1);
+            expect(found(`html\`<div \${{ onconnect: (element, on) => { element.${removal}; } }}></div>\`;`)).toHaveLength(1);
         });
 
         it.each(REMOVALS)('an event handler\'s this: %s', (removal) => {
-            for (let event of ['onclick', 'onceclick', 'ondocumentkeydown', 'onwindowresize', 'onactivewheel']) {
+            for (let event of ['onclick', 'onceclick', 'ondocumentkeydown', 'onwindowresize']) {
                 expect(found(`html\`<div ${event}="\${function () { this.${removal}; }}"></div>\`;`)).toHaveLength(1);
             }
         });

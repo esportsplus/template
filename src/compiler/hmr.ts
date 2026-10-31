@@ -3,6 +3,8 @@ import { languageService, uid } from '@esportsplus/typescript/compiler';
 import type { Plugin, SourceMapV3, TransformContext } from '@esportsplus/typescript/compiler';
 import { cached } from './checker';
 import { PACKAGE_NAME } from './constants';
+import scan from './scan';
+import type { Element, Statement } from './scan';
 import { edit } from './sourcemap';
 import type { Edit } from './sourcemap';
 import { isFunctionType } from './ts-analyzer';
@@ -28,6 +30,8 @@ const HMR_PACKAGE = PACKAGE_NAME + '/hmr';
 const HMR_TOKEN = '__hmr';
 
 const REGEX_FUNCTION = /\b(async\s+)?function\b/;
+
+const REGEX_JSX = /\.[jt]sx$/;
 
 
 // Decides which exports to wrap, on the original source with the project's checker. Returns null
@@ -191,6 +195,56 @@ function isRenderableType(type: ts.Type, checker: ts.Checker): boolean {
         (list !== undefined && checker.isTypeAssignableTo(type, checker.getDeclaredTypeOfSymbol(list)));
 }
 
+// What scan() finds, read by the parser instead: for JSX, whose text the scanner cannot tell from code
+function parsed(id: string, code: string): Statement[] | null {
+    let sourceFile = languageService.parse(id, code),
+        statements: Statement[] = [];
+
+    for (let i = 0, n = sourceFile.statements.length; i < n; i++) {
+        let statement = sourceFile.statements[i];
+
+        switch (siteKind(statement)) {
+            case 'assignment': {
+                let expression = (statement as ts.ExportAssignment).expression;
+
+                statements.push({ end: expression.end, kind: 'assignment', start: expression.getStart(sourceFile) });
+                break;
+            }
+
+            case 'function': {
+                let match = REGEX_FUNCTION.exec(statement.getText(sourceFile));
+
+                if (match === null) {
+                    return null;
+                }
+
+                statements.push({ end: statement.end, kind: 'function', start: statement.getStart(sourceFile) + match.index });
+                break;
+            }
+
+            case 'list': {
+                let elements = ((statement as ts.ExportDeclaration).exportClause as ts.NamedExports).elements,
+                    list: Element[] = [];
+
+                for (let j = 0, m = elements.length; j < m; j++) {
+                    let { name, propertyName } = elements[j];
+
+                    list.push({
+                        name: name.text,
+                        property: propertyName ? { end: propertyName.end, start: propertyName.getStart(sourceFile) } : null,
+                        start: name.getStart(sourceFile)
+                    });
+                }
+
+                statements.push({ elements: list, kind: 'list' });
+                break;
+            }
+        }
+    }
+
+    return statements;
+}
+
 function pickName(code: string, base: string, taken: Set<string>): string {
     let name = base,
         index = 1;
@@ -277,49 +331,32 @@ const apply = (code: string, map: SourceMapV3, id: string, plan: Site[]): { code
     let edits: Edit[] = [],
         index = 0,
         moduleId = JSON.stringify(id),
-        sourceFile = languageService.parse(id, code),
+        statements = REGEX_JSX.test(id) ? parsed(id, code) : scan(code),
         tail: string[] = [],
         taken = new Set<string>();
 
-    for (let i = 0, n = sourceFile.statements.length; i < n; i++) {
-        let statement = sourceFile.statements[i],
-            kind = siteKind(statement);
+    if (statements === null) {
+        return null;
+    }
 
-        if (kind === null) {
-            continue;
-        }
+    for (let i = 0, n = statements.length; i < n; i++) {
+        let statement = statements[i],
+            site = plan[index++];
 
-        let site = plan[index++];
-
-        if (!site || site.kind !== kind) {
+        if (!site || site.kind !== statement.kind) {
             return null;
         }
 
-        if (site.kind === 'assignment') {
-            let expression = (statement as ts.ExportAssignment).expression,
-                start = expression.getStart(sourceFile);
+        if (site.kind === 'assignment' || site.kind === 'function') {
+            let { end, start } = statement as Exclude<Statement, { kind: 'list' }>;
 
             edits.push(
-                { end: start, start, text: `${HMR_NAMESPACE}.${site.wrapper}(${moduleId}, "default", () => (` },
-                { end: expression.end, start: expression.end, text: '))' }
-            );
-        }
-        else if (site.kind === 'function') {
-            let match = REGEX_FUNCTION.exec(statement.getText(sourceFile));
-
-            if (match === null) {
-                return null;
-            }
-
-            let start = statement.getStart(sourceFile) + match.index;
-
-            edits.push(
-                { end: start, start, text: `${HMR_NAMESPACE}.factory(${moduleId}, "default", () => (` },
-                { end: statement.end, start: statement.end, text: '));' }
+                { end: start, start, text: `${HMR_NAMESPACE}.${site.kind === 'function' ? 'factory' : site.wrapper}(${moduleId}, "default", () => (` },
+                { end, start: end, text: site.kind === 'function' ? '));' : '))' }
             );
         }
         else {
-            let elements = ((statement as ts.ExportDeclaration).exportClause as ts.NamedExports).elements;
+            let elements = (statement as Extract<Statement, { kind: 'list' }>).elements;
 
             if (elements.length !== site.exports.length) {
                 return null;
@@ -329,19 +366,17 @@ const apply = (code: string, map: SourceMapV3, id: string, plan: Site[]): { code
                 let element = elements[j],
                     entry = site.exports[j];
 
-                if (element.name.text !== entry.exportId) {
+                if (element.name !== entry.exportId) {
                     return null;
                 }
 
                 let wrapper = pickName(code, '__hmr_' + entry.local, taken);
 
-                if (element.propertyName) {
-                    edits.push({ end: element.propertyName.end, start: element.propertyName.getStart(sourceFile), text: wrapper });
+                if (element.property) {
+                    edits.push({ end: element.property.end, start: element.property.start, text: wrapper });
                 }
                 else {
-                    let start = element.name.getStart(sourceFile);
-
-                    edits.push({ end: start, start, text: wrapper + ' as ' });
+                    edits.push({ end: element.start, start: element.start, text: wrapper + ' as ' });
                 }
 
                 tail.push(`const ${wrapper} = ${HMR_NAMESPACE}.${entry.wrapper}(${moduleId}, ${JSON.stringify(entry.exportId)}, () => ${entry.local});`);

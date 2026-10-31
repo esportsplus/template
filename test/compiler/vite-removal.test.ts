@@ -17,7 +17,7 @@ function transform(code: string, name: string, command: string = 'build') {
 
     instance.configResolved({ command, root, server: {} });
 
-    let result = instance.transform.call({ warn }, code, root + '/src/' + name);
+    let result = instance.transform.handler.call({ warn }, code, root + '/src/' + name);
 
     return { messages: warn.mock.calls.map(call => call[0] as string), result };
 }
@@ -64,6 +64,6 @@ describe('compiler/vite removal warnings', () => {
 
         instance.configResolved({ command: 'build', root });
 
-        expect(() => instance.transform(SOURCE, root + '/src/__removal_direct.ts')).not.toThrow();
+        expect(() => instance.transform.handler(SOURCE, root + '/src/__removal_direct.ts')).not.toThrow();
     });
 });

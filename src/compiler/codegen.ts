@@ -1,6 +1,7 @@
 import { ts } from '@esportsplus/typescript';
 import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compiler';
-import { ANCHOR_LAST, ANCHOR_SOLE, DIRECT_ATTACH_EVENTS, LIFECYCLE_EVENTS } from '../constants';
+import { ANCHOR_LAST, ANCHOR_SOLE } from '../constants';
+import parse from '../event/parse';
 import { cached } from './checker';
 import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
 import type { Entrypoint } from './constants';
@@ -16,6 +17,10 @@ type CodegenContext = {
     constants?: Set<string>;
     // Root of a specialized variant: it must lower to an expression, never an arrow block body
     expression?: ts.Node;
+    // Module-level constants by their code, shared by every variant
+    hoisted?: Map<string, string>;
+    // Whether each parameter is never reassigned, by its symbol; see specialize()
+    immutables?: Map<ts.Symbol, boolean>;
     parseCache?: Map<string, ParseResult>;
     prefoldCache?: WeakMap<ts.Node, Prefolded>;
     selectorFired?: boolean;
@@ -42,16 +47,17 @@ type Range = { end: number; start: number };
 
 const REGEX_ATTRIBUTE_VALUE_OPEN = /=\s*(["']?)$/;
 
+const REGEX_TEMPLATE_SYNTAX = /[\\`\r]|\$\{/g;
+
 const REGEX_UNQUOTED_VALUE_CLOSE = /^(?:[\s>]|\/>)/;
 
 
 function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: (Range & { text: string })[], inObserver: boolean): void {
     if (isHtmlTemplate(node, ctx.sites)) {
-        replacements.push({
-            end: node.end,
-            start: node.getStart(ctx.sourceFile),
-            text: generateNestedTemplateCode(ctx, node)
-        });
+        let text = generateNestedTemplateCode(ctx, node),
+            target = replaced(node, text);
+
+        replacements.push({ end: target.end, start: target.getStart(ctx.sourceFile), text });
 
         return;
     }
@@ -93,45 +99,50 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
     node.forEachChild(child => collectNestedReplacements(ctx, child, replacements, childObserver));
 }
 
-function generateAttributeBinding(element: string, name: string, expr: string): string {
-    if (name.startsWith('on') && name.length > 2) {
-        let key = name.toLowerCase();
+// Declares the element at the first 'length' steps of 'path', walking from its deepest declared ancestor
+function declareElement(declarations: string[], elements: Map<string, string>, path: string[], length: number): void {
+    let key = path.slice(0, length).join('.');
 
-        if (LIFECYCLE_EVENTS.has(key)) {
-            return `${NAMESPACE}.${key}(${element}, ${expr});`;
+    if (elements.has(key)) {
+        return;
+    }
+
+    let start = 0,
+        value = elements.get('')!;
+
+    for (let j = length - 1; j > 0; j--) {
+        let prefix = elements.get(path.slice(0, j).join('.'));
+
+        if (prefix) {
+            start = j;
+            value = prefix;
+            break;
+        }
+    }
+
+    for (let j = start; j < length; j++) {
+        value += `.${path[j]}`;
+
+        if (j < length - 1) {
+            value = `(${value}! as ${NAMESPACE}.Element)`;
+        }
+    }
+
+    let name = uid('element');
+
+    declarations.push(`${name} = ${value} as ${NAMESPACE}.Element`);
+    elements.set(key, name);
+}
+
+function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string): string {
+    if (name.startsWith('on')) {
+        let key = parse(name as `on${string}`);
+
+        if (key.event === null) {
+            return `${NAMESPACE}.${key.route}(${element}, ${expr});`;
         }
 
-        // Same character gates as runtime() in ../event: types reject DOM events starting with
-        // 'ac', 'ce', 'doc' or 'wi', so a match can only be a prefix
-        let i = 2,
-            once = false;
-
-        if (key[2] === 'c' && key[3] === 'e') {
-            i = 4;
-            once = true;
-        }
-
-        if (key[i] === 'a' && key[i + 1] === 'c') {
-            return `${NAMESPACE}.onactive(${element}, '${key.slice(i + 6)}', ${expr});`;
-        }
-
-        let flag = once ? ', true' : '';
-
-        if (key[i] === 'd' && key[i + 1] === 'o' && key[i + 2] === 'c') {
-            return `${NAMESPACE}.ondocument(${element}, '${key.slice(i + 8)}', ${expr}${flag});`;
-        }
-
-        if (key[i] === 'w' && key[i + 1] === 'i') {
-            return `${NAMESPACE}.onwindow(${element}, '${key.slice(i + 6)}', ${expr}${flag});`;
-        }
-
-        let event = key.slice(i);
-
-        if (DIRECT_ATTACH_EVENTS.has('on' + event)) {
-            return `${NAMESPACE}.on(${element}, '${event}', ${expr}${flag});`;
-        }
-
-        return `${NAMESPACE}.delegate(${element}, '${event}', ${expr}${flag});`;
+        return `${NAMESPACE}.${key.route}(${element}, '${key.event}', ${expr}${key.once ? ', ' + hoist(ctx, '{ once: true }') : ''});`;
     }
 
     if (name === 'class' || name === 'style') {
@@ -147,7 +158,7 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
     let parts = extractTemplateParts(node.template);
 
     if (!ctx.staticValues) {
-        let variants = specialize(parts.expressions, ctx.checker, ctx.constants);
+        let variants = specialize(parts.expressions, ctx.immutables ??= new Map(), ctx.checker, ctx.constants);
 
         if (variants.length) {
             let code = '(';
@@ -250,11 +261,12 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
         return `${getTemplateID(ctx, html)}()`;
     }
 
-    let code: string[] = [],
+    // A template that is an arrow's body or a return's expression lowers to statements, not to a called closure
+    let block = ctx.expression !== templateNode && (isArrowExpressionBody(templateNode) || isReturned(templateNode)),
+        code: string[] = [],
         declarations: string[] = [],
         elements = new Map<string, string>(),
         index = 0,
-        isArrowBody = ctx.expression !== templateNode && isArrowExpressionBody(templateNode),
         keys: string[] = [],
         offsets: number[] = [],
         root = uid('root'),
@@ -267,47 +279,43 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
     declarations.push(`${root} = ${getTemplateID(ctx, html)}()`);
     elements.set('', root);
 
+    // Where two or more slot paths part, the ancestor they share is declared once, so none of them walks it again
+    let branches = new Map<string, Set<string>>();
+
+    for (let i = 0, n = slots.length; i < n; i++) {
+        let path = slots[i].path;
+
+        for (let j = 1, m = path.length; j < m; j++) {
+            let prefix = path.slice(0, j).join('.'),
+                next = branches.get(prefix);
+
+            if (!next) {
+                next = new Set();
+                branches.set(prefix, next);
+            }
+
+            next.add(path[j]);
+        }
+    }
+
     for (let i = 0, n = slots.length; i < n; i++) {
         let path = slots[i].path,
-            key = keys[i] = path.join('.'),
             slot = slots[i];
 
+        keys[i] = path.join('.');
         offsets[i] = index;
         index += slot.type === TYPES.Attribute ? slot.attributes.names.length : 1;
 
-        if (elements.has(key)) {
-            continue;
-        }
-
-        let ancestor = root,
-            start = 0;
-
-        for (let j = path.length - 1; j >= 0; j--) {
-            let prefix = elements.get(path.slice(0, j).join('.'));
-
-            if (prefix) {
-                ancestor = prefix;
-                start = j;
-                break;
+        for (let j = 1, m = path.length; j < m; j++) {
+            if (branches.get(path.slice(0, j).join('.'))!.size > 1) {
+                declareElement(declarations, elements, path, j);
             }
         }
 
-        let name = uid('element'),
-            value = ancestor;
-
-        for (let j = start, m = path.length; j < m; j++) {
-            value += `.${path[j]}`;
-
-            if (j < m - 1) {
-                value = `(${value}! as ${NAMESPACE}.Element)`;
-            }
-        }
-
-        declarations.push(`${name} = ${value} as ${NAMESPACE}.Element`);
-        elements.set(key, name);
+        declareElement(declarations, elements, path, path.length);
     }
 
-    code.push(isArrowBody ? '{' : `(() => {`, `let ${declarations.join(',\n')};`);
+    code.push(block ? '{' : `(() => {`, `let ${declarations.join(',\n')};`);
 
     for (let i = 0, n = slots.length; i < n; i++) {
         let slot = slots[i];
@@ -343,7 +351,7 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
                             key = (prop.name as ts.Identifier | ts.StringLiteral).text;
 
                         code.push(
-                            generateAttributeBinding(element, key, ts.isPropertyAssignment(prop) ? rewriteExpression(ctx, prop.initializer) : key)
+                            generateAttributeBinding(ctx, element, key, ts.isPropertyAssignment(prop) ? rewriteExpression(ctx, prop.initializer) : key)
                         );
                     }
                 }
@@ -353,8 +361,8 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
 
                 index++;
             }
-            else if (name.startsWith('on') && name.length > 2) {
-                code.push(generateAttributeBinding(element, name, text(index++)));
+            else if (name.startsWith('on')) {
+                code.push(generateAttributeBinding(ctx, element, name, text(index++)));
             }
             else {
                 // Markers sharing a value (or a class/style token) with each other or with
@@ -368,17 +376,19 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
                 }
 
                 if (last === j && !parts[j].prefix && !parts[j].suffix) {
-                    code.push(generateAttributeBinding(element, name, text(index++)));
+                    code.push(generateAttributeBinding(ctx, element, name, text(index++)));
                     continue;
                 }
 
-                let values: string[] = [];
+                let textual = ctx.checker !== undefined,
+                    values: string[] = [];
 
                 for (let k = j; k <= last; k++) {
                     if (parts[k].prefix) {
                         values.push(JSON.stringify(parts[k].prefix));
                     }
 
+                    textual &&= isTextual(ctx.checker!, expressions[index]);
                     values.push(`(${text(index++)})`);
                 }
 
@@ -386,13 +396,22 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
                     values.push(JSON.stringify(parts[last].suffix));
                 }
 
-                code.push(generateAttributeBinding(element, name, `${NAMESPACE}.interpolate([${values.join(', ')}])`));
+                // Proven strings and numbers join exactly as interpolate() would; the leading string keeps two numbers
+                // from adding
+                code.push(generateAttributeBinding(
+                    ctx,
+                    element,
+                    name,
+                    textual
+                        ? (values[0][0] === '"' ? '' : '"" + ') + values.join(' + ')
+                        : `${NAMESPACE}.interpolate([${values.join(', ')}])`
+                ));
                 j = last;
             }
         }
     }
 
-    code.push(`return ${root};`, isArrowBody ? `}` : `})()`);
+    code.push(`return ${root};`, block ? `}` : `})()`);
 
     return code.join('\n');
 }
@@ -408,8 +427,49 @@ function getTemplateID(ctx: CodegenContext, html: string): string {
     return id;
 }
 
+function hoist(ctx: CodegenContext, code: string): string {
+    let hoisted = ctx.hoisted ??= new Map(),
+        id = hoisted.get(code);
+
+    if (!id) {
+        id = uid('options');
+        hoisted.set(code, id);
+    }
+
+    return id;
+}
+
 function isArrowExpressionBody(node: ts.Node): boolean {
     return ts.isArrowFunction(node.parent) && (node.parent as ts.ArrowFunction).body === node;
+}
+
+function isReturned(node: ts.Node): boolean {
+    return ts.isReturnStatement(node.parent) && node.parent.expression === node;
+}
+
+// What the lowered template replaces: its return statement when it lowered to a block (generated code only ever
+// starts with a brace as one), else itself
+function replaced(node: ts.Node, code: string): ts.Node {
+    return code[0] === '{' && isReturned(node) ? node.parent : node;
+}
+
+// A string or number in every case: no null, undefined or boolean to drop, nothing to call or stringify
+function isTextual(checker: ts.Checker, expression: ts.Expression | undefined): boolean {
+    let type = expression && checker.getTypeAtLocation(expression);
+
+    if (!type) {
+        return false;
+    }
+
+    let types = type.isUnionType() ? type.getTypes() : [type];
+
+    for (let i = 0, n = types.length; i < n; i++) {
+        if ((types[i].flags & (ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike)) === 0) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // A spread object literal expands into per-property bindings only when every member is a
@@ -454,6 +514,12 @@ function isWholeAttributeValue(before: string, after: string): boolean {
 
 // Each distinct template is parsed once per transform. The key joins the (post-prefold)
 // literals on NUL, which source template text cannot contain.
+// Template text is cooked: a template literal must escape what it would otherwise read as syntax, and a raw carriage
+// return, which it would normalize to a line feed
+function literal(text: string): string {
+    return '`' + text.replace(REGEX_TEMPLATE_SYNTAX, match => match === '\r' ? '\\r' : '\\' + match) + '`';
+}
+
 function parseCached(ctx: CodegenContext, literals: string[]): ParseResult {
     let cache = ctx.parseCache ??= new Map<string, ParseResult>(),
         key = literals.join('\0'),
@@ -525,6 +591,7 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
     let ctx: CodegenContext = {
             checker: checker && cached(checker),
             constants,
+            hoisted: new Map(),
             parseCache: new Map(),
             sites,
             sourceFile,
@@ -567,11 +634,15 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
 
         let code = generateNestedTemplateCode(ctx, node);
 
-        replacements.push({ generate: () => code, node });
+        replacements.push({ generate: () => code, node: replaced(node, code) });
     }
 
     for (let [html, id] of ctx.templates) {
-        prepend.push(`const ${id} = ${NAMESPACE}.template(\`${html}\`);`);
+        prepend.push(`const ${id} = ${NAMESPACE}.template(${literal(html)});`);
+    }
+
+    for (let [code, id] of ctx.hoisted!) {
+        prepend.push(`const ${id} = ${code};`);
     }
 
     return { prepend, replacements, selectorFired: ctx.selectorFired === true, templates: ctx.templates };

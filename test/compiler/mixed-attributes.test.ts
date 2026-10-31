@@ -379,19 +379,20 @@ describe('compiled host bindings and unquoted attributes', () => {
     });
 
     it.each([
-        ['onceclick', "${NAMESPACE}.delegate(", ', true);'],
-        ['oncefocus', "${NAMESPACE}.on(", ', true);'],
-        ['oncedocumentkeydown', "${NAMESPACE}.ondocument(", ', true);'],
-        ['oncewindowresize', "${NAMESPACE}.onwindow(", ', true);'],
-        ['onwindowresize', "${NAMESPACE}.onwindow(", ');'],
-        ['onDocumentKeyDown', "${NAMESPACE}.ondocument(", ');'],
-        ['onDOMContentLoaded', "${NAMESPACE}.delegate(", ');']
-    ])('compiles %s through the matching helper', (name, call, tail) => {
-        let { output } = compile('let value = html`<button ' + name + '=${handler}></button>`;', { handler: () => {} });
+        ['onceclick', 'delegate', "'click', handler, ONCE);"],
+        ['oncefocus', 'direct', "'focus', handler, ONCE);"],
+        ['oncedocumentkeydown', 'ondocument', "'keydown', handler, ONCE);"],
+        ['oncewindowresize', 'onwindow', "'resize', handler, ONCE);"],
+        ['onwindowresize', 'onwindow', "'resize', handler);"],
+        ['onDocumentKeyDown', 'ondocument', "'keydown', handler);"],
+        ['onDOMContentLoaded', 'delegate', "'domcontentloaded', handler);"]
+    ])('compiles %s through %s', (name, route, tail) => {
+        let { output, result } = compile('let value = html`<button ' + name + '=${handler}></button>`;', { handler: () => {} }),
+            hoisted = result.prepend.find(line => line.endsWith('= { once: true };'));
 
-        expect(output).toContain(call.replace('${NAMESPACE}', NAMESPACE));
-        expect(output).toContain(tail);
-        expect(output).toContain("'" + name.toLowerCase().replace(/^once|^on|document|window/g, '') + "'");
+        expect(hoisted === undefined).toBe(!tail.includes('ONCE'));
+        expect(output).toContain(`${NAMESPACE}.${route}(`);
+        expect(output).toContain(hoisted ? tail.replace('ONCE', hoisted.slice('const '.length, hoisted.indexOf(' ='))) : tail);
     });
 
     it('once bindings fire a single time and window bindings receive the owner', () => {

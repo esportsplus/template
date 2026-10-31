@@ -79,7 +79,7 @@ afterEach(() => {
 describe('compiler coverage', () => {
     it.each(Object.keys(FILES).filter(name => name !== 'barrel.ts'))('compiles html reached through %s', (name) => {
         let { directory, plugin } = project(FILES),
-            output = plugin.transform(FILES[name], directory + '/' + name)!.code;
+            output = plugin.transform.handler(FILES[name], directory + '/' + name)!.code;
 
         expect(output).not.toMatch(/\w`<p>/);
         expect(render(output, name)).toBe(name);
@@ -91,7 +91,7 @@ describe('compiler coverage', () => {
             },
             { directory, plugin } = project(files);
 
-        expect(() => plugin.transform(files['escape.ts'], directory + '/escape.ts')).toThrow(/escape\.ts:3:6/);
+        expect(() => plugin.transform.handler(files['escape.ts'], directory + '/escape.ts')).toThrow(/escape\.ts:3:6/);
     });
 
     it('rejects a bundle chunk that still contains the uncompiled html runtime', () => {
@@ -106,7 +106,7 @@ describe('compiler coverage', () => {
             dependent = { id: directory + '/renamed.ts' },
             invalidated: unknown[] = [];
 
-        plugin.transform(FILES['renamed.ts'], directory + '/renamed.ts');
+        plugin.transform.handler(FILES['renamed.ts'], directory + '/renamed.ts');
 
         let result = plugin.handleHotUpdate({
             file: directory + '/barrel.ts',

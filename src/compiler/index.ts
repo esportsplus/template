@@ -8,6 +8,20 @@ import type { Removal } from './removal';
 import { findTemplateArtifacts } from './ts-parser';
 
 
+// A const alias of an imported `html` (`const h = html`) is a declaration that survives compilation, so it still reads
+// the import; compiled uses never call it, and once unread it tree-shakes away
+function aliases(sites: Set<ts.Node>): boolean {
+    for (let site of sites) {
+        let parent = site.parent;
+
+        if (ts.isIdentifier(site) && parent !== undefined && ts.isVariableDeclaration(parent) && parent.initializer === site) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // Every use of `html` must compile away: html`` throws at runtime, so an uncompilable use fails
 // the build here instead of shipping
 function escaped(sourceFile: ts.SourceFile, escapes: ts.Node[]): Error {
@@ -69,7 +83,7 @@ const compiler = (report: ((removals: Removal[]) => void) | null = null) => ({
         let imports: ImportIntent[] = [{
             namespace: NAMESPACE,
             package: PACKAGE_NAME,
-            remove: artifacts.templates.length > 0 ? [ENTRYPOINT] : []
+            remove: artifacts.templates.length > 0 && !aliases(artifacts.sites) ? [ENTRYPOINT] : []
         }];
 
         if (selectorFired && !hasSignalImport(ctx.sourceFile)) {
