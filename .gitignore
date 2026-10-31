@@ -8,3 +8,4 @@ tmpclaude*
 .claude/storage/
 .claude/worktrees/
 storage/virtual-demo/index.html
+.tmp/
