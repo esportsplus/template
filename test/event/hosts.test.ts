@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { delegate, on, ondocument, onwindow, runtime } from '../../src/event';
+import { delegate, direct, ondocument, onwindow, runtime } from '../../src/event';
 import { setProperties } from '../../src/attributes';
 import { CLEANUP } from '../../src/constants';
 import type { Attributes, Element } from '../../src/types';
@@ -8,9 +8,17 @@ import type { Attributes, Element } from '../../src/types';
 type Mode = 'delegate' | 'direct' | 'document' | 'window';
 
 
-const attach = { delegate, direct: on, document: ondocument, window: onwindow };
+// Each mode with an event the compiler would route to it
+const EVENTS: Record<Mode, string> = { delegate: 'click', direct: 'focus', document: 'click', window: 'click' };
 
-const target = (mode: Mode, element: Element) => mode === 'document' ? document.body : mode === 'window' ? window : element;
+const ONCE = { once: true };
+
+const ROUTES = { delegate, direct, document: ondocument, window: onwindow };
+
+
+function attach(mode: Mode, element: Element, listener: () => void, once = false) {
+    ROUTES[mode](element, EVENTS[mode], listener, once ? ONCE : undefined);
+}
 
 
 // Bound outside any owner, an element's cleanups wait on it for an owner to adopt them; this runs them as one would
@@ -25,12 +33,20 @@ function release(element: Element) {
     }
 }
 
+function target(mode: Mode, element: Element) {
+    return mode === 'document' ? document.body : mode === 'window' ? window : element;
+}
+
+function trigger(mode: Mode, element: Element) {
+    target(mode, element).dispatchEvent(new Event(EVENTS[mode], { bubbles: true }));
+}
+
 
 describe('event hosts', () => {
     let owners: Element[] = [];
 
     function owner() {
-        let element = document.createElement('button') as Element;
+        let element = document.createElement('button') as unknown as Element;
 
         document.body.append(element);
         owners.push(element);
@@ -50,18 +66,17 @@ describe('event hosts', () => {
     describe('once', () => {
         it.each<Mode>(['delegate', 'direct', 'document', 'window'])('%s once binding fires a single time and is released by cleanup', mode => {
             let count = 0,
-                element = owner(),
-                trigger = () => target(mode, element).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                element = owner();
 
-            attach[mode](element, 'click', () => { count++; }, true);
+            attach(mode, element, () => { count++; }, true);
 
-            trigger();
-            trigger();
+            trigger(mode, element);
+            trigger(mode, element);
 
             expect(count).toBe(1);
 
             release(element);
-            trigger();
+            trigger(mode, element);
 
             expect(count).toBe(1);
         });
@@ -73,7 +88,7 @@ describe('event hosts', () => {
             ondocument(element, 'keydown', () => {
                 document.dispatchEvent(new KeyboardEvent('keydown'));
                 nested++;
-            }, true);
+            }, ONCE);
 
             document.dispatchEvent(new KeyboardEvent('keydown'));
 
@@ -85,14 +100,13 @@ describe('event hosts', () => {
         it.each<Mode>(['delegate', 'direct', 'document', 'window'])('%s rebinding replaces the previous handler', mode => {
             let element = owner(),
                 first = vi.fn(),
-                next = vi.fn(),
-                trigger = () => target(mode, element).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                next = vi.fn();
 
-            attach[mode](element, 'click', first);
-            trigger();
+            attach(mode, element, first);
+            trigger(mode, element);
 
-            attach[mode](element, 'click', next);
-            trigger();
+            attach(mode, element, next);
+            trigger(mode, element);
 
             expect(first).toHaveBeenCalledTimes(1);
             expect(next).toHaveBeenCalledTimes(1);
@@ -132,8 +146,9 @@ describe('event hosts', () => {
             ['oncancel', null, 'cancel', 1]
         ])('routes %s to the right host and event', (name, host, event, count) => {
             let element = owner(),
-                spies = [document, window, element].map(t => vi.spyOn(t, 'addEventListener')),
-                registered = (t: EventTarget) => spies[[document, window, element].indexOf(t)].mock.calls.filter(([n]) => n === event).length;
+                targets: EventTarget[] = [document, window, element],
+                spies = targets.map(t => vi.spyOn(t, 'addEventListener')),
+                registered = (t: EventTarget) => spies[targets.indexOf(t)].mock.calls.filter(([n]) => n === event).length;
 
             runtime(element, name as `on${string}`, () => {});
 
@@ -204,8 +219,8 @@ describe('event hosts', () => {
             let element = owner(),
                 targets: unknown[] = [];
 
-            delegate(element, 'click', event => { targets.push(event.currentTarget); });
-            ondocument(element, 'click', function (event) {
+            delegate(element, 'click', (event: Event) => { targets.push(event.currentTarget); });
+            ondocument(element, 'click', function (this: unknown, event: Event) {
                 targets.push(event.currentTarget, this);
             });
 
@@ -219,7 +234,7 @@ describe('event hosts', () => {
                 b = owner(),
                 calls: string[] = [];
 
-            ondocument(a, 'keydown', () => { calls.push('a'); }, true);
+            ondocument(a, 'keydown', () => { calls.push('a'); }, ONCE);
             ondocument(b, 'keydown', () => { calls.push('b'); });
 
             document.dispatchEvent(new KeyboardEvent('keydown'));

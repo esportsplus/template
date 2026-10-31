@@ -8,5 +8,5 @@ export { default as render } from './render';
 export { default as slot, ArraySlot, EffectSlot } from './slot';
 export { VirtualSlot } from './virtual';
 export type { Factory } from './component';
-export type { Attribute, Attributes, Element, Renderable, Style, StyleAttribute } from './types';
+export type { Attribute, Attributes, Element, EventOptions, On, Renderable, Style, StyleAttribute } from './types';
 export type { VirtualOptions } from './virtual';

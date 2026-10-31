@@ -7,7 +7,10 @@ type Attribute<T extends HTMLElement = HTMLElement> = Callback<[element: T], Pri
 
 type Attributes<T extends HTMLElement = HTMLElement> = {
     class?: Attribute<T> | Attribute<T>[];
-    onconnect?: Callback<[element: T]>;
+    // Not an attribute: listeners bind through onconnect's 'on'
+    on?: never;
+    // Once, untracked, on the element's first connect; what it binds through 'on' belongs to the element
+    onconnect?: Callback<[element: T, on: On]>;
     ondisconnect?: Callback<[element: T]>;
     // Once, in the frame after the one that first paints the element
     onfirstpaint?: Callback<[element: T]>;
@@ -21,8 +24,8 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
 } & {
     [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: Handler<T, WindowEventMap[K]>;
 } & {
-    // Cancelable, bound while a gesture on the element lasts
-    [K in typeof PASSIVE_EVENTS[number] as `onactive${K}`]?: Handler<T, GlobalEventHandlersEventMap[K]>;
+    // Not event keys: a cancelable listener binds through onconnect's 'on' with 'passive: false'
+    [K in typeof PASSIVE_EVENTS[number] as `onactive${K}`]?: never;
 } & Record<PropertyKey, unknown>;
 
 // Method signatures compare parameters bivariantly, so a listener may annotate a narrower element
@@ -33,7 +36,28 @@ type Effect<T> = (dispose: VoidFunction) => T extends unknown[] ? Renderable<T>[
 
 type Element<T extends HTMLElement = HTMLElement> = T & Attributes<T>;
 
-type Handler<This, E> = { bivariant(this: This, event: E): void }['bivariant'];
+type EventOptions = {
+    // Listens in the capture phase; never delegated
+    capture?: boolean;
+    // Attaches to an element target instead of delegating
+    direct?: boolean;
+    once?: boolean;
+    // Defaults to true for PASSIVE_EVENTS, false otherwise
+    passive?: boolean;
+    signal?: AbortSignal;
+};
+
+// Every listener receives a disposer that ends its binding for good
+type Handler<This, E> = { bivariant(this: This, event: E, dispose: VoidFunction): void }['bivariant'];
+
+type On = {
+    <K extends keyof DocumentEventMap>(target: Document, event: K, listener: Handler<Document, DocumentEventMap[K]>, options?: EventOptions): VoidFunction;
+    <K extends keyof WindowEventMap>(target: Window, event: K, listener: Handler<Window, WindowEventMap[K]>, options?: EventOptions): VoidFunction;
+    <K extends keyof MediaQueryListEventMap>(target: MediaQueryList, event: K, listener: Handler<MediaQueryList, MediaQueryListEventMap[K]>, options?: EventOptions): VoidFunction;
+    <T extends HTMLElement, K extends keyof HTMLElementEventMap>(target: T, event: K, listener: Handler<T, HTMLElementEventMap[K]>, options?: EventOptions): VoidFunction;
+    <T extends globalThis.Element, K extends keyof GlobalEventHandlersEventMap>(target: T, event: K, listener: Handler<T, GlobalEventHandlersEventMap[K]>, options?: EventOptions): VoidFunction;
+    <T extends EventTarget>(target: T, event: string, listener: Handler<T, Event>, options?: EventOptions): VoidFunction;
+};
 
 // Copied from '@esportsplus/utilities'
 // - Importing from ^ causes 'cannot be named without a reference to...' error
@@ -55,7 +79,9 @@ type StyleAttribute<T extends HTMLElement = HTMLElement> =
 
 export type {
     Attribute, Attributes,
-    Effect, Element,
+    Effect, Element, EventOptions,
+    Handler,
+    On,
     Renderable,
     SlotGroup,
     Style, StyleAttribute

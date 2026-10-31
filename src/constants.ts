@@ -17,47 +17,46 @@ const ATTRIBUTE_DELIMITERS: Record<string, string> = {
 const CLEANUP = Symbol.for(`${PACKAGE_NAME}/cleanup`);
 
 const DIRECT_ATTACH_EVENTS = new Set<string>([
-    'onabort',
-    'onblur',
-    'oncancel',
-    'oncanplay',
-    'oncanplaythrough',
-    'onclose',
-    'ondurationchange',
-    'onemptied',
-    'onended',
-    'onerror',
-    'onfocus', 'onfocusin', 'onfocusout',
-    'oninvalid',
-    'onloadeddata',
-    'onloadedmetadata',
-    'onload',
-    'onloadstart',
-    'onmouseenter', 'onmouseleave',
-    'onpause',
-    'onplay',
-    'onplaying',
-    'onpointerenter', 'onpointerleave',
-    'onprogress',
-    'onratechange',
-    'onreset',
-    'onscroll',
-    'onseeked', 'onseeking',
-    'onstalled',
-    'onsubmit',
-    'onsuspend',
-    'ontimeupdate',
-    'ontoggle',
-    'onvolumechange',
-    'onwaiting'
+    'abort',
+    'blur',
+    'cancel',
+    'canplay',
+    'canplaythrough',
+    'close',
+    'durationchange',
+    'emptied',
+    'ended',
+    'error',
+    'focus', 'focusin', 'focusout',
+    'invalid',
+    'loadeddata',
+    'loadedmetadata',
+    'load',
+    'loadstart',
+    'mouseenter', 'mouseleave',
+    'pause',
+    'play',
+    'playing',
+    'pointerenter', 'pointerleave',
+    'progress',
+    'ratechange',
+    'reset',
+    'scroll',
+    'seeked', 'seeking',
+    'stalled',
+    'submit',
+    'suspend',
+    'timeupdate',
+    'toggle',
+    'volumechange',
+    'waiting'
 ]);
 
 const LIFECYCLE_EVENTS = new Set<string>([
     'onconnect', 'ondisconnect', 'onfirstpaint', 'ontick'
 ]);
 
-// Only listeners for these can hold up scrolling, so the template registers them passive; 'onactive' binds a cancelable
-// one for the length of a gesture.
+// Only listeners for these can hold up scrolling, so the template registers them passive unless told otherwise
 const PASSIVE_EVENTS = ['touchmove', 'touchstart', 'wheel'] as const;
 
 const SLOT_HTML = '<!--$-->';

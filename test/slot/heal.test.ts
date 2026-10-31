@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flush, reactive, read, root, signal, write } from '@esportsplus/reactivity';
 import { setProperty } from '../../src/attributes';
 import { CLEANUP } from '../../src/constants';
-import { delegate, onactive, ondisconnect as hook, ondocument, onfirstpaint, onwindow } from '../../src/event';
+import { delegate, direct, ondisconnect as hook, ondocument, onfirstpaint, onwindow } from '../../src/event';
 import { ArraySlot } from '../../src/slot/array';
 import { enter, exit, ondisconnect, sweep, track } from '../../src/slot/cleanup';
 import type { Slot } from '../../src/slot/cleanup';
@@ -281,19 +281,19 @@ describe('slot/cleanup sweep', () => {
         expect(parent.textContent).toBe('a');
     });
 
-    it('releases onfirstpaint, onactive, ondisconnect and listeners with the slot that owned them', () => {
+    it('releases onfirstpaint, ondisconnect and delegated and direct listeners with the slot that owned them', () => {
         let parent = host(),
             clicks = 0,
             disconnected = vi.fn(),
+            focuses = 0,
             painted = vi.fn(),
-            target: Element | null = null,
-            wheels = 0;
+            target: Element | null = null;
 
         render(parent, () => {
             let node = target = element();
 
             delegate(node, 'click', () => { clicks++; });
-            onactive(node, 'wheel', () => { wheels++; });
+            direct(node, 'focus', () => { focuses++; });
             onfirstpaint(node, painted);
             hook(node, disconnected);
 
@@ -308,11 +308,10 @@ describe('slot/cleanup sweep', () => {
 
         document.body.appendChild(parent);
         target!.click();
-        target!.dispatchEvent(new Event('pointermove'));
-        target!.dispatchEvent(new Event('wheel'));
+        target!.dispatchEvent(new Event('focus'));
 
         expect(clicks).toBe(0);
-        expect(wheels).toBe(0);
+        expect(focuses).toBe(0);
 
         parent.remove();
     });
@@ -568,7 +567,7 @@ describe('foreign removal', () => {
 
         await tick();
 
-        expect(release).toHaveBeenCalledWith('foreign', expect.any(Function));
+        expect(release).toHaveBeenCalledWith('foreign', expect.any(Function), false);
         expect(disconnected).toHaveBeenCalledTimes(1);
 
         document.body.append(parent);

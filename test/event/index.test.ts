@@ -1,8 +1,13 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { delegate, on, ondisconnect, runtime } from '../../src/event';
+import { delegate, direct, ondisconnect, runtime } from '../../src/event';
 import { root } from '@esportsplus/reactivity';
 import { CLEANUP } from '../../src/constants';
 import type { Element } from '../../src/types';
+
+
+function create(tag: string) {
+    return document.createElement(tag) as unknown as Element;
+}
 
 
 describe('event/index', () => {
@@ -19,10 +24,10 @@ describe('event/index', () => {
 
     describe('delegate', () => {
         it('registers click handler via delegation', () => {
-            let element = document.createElement('button') as Element,
+            let element = create('button'),
                 clicked = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             delegate(element, 'click', () => { clicked = true; });
 
             element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -31,11 +36,11 @@ describe('event/index', () => {
         });
 
         it('handler receives event object', () => {
-            let element = document.createElement('button') as Element,
+            let element = create('button'),
                 receivedEvent: Event | null = null;
 
-            container.appendChild(element as unknown as Node);
-            delegate(element, 'click', (e) => { receivedEvent = e; });
+            container.appendChild(element);
+            delegate(element, 'click', (e: Event) => { receivedEvent = e; });
 
             element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
@@ -43,10 +48,10 @@ describe('event/index', () => {
         });
 
         it('handler is called with element as this', () => {
-            let element = document.createElement('button') as Element,
+            let element = create('button'),
                 thisValue: unknown = null;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             delegate(element, 'click', function(this: unknown) { thisValue = this; });
 
             element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -55,12 +60,12 @@ describe('event/index', () => {
         });
 
         it('event bubbles up to find handler', () => {
-            let parent = document.createElement('div') as Element,
+            let parent = create('div'),
                 child = document.createElement('span'),
                 clicked = false;
 
             parent.appendChild(child);
-            container.appendChild(parent as unknown as Node);
+            container.appendChild(parent);
 
             delegate(parent, 'click', () => { clicked = true; });
 
@@ -70,11 +75,11 @@ describe('event/index', () => {
         });
 
         it('supports multiple different event types', () => {
-            let element = document.createElement('div') as Element,
+            let element = create('div'),
                 clicked = false,
                 mousedown = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
 
             delegate(element, 'click', () => { clicked = true; });
             delegate(element, 'mousedown', () => { mousedown = true; });
@@ -90,11 +95,11 @@ describe('event/index', () => {
         });
 
         it('later handler replaces earlier handler for same event', () => {
-            let element = document.createElement('button') as Element,
+            let element = create('button'),
                 firstCalled = false,
                 secondCalled = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
 
             delegate(element, 'click', () => { firstCalled = true; });
             delegate(element, 'click', () => { secondCalled = true; });
@@ -107,28 +112,29 @@ describe('event/index', () => {
     });
 
     describe('delegate arguments', () => {
-        it('handler receives (event) only', () => {
+        it('handler receives (event, dispose)', () => {
             let args: unknown[] = [],
-                element = document.createElement('button') as Element;
+                element = create('button');
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             delegate(element, 'click', function (...received: unknown[]) {
                 args = received;
             });
 
             element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-            expect(args).toHaveLength(1);
+            expect(args).toHaveLength(2);
             expect(args[0]).toBeInstanceOf(MouseEvent);
+            expect(args[1]).toBeTypeOf('function');
         });
 
         it('ancestor match sets currentTarget to the bound element', () => {
             let capturedTarget: EventTarget | null = null,
                 child = document.createElement('span'),
-                parent = document.createElement('div') as Element;
+                parent = create('div');
 
             parent.appendChild(child);
-            container.appendChild(parent as unknown as Node);
+            container.appendChild(parent);
 
             delegate(parent, 'click', function (e: Event) {
                 capturedTarget = e.currentTarget;
@@ -140,13 +146,13 @@ describe('event/index', () => {
         });
     });
 
-    describe('on (direct attachment)', () => {
+    describe('direct', () => {
         it('attaches event listener directly', () => {
-            let element = document.createElement('input') as Element,
+            let element = create('input'),
                 focused = false;
 
-            container.appendChild(element as unknown as Node);
-            on(element, 'focus', () => { focused = true; });
+            container.appendChild(element);
+            direct(element, 'focus', () => { focused = true; });
 
             element.dispatchEvent(new FocusEvent('focus'));
 
@@ -154,11 +160,11 @@ describe('event/index', () => {
         });
 
         it('handler receives event object', () => {
-            let element = document.createElement('input') as Element,
+            let element = create('input'),
                 receivedEvent: Event | null = null;
 
-            container.appendChild(element as unknown as Node);
-            on(element, 'blur', (e) => { receivedEvent = e; });
+            container.appendChild(element);
+            direct(element, 'blur', (e: Event) => { receivedEvent = e; });
 
             element.dispatchEvent(new FocusEvent('blur'));
 
@@ -166,11 +172,11 @@ describe('event/index', () => {
         });
 
         it('handler is called with element as this', () => {
-            let element = document.createElement('input') as Element,
+            let element = create('input'),
                 thisValue: unknown = null;
 
-            container.appendChild(element as unknown as Node);
-            on(element, 'focus', function(this: unknown) { thisValue = this; });
+            container.appendChild(element);
+            direct(element, 'focus', function(this: unknown) { thisValue = this; });
 
             element.dispatchEvent(new FocusEvent('focus'));
 
@@ -178,13 +184,13 @@ describe('event/index', () => {
         });
 
         it('registers cleanup to remove the listener', () => {
-            let element = document.createElement('input') as HTMLElement & { [key: symbol]: unknown },
+            let element = create('input'),
                 focused = false;
 
             container.appendChild(element);
 
             let dispose = root((d) => {
-                    on(element as unknown as Element, 'focus', () => { focused = true; });
+                    direct(element, 'focus', () => { focused = true; });
                     return d;
                 });
 
@@ -197,21 +203,21 @@ describe('event/index', () => {
 
     describe('ondisconnect', () => {
         it('registers disconnect callback', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
+            let element = create('div'),
                 callback = vi.fn();
 
             container.appendChild(element);
-            ondisconnect(element as unknown as Element, callback);
+            ondisconnect(element, callback);
 
             expect(element[CLEANUP]).toBeInstanceOf(Array);
         });
 
         it('callback receives element when invoked', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown },
+            let element = create('div'),
                 receivedElement: unknown = null;
 
             container.appendChild(element);
-            ondisconnect(element as unknown as Element, (el) => { receivedElement = el; });
+            ondisconnect(element, (el) => { receivedElement = el; });
 
             // Manually trigger cleanup
             let fns = element[CLEANUP] as VoidFunction[];
@@ -223,11 +229,11 @@ describe('event/index', () => {
     });
 
     describe('runtime', () => {
-        it('routes click event to delegate', () => {
-            let element = document.createElement('button') as Element,
+        it('routes click to delegation', () => {
+            let element = create('button'),
                 clicked = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             runtime(element, 'onclick', () => { clicked = true; });
 
             element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -235,11 +241,11 @@ describe('event/index', () => {
             expect(clicked).toBe(true);
         });
 
-        it('routes focus event to on (direct attach)', () => {
-            let element = document.createElement('input') as Element,
+        it('routes focus to direct attachment', () => {
+            let element = create('input'),
                 focused = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             runtime(element, 'onfocus', () => { focused = true; });
 
             element.dispatchEvent(new FocusEvent('focus'));
@@ -247,11 +253,11 @@ describe('event/index', () => {
             expect(focused).toBe(true);
         });
 
-        it('routes blur event to on (direct attach)', () => {
-            let element = document.createElement('input') as Element,
+        it('routes blur to direct attachment', () => {
+            let element = create('input'),
                 blurred = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             runtime(element, 'onblur', () => { blurred = true; });
 
             element.dispatchEvent(new FocusEvent('blur'));
@@ -260,29 +266,29 @@ describe('event/index', () => {
         });
 
         it('routes onfirstpaint to lifecycle handler', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown };
+            let element = create('div');
 
             container.appendChild(element);
-            runtime(element as unknown as Element, 'onfirstpaint', () => {});
+            runtime(element, 'onfirstpaint', () => {});
 
             // Waiting for its frame, it registers a cleanup that stops the wait on disposal.
             expect(element[CLEANUP]).toBeInstanceOf(Array);
         });
 
         it('routes ondisconnect to lifecycle handler', () => {
-            let element = document.createElement('div') as HTMLElement & { [key: symbol]: unknown };
+            let element = create('div');
 
             container.appendChild(element);
-            runtime(element as unknown as Element, 'ondisconnect', () => {});
+            runtime(element, 'ondisconnect', () => {});
 
             expect(element[CLEANUP]).toBeInstanceOf(Array);
         });
 
         it('handles case insensitive event names', () => {
-            let element = document.createElement('button') as Element,
+            let element = create('button'),
                 clicked = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             runtime(element, 'onClick', () => { clicked = true; });
 
             element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -291,10 +297,10 @@ describe('event/index', () => {
         });
 
         it('routes scroll to direct attach', () => {
-            let element = document.createElement('div') as Element,
+            let element = create('div'),
                 scrolled = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             runtime(element, 'onscroll', () => { scrolled = true; });
 
             element.dispatchEvent(new Event('scroll'));
@@ -303,10 +309,10 @@ describe('event/index', () => {
         });
 
         it('routes submit to direct attach', () => {
-            let form = document.createElement('form') as Element,
+            let form = create('form'),
                 submitted = false;
 
-            container.appendChild(form as unknown as Node);
+            container.appendChild(form);
             runtime(form, 'onsubmit', (e) => {
                 e.preventDefault();
                 submitted = true;
@@ -318,10 +324,10 @@ describe('event/index', () => {
         });
 
         it('routes pointerenter to direct attach', () => {
-            let element = document.createElement('div') as Element,
+            let element = create('div'),
                 entered = false;
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             runtime(element, 'onpointerenter', () => { entered = true; });
             element.dispatchEvent(new Event('pointerenter'));
 
@@ -331,10 +337,10 @@ describe('event/index', () => {
 
     describe('event delegation storage', () => {
         it('stores handler on element via symbol key', () => {
-            let element = document.createElement('button') as Element,
+            let element = create('button'),
                 handler = () => {};
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             delegate(element, 'click', handler);
 
             // Handler is stored on element - check it can be invoked
@@ -349,11 +355,11 @@ describe('event/index', () => {
 
     describe('delegate lifecycle and currentTarget', () => {
         it('sets currentTarget to the element with the handler during delegation', () => {
-            let element = document.createElement('button') as Element,
+            let element = create('button'),
                 capturedTarget: EventTarget | null = null;
 
-            container.appendChild(element as unknown as Node);
-            delegate(element, 'dblclick', function(e) {
+            container.appendChild(element);
+            delegate(element, 'dblclick', function(e: Event) {
                 capturedTarget = e.currentTarget;
             });
 
@@ -363,12 +369,12 @@ describe('event/index', () => {
         });
 
         it('keeps delegated listeners after another element disconnects', () => {
-            let a = document.createElement('div') as Element,
-                b = document.createElement('div') as Element,
-                c = document.createElement('div') as Element,
+            let a = create('div'),
+                b = create('div'),
+                c = create('div'),
                 calls: string[] = [];
 
-            container.append(a as unknown as Node, b as unknown as Node);
+            container.append(a, b);
 
             let dispose = root((d) => {
                     delegate(a, 'mousemove', () => calls.push('a'));
@@ -379,7 +385,7 @@ describe('event/index', () => {
             dispose();
             a.remove();
             b.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
-            container.appendChild(c as unknown as Node);
+            container.appendChild(c);
             delegate(c, 'mousemove', () => calls.push('c'));
             c.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 
@@ -387,15 +393,15 @@ describe('event/index', () => {
         });
     });
 
-    describe('on() lifecycle', () => {
+    describe('direct lifecycle', () => {
         it('registers direct listeners with disconnect cleanup', () => {
-            let element = document.createElement('input') as HTMLElement & { [key: symbol]: unknown },
+            let element = create('input'),
                 callCount = 0;
 
             container.appendChild(element);
-            on(element as unknown as Element, 'input', () => { callCount++; });
+            direct(element, 'focus', () => { callCount++; });
 
-            element.dispatchEvent(new Event('input'));
+            element.dispatchEvent(new FocusEvent('focus'));
 
             expect(callCount).toBe(1);
 
@@ -410,10 +416,10 @@ describe('event/index', () => {
                 new TouchEvent('touchstart', { bubbles: true, cancelable: true }),
                 new WheelEvent('wheel', { bubbles: true, cancelable: true })
             ]) {
-                let element = document.createElement('div') as Element,
+                let element = create('div'),
                     called = false;
 
-                container.appendChild(element as unknown as Node);
+                container.appendChild(element);
                 delegate(element, event.type, (e: Event) => {
                     called = true;
                     e.preventDefault();
@@ -427,10 +433,10 @@ describe('event/index', () => {
         });
 
         it('lets every other event cancel', () => {
-            let element = document.createElement('div') as Element,
+            let element = create('div'),
                 event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
 
-            container.appendChild(element as unknown as Node);
+            container.appendChild(element);
             delegate(element, 'mousedown', (e: Event) => { e.preventDefault(); });
 
             element.dispatchEvent(event);
@@ -439,28 +445,15 @@ describe('event/index', () => {
         });
 
         it('scroll event attaches directly', () => {
-            let element = document.createElement('div') as Element,
+            let element = create('div'),
                 scrolled = false;
 
-            container.appendChild(element as unknown as Node);
-            on(element, 'scroll', () => { scrolled = true; });
+            container.appendChild(element);
+            direct(element, 'scroll', () => { scrolled = true; });
 
             element.dispatchEvent(new Event('scroll'));
 
             expect(scrolled).toBe(true);
-        });
-
-        it('routes onactive names through runtime()', () => {
-            let element = document.createElement('div') as Element,
-                event = new TouchEvent('touchmove', { cancelable: true });
-
-            container.appendChild(element as unknown as Node);
-            runtime(element, 'onactivetouchmove', (e: Event) => { e.preventDefault(); });
-
-            element.dispatchEvent(new Event('pointerdown'));
-            element.dispatchEvent(event);
-
-            expect(event.defaultPrevented).toBe(true);
         });
     });
 });

@@ -278,10 +278,23 @@ const simpleAsync = () =>
 
 ### Standard DOM Events
 
-Events use delegation by default for efficiency:
+Events use delegation by default for efficiency: one native listener on the document per event, which runs the
+binding of the nearest bound element the event passed through.
 
 `touchmove`, `touchstart`, and `wheel` listeners are passive, so their handlers cannot call `preventDefault()`: they are
-the only events whose listeners can hold up scrolling. Use `onactive{event}` when one must cancel.
+the only events whose listeners can hold up scrolling. Bind through [`onconnect`'s `on`](#binding-through-onconnect)
+with `passive: false` when one must cancel.
+
+Every listener is called with the element as `this`, the event, and a disposer that removes the binding for good, for
+conditions `once` can't express:
+
+```typescript
+html`<form onsubmit=${function (this: HTMLFormElement, e: SubmitEvent, dispose: VoidFunction) {
+    if (valid(this)) {
+        dispose();
+    }
+}}></form>`;
+```
 
 ```typescript
 // Click
@@ -328,24 +341,6 @@ shared shortcuts once. Handlers receive the owning element as `this`; use
 `event.currentTarget` for the document or window.
 Replacing an event binding on the same owner removes the previous registration.
 
-### Active Events
-
-`onactive{event}` binds a cancelable listener for one of the passive events, on the element itself and only while a
-gesture on it lasts, so the browser waits on script before scrolling only then:
-
-| Event | Bound from | Until |
-|---|---|---|
-| `touchmove`, `touchstart` | a touch or pen `pointerdown` on the element | the last finger lifts (`touchend` / `touchcancel`) |
-| `wheel` | the pointer moving over the element | `pointerleave` |
-
-```typescript
-// Stops the page scrolling under a touch drag once it has started
-html`<ul onactivetouchmove=${(e: TouchEvent) => dragging && e.preventDefault()}>…</ul>`;
-```
-
-A passive event added later without a gesture of its own is cancelable for as long as the element lives. Template
-disposal removes every listener.
-
 ### Once Events
 
 Prefix any event with `once` to remove the binding before its first invocation:
@@ -356,13 +351,82 @@ html`<dialog oncedocumentkeydown=${dismiss}></dialog>`;
 html`<div oncewindowload=${ready}></div>`;
 ```
 
+### Binding Through `onconnect`
+
+Anything an event key can't express (capture, direct attachment, a cancelable passive event, another target, early
+disposal) binds through `onconnect`. Its listener receives the element and [`on()`](#ontarget-event-listener-options),
+wrapped so every binding it makes belongs to the element:
+
+```typescript
+html`<div onconnect=${(element, on) => {
+    on(document, 'keydown', key, { capture: true });
+    on(element, 'pointerdown', press, { direct: true });
+    on(element, 'wheel', wheel, { direct: true, passive: false });
+    on(element.closest('form')!, 'reset', reset);
+}}></div>`;
+```
+
+- **When it runs:** once, untracked, the first time the element is connected, so ancestors can be looked up inside
+  it and reading signals doesn't run it again.
+- **Lifetime:** every binding made through its `on` is removed when the element is disposed (a move doesn't dispose
+  it). While the element is out of the document none of them run, on any target; an element removed by native DOM
+  calls is released as [document and window handlers are](#removing-template-content). Each call also returns its own
+  disposer and accepts `signal`, for listeners that should stop earlier.
+- **Composition:** the `onconnect` of each separate attribute object runs; they stack in order. Pass helpers'
+  attribute objects separately or as an array rather than merging them with object spread.
+- There is no `on` attribute: an `on` key in a template or attribute object fails the build (or throws at runtime)
+  and is a type error.
+
+### on(target, event, listener, options?)
+
+Binds `listener` to any `EventTarget` (an element, `document`, `window`, a `MediaQueryList`, a node that has left the
+DOM) and returns a disposer that removes this binding:
+
+```typescript
+import { on } from '@esportsplus/template';
+
+type EventOptions = {
+    capture?: boolean;      // listen in the capture phase; implies direct on an element
+    direct?: boolean;       // attach to the element instead of delegating
+    once?: boolean;
+    passive?: boolean;      // default: true for touchmove, touchstart and wheel, false otherwise
+    signal?: AbortSignal;   // aborting it removes this binding
+};
+
+// One controller per gesture ends every listener it started
+let gesture = new AbortController(),
+    signal = gesture.signal;
+
+on(document, 'touchmove', scroll, { passive: false, signal });
+on(e.target!, 'touchmove', scroll, { direct: true, passive: false, signal });  // keeps working once the node is detached
+
+// Page-lifetime singleton
+on(matchMedia('(prefers-color-scheme: dark)'), 'change', recolor);
+```
+
+- **Listener:** called with the target as `this`, the event, and a disposer. Overloads on the target's type give the
+  event names and event types (`Document`, `Window`, `MediaQueryList`, `HTMLElement`, `Element`, then any
+  `EventTarget` with any event name and `Event`).
+- **Delegation** is used only for an element target with an event that isn't
+  [attached directly](#direct-attach-events), and neither `direct` nor `capture` set; everything else attaches to the
+  target. A delegated binding only runs while its element is in the document and isn't shadowed by a nearer bound
+  element, so a node that may be detached while listened to needs `direct: true`.
+- **Shared, lazy native listeners:** one per target, event, capture and passive, added by the first binding that
+  needs it and removed with the last. Calls add up: each is its own binding with its own disposer. Event keys keep
+  their rule of one per element and event.
+- **Ending a binding:** the returned disposer, the listener's `dispose` argument, `once`, or `signal` aborting,
+  whichever comes first. A `signal` already aborted binds nothing; the binding removes its `abort` listener however
+  it ends. To combine signals, use `AbortSignal.any([a, b])`.
+- **Lifetime:** outside `onconnect`'s `on` nothing ties a binding to an element; the template never removes it. Where
+  it needs one, pass a `signal` and abort it in the element's or component's `ondisconnect`.
+
 ### Lifecycle Events
 
 Custom lifecycle events for DOM attachment:
 
 ```typescript
-// Called when element is added to DOM
-const connect = (handler: (el: HTMLElement) => void) =>
+// Called when element is added to DOM, with an on() bound to it (see Binding Through onconnect)
+const connect = (handler: (el: HTMLElement, on: On) => void) =>
     html`<div onconnect="${handler}">Connected</div>`;
 
 // Called when the content that owns the element is released (see Removing Template Content)
@@ -417,8 +481,8 @@ What is still healed when other code removes template content, without a `Mutati
   any template, and nodes holding unadopted cleanups. When a host removes the container, the outermost slot removed
   with it is released, along with everything it owns, including effects nothing they read ever changes again and
   content inside shadow roots.
-- **Window and document handlers.** A handler whose element is out of the document is never run; if the element had
-  been mounted, the outermost slot removed with it is released at the end of the task.
+- **Window and document handlers, and bindings made through `onconnect`'s `on`.** A handler whose element is out of the document is
+  never run; if the element had been mounted, the outermost slot removed with it is released at the end of the task.
 - **Effects and reactive attributes.** One that reruns on a mounted node now out of the document skips its work and
   is released at the end of the task.
 - **Moves.** A node removed and reinserted within the same task is kept, and an effect that skipped a rerun while it
@@ -490,12 +554,8 @@ const circle = (fill: string) =>
 | `setList` | Set class/style list attributes with merge support |
 | `setProperty` | Set a single element property/attribute |
 | `setProperties` | Set multiple properties from an object |
-| `delegate` | Register delegated event handler |
-| `on` | Register direct-attach event handler |
-| `onactive` | Register a cancelable handler for a passive event, bound while a gesture on the element lasts |
-| `ondocument` | Register an owner-scoped document event handler |
-| `onwindow` | Register an owner-scoped window event handler |
-| `onconnect` | Lifecycle: element connected to DOM, just before its first paint |
+| `on` | Bind a listener to any `EventTarget`; returns its disposer |
+| `onconnect` | Lifecycle: element connected to DOM, just before its first paint; gets an `on` owned by the element |
 | `ondisconnect` | Lifecycle: element disconnected from DOM |
 | `onfirstpaint` | Lifecycle: once, the frame after the element's first paint |
 | `ontick` | Lifecycle: RAF animation loop |
@@ -524,15 +584,17 @@ type StyleAttribute<T extends HTMLElement = HTMLElement> = Primitive | Style | (
 type Attributes<T extends HTMLElement = HTMLElement> = {
     class?: Attribute<T> | Attribute<T>[];
     style?: StyleAttribute<T> | StyleAttribute<T>[];
-    onconnect?: (element: T) => void;
+    on?: never;
+    onconnect?: (element: T, on: typeof import('@esportsplus/template').on) => void;
     ondisconnect?: (element: T) => void;
     onfirstpaint?: (element: T) => void;
     ontick?: (dispose: VoidFunction, element: T) => void;
-} & { [K in keyof GlobalEventHandlersEventMap as `on${K}` | `once${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
-  & { [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: (this: T, event: DocumentEventMap[K]) => void }
-  & { [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: (this: T, event: WindowEventMap[K]) => void }
-  & { [K in 'touchmove' | 'touchstart' | 'wheel' as `onactive${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K]) => void }
+} & { [K in keyof GlobalEventHandlersEventMap as `on${K}` | `once${K}`]?: (this: T, event: GlobalEventHandlersEventMap[K], dispose: VoidFunction) => void }
+  & { [K in keyof DocumentEventMap as `ondocument${K}` | `oncedocument${K}`]?: (this: T, event: DocumentEventMap[K], dispose: VoidFunction) => void }
+  & { [K in keyof WindowEventMap as `onwindow${K}` | `oncewindow${K}`]?: (this: T, event: WindowEventMap[K], dispose: VoidFunction) => void }
   & Record<PropertyKey, unknown>;
+
+type EventOptions = { capture?: boolean; direct?: boolean; once?: boolean; passive?: boolean; signal?: AbortSignal };
 
 type Factory<A, C, R> = {
     (): R;

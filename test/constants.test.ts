@@ -48,52 +48,52 @@ describe('constants', () => {
         });
 
         it('contains blur events', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onblur')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('blur')).toBe(true);
         });
 
         it('contains focus events', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onfocus')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onfocusin')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onfocusout')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('focus')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('focusin')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('focusout')).toBe(true);
         });
 
         it('contains media events', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onplay')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onpause')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onended')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('ontimeupdate')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('play')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('pause')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('ended')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('timeupdate')).toBe(true);
         });
 
         it('contains form events', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onsubmit')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onreset')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('submit')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('reset')).toBe(true);
         });
 
         it('contains error and load events', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onerror')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onload')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('error')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('load')).toBe(true);
         });
 
         it('contains mouse enter/leave events', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onmouseenter')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onmouseleave')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('mouseenter')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('mouseleave')).toBe(true);
         });
 
         it('contains non-bubbling events', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onpointerenter')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onpointerleave')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('ontoggle')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('oninvalid')).toBe(true);
-            expect(DIRECT_ATTACH_EVENTS.has('onclose')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('pointerenter')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('pointerleave')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('toggle')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('invalid')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('close')).toBe(true);
         });
 
         it('contains scroll event', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onscroll')).toBe(true);
+            expect(DIRECT_ATTACH_EVENTS.has('scroll')).toBe(true);
         });
 
         it('does not contain delegatable events', () => {
-            expect(DIRECT_ATTACH_EVENTS.has('onclick')).toBe(false);
-            expect(DIRECT_ATTACH_EVENTS.has('onkeydown')).toBe(false);
+            expect(DIRECT_ATTACH_EVENTS.has('click')).toBe(false);
+            expect(DIRECT_ATTACH_EVENTS.has('keydown')).toBe(false);
         });
     });
 

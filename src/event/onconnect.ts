@@ -1,11 +1,11 @@
 import { root } from '@esportsplus/reactivity';
 import { ondisconnect } from '../slot/cleanup';
-import { Attributes, Element } from '../types';
+import { Element } from '../types';
 import { add, remove } from './ontick';
 
 
 // The listener runs untracked, in a root released along with the element, so what it creates dies with it
-export default (element: Element, listener: NonNullable<Attributes['onconnect']>) => {
+export default (element: Element, listener: (element: Element) => void) => {
     let fn = () => {
             retry--;
 
