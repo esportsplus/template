@@ -693,6 +693,41 @@ describe('attributes', () => {
             expect(element.className).toBe('second third first');
         });
 
+        it('writes a list nothing binds straight to the attribute, without list state', () => {
+            setClass(element as unknown as Element, ['a', 'b c', ['d', null]]);
+
+            expect(element.className).toBe('a b c d');
+            expect(element[STORE]).toBeUndefined();
+        });
+
+        it('keeps what static writers appended when a reactive writer arrives', async () => {
+            let s = signal('on');
+
+            element.setAttribute('class', 'clone');
+            setList(element as unknown as Element, 'class', 'one');
+            setList(element as unknown as Element, 'class', ['two']);
+
+            expect(element.className).toBe('clone one two');
+
+            setList(element as unknown as Element, 'class', () => read(s));
+
+            expect(element.className).toBe('clone one two on');
+
+            write(s, 'off');
+            await Promise.resolve();
+
+            expect(element.className).toBe('clone one two off');
+        });
+
+        it('seeds from the attribute a static writer already appended to', () => {
+            setList(element as unknown as Element, 'style', 'color: red');
+            setStyle(element as unknown as Element, ['width: 1px', () => 'opacity: 1']);
+
+            expect(element.style.color).toBe('red');
+            expect(element.style.width).toBe('1px');
+            expect(element.style.opacity).toBe('1');
+        });
+
         it('writes style objects and strings as one declaration list', async () => {
             let width = signal(10);
 

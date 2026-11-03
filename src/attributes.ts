@@ -60,6 +60,23 @@ function attribute(name: string, element: Element) {
     return name.indexOf('-') !== -1 || svg(element) || !(name in element);
 }
 
+// Whether a part binds reactively: a function, or an array holding one
+function bound(value: unknown): boolean {
+    if (typeof value === 'function') {
+        return true;
+    }
+
+    if (isArray(value)) {
+        for (let i = 0, n = value.length; i < n; i++) {
+            if (bound(value[i])) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 // Every part a class or style value names: a string split on the list's delimiter, an array entry by
 // entry, and a style object's entries as declarations. Null, undefined, false and empty values name
 // nothing, so a style object keeps one shape and drops a declaration by leaving it undefined.
@@ -275,20 +292,26 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
     unowned(element, stop);
 }
 
+// The list the element's attribute holds, as a static list
+function seed(element: Element, name: string) {
+    let delimiter = ATTRIBUTE_DELIMITERS[name],
+        value = (element.getAttribute(name) || '').trim();
+
+    // A browser-serialised cssText ends in ';', which would join as ';;'
+    if (value.endsWith(delimiter)) {
+        value = value.slice(0, -1).trimEnd();
+    }
+
+    return value;
+}
+
+// A list nobody wrote (undefined) or only static writers wrote (null) lives in the attribute alone
 function state(ctx: Context, element: Element, name: string) {
     let store = ctx.store ??= {},
-        listState = store[name] as ListState | undefined;
+        listState = store[name] as ListState | null | undefined;
 
     if (!listState) {
-        let delimiter = ATTRIBUTE_DELIMITERS[name],
-            seed = (element.getAttribute(name) || '').trim();
-
-        // A browser-serialised cssText ends in ';', which would join as ';;'
-        if (seed.endsWith(delimiter)) {
-            seed = seed.slice(0, -1).trimEnd();
-        }
-
-        listState = { dynamic: new Set(), static: seed };
+        listState = { dynamic: new Set(), static: seed(element, name) };
         store[name] = listState;
     }
 
@@ -305,9 +328,9 @@ function svg(element: Element) {
 // so a list this call creates is seeded with it as is, without reading the attribute.
 function write(element: Element, name: 'class' | 'style', parts: unknown[]) {
     let n = parts.length,
-        seed = parts[0] as string;
+        statics = parts[0] as string;
 
-    if (seed === '') {
+    if (statics === '') {
         let i = 1;
 
         while (i < n && empty(parts[i])) {
@@ -319,17 +342,52 @@ function write(element: Element, name: 'class' | 'style', parts: unknown[]) {
         }
     }
 
+    let current = (element[STORE] as Context | undefined)?.store?.[name];
+
+    // Nothing binds and nobody wrote the list: join it and write the attribute, with no list state
+    if (current === undefined) {
+        let i = 1;
+
+        while (i < n && !bound(parts[i])) {
+            i++;
+        }
+
+        if (i === n) {
+            let delimiter = ATTRIBUTE_DELIMITERS[name],
+                joined = statics,
+                tokens: string[] = [];
+
+            for (let j = 1; j < n; j++) {
+                collect(name, delimiter, parts[j], tokens);
+            }
+
+            for (let j = 0, m = tokens.length; j < m; j++) {
+                joined += (joined ? delimiter : '') + tokens[j];
+            }
+
+            if (joined !== '') {
+                apply(element, name, joined);
+            }
+
+            return;
+        }
+    }
+
     let batch: Batch = { changed: false, open: true },
         changed = false,
         ctx = context(element),
         store = ctx.store ??= {};
 
-    if (store[name] === undefined) {
-        store[name] = { dynamic: new Set(), static: seed } satisfies ListState;
-        changed = seed !== '';
+    if (current === undefined) {
+        store[name] = { dynamic: new Set(), static: statics } satisfies ListState;
+        changed = statics !== '';
     }
-    else if (seed !== '') {
-        changed = list(ctx, element, null, name, seed);
+    else {
+        state(ctx, element, name);
+
+        if (statics !== '') {
+            changed = list(ctx, element, null, name, statics);
+        }
     }
 
     for (let i = 1; i < n; i++) {
@@ -365,11 +423,35 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
         }
     }
     else {
-        let ctx = context(element);
+        let ctx = context(element),
+            store = ctx.store ??= {};
 
-        if (list(ctx, element, null, name, value)) {
-            apply(element, name, join(ctx.store![name] as ListState, ATTRIBUTE_DELIMITERS[name]));
+        if (store[name]) {
+            if (list(ctx, element, null, name, value)) {
+                apply(element, name, join(store[name] as ListState, ATTRIBUTE_DELIMITERS[name]));
+            }
+
+            return;
         }
+
+        // Until a reactive writer needs the list state, a static value appends to the attribute itself
+        let delimiter = ATTRIBUTE_DELIMITERS[name],
+            tokens: string[] = [];
+
+        collect(name, delimiter, value, tokens);
+
+        if (tokens.length === 0) {
+            return;
+        }
+
+        let joined = seed(element, name);
+
+        for (let i = 0, n = tokens.length; i < n; i++) {
+            joined += (joined ? delimiter : '') + tokens[i];
+        }
+
+        store[name] = null;
+        apply(element, name, joined);
     }
 };
 
