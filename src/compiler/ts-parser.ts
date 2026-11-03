@@ -43,11 +43,25 @@ type TemplateInfo = {
 // Any import declaration, dynamic import() or require(): a file without one has no binding from another module
 const REGEX_IMPORT = /\bimport\b|\brequire\s*\(/;
 
+// The declarations `html` resolves to: one answer for every file of a program, dropped with the program or its checker
+const TARGETS = new WeakMap<ts.Program, { checker: ts.Checker; targets: Set<string> }>();
+
 
 // Deepest first so a nested template lowers before its parent consumes it, then document
 // order for position-deterministic emission
 function byDepthThenStart(a: TemplateInfo, b: TemplateInfo): number {
     return a.depth !== b.depth ? b.depth - a.depth : a.start - b.start;
+}
+
+function exported(checker: ts.Checker, program: ts.Program): Set<string> {
+    let entry = TARGETS.get(program);
+
+    if (entry === undefined || entry.checker !== checker) {
+        entry = { checker, targets: new Set(references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT).map(references.key)) };
+        TARGETS.set(program, entry);
+    }
+
+    return entry.targets;
 }
 
 // A binding that can never be reassigned, so what it was initialized with is what every use sees
@@ -201,7 +215,7 @@ const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker, 
             return artifacts;
         }
 
-        let targets = new Set(references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT).map(references.key));
+        let targets = exported(checker, program);
 
         if (targets.size > 0) {
             let dependencies = new Set<string>(),
