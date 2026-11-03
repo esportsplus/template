@@ -245,6 +245,47 @@ describe('compiler emission', () => {
         });
     });
 
+    describe('module-scoped handlers', () => {
+        it('hoists a handler that closes over nothing of the instance, and keeps one that does', () => {
+            let { output } = compile([
+                    'const log = (s: unknown) => calls.push(s);',
+                    'function row(id: number) {',
+                    '    return html`<li><a onclick=${() => log("static")}>a</a><b onclick=${() => log(id)}>b</b></li>`;',
+                    '}',
+                    'let value = [row(1), row(2)];'
+                ].join('\n'), { calls: [] });
+
+            expect(output).toMatch(/const handler_\w+ = \(\) => log\("static"\);/);
+            expect(output).toContain(`'click', () => log(id)`);
+        });
+
+        it('runs a hoisted handler for every instance, each disposing its own binding', () => {
+            let calls: string[] = [],
+                { output, value } = compile([
+                    'declare const calls: string[];',
+                    'function row(id: string) {',
+                    '    return html`<li><a onclick=${(e: Event, dispose: VoidFunction) => { calls.push((e.currentTarget as HTMLElement).id); dispose(); }} id=${id}>a</a></li>`;',
+                    '}',
+                    "let value = [row('one'), row('two')];"
+                ].join('\n'), { calls });
+
+            expect(output).toMatch(/'click', handler_\w+\)/);
+
+            let host = document.createElement('ul');
+
+            document.body.append(host);
+            host.append(...value);
+
+            let [one, two] = [...host.querySelectorAll('a')];
+
+            one.click();
+            one.click();
+            two.click();
+
+            expect(calls).toEqual(['one', 'two']);
+        });
+    });
+
     describe('single-root templates', () => {
         it('evaluates to the root element, its bindings on the element itself', () => {
             let { value } = compile('let value = html`<p class="a ${() => "b"}" title=${t}>${label}</p>`;', { label: 'x', t: 'tip' });

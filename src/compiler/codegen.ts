@@ -501,7 +501,15 @@ function generateTemplateCode(ctx: CodegenContext, { html, single, slots }: Pars
                 index++;
             }
             else if (name.startsWith('on')) {
-                code.push(generateAttributeBinding(ctx, element, name, text(index++)));
+                let expr = expressions[index],
+                    handler = text(index++);
+
+                // A handler that closes over nothing of the instance is one closure per module, not one per instance
+                if (expr && ctx.checker && isModuleScoped(ctx.checker, expr)) {
+                    handler = hoist(ctx, handler, 'handler');
+                }
+
+                code.push(generateAttributeBinding(ctx, element, name, handler));
             }
             else {
                 // Markers sharing a value (or a class/style token) with each other or with
@@ -600,6 +608,93 @@ function isReturned(node: ts.Node): boolean {
 // starts with a brace as one), else itself
 function replaced(node: ts.Node, code: string): ts.Node {
     return code[0] === '{' && isReturned(node) ? node.parent : node;
+}
+
+// An arrow or function expression whose every free identifier, value or type, is declared by a statement at the top of
+// a module (its own, through an import, or an ambient global): hoisted to module scope it means the same thing
+function isModuleScoped(checker: ts.Checker, expr: ts.Expression): boolean {
+    while (ts.isParenthesizedExpression(expr)) {
+        expr = expr.expression;
+    }
+
+    if (!ts.isArrowFunction(expr) && !ts.isFunctionExpression(expr)) {
+        return false;
+    }
+
+    let fn: ts.Node = expr,
+        scoped = true;
+
+    let visit = (node: ts.Node): void => {
+        if (!scoped) {
+            return;
+        }
+
+        if (
+            node.kind === ts.SyntaxKind.ThisKeyword ||
+            node.kind === ts.SyntaxKind.SuperKeyword ||
+            ts.isMetaProperty(node) ||
+            (ts.isIdentifier(node) && node.text === 'arguments')
+        ) {
+            scoped = false;
+            return;
+        }
+
+        if (
+            ts.isIdentifier(node) &&
+            !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) &&
+            !(ts.isPropertyAssignment(node.parent) && node.parent.name === node) &&
+            !(ts.isQualifiedName(node.parent) && node.parent.right === node)
+        ) {
+            let declaration = checker.getSymbolAtLocation(node)?.declarations?.[0]?.resolve();
+
+            if (!declaration) {
+                scoped = false;
+                return;
+            }
+
+            let nested = false;
+
+            for (let current: ts.Node | undefined = declaration.parent; current; current = current.parent) {
+                // Declared by the handler itself: its own parameter or local
+                if (current === fn) {
+                    nested = false;
+                    break;
+                }
+
+                if (ts.isSourceFile(current)) {
+                    break;
+                }
+
+                // Declared inside a function, block or class body: it belongs to an instance, unless that scope is the
+                // handler's own
+                if (
+                    ts.isBlock(current) ||
+                    ts.isModuleBlock(current) ||
+                    ts.isCaseBlock(current) ||
+                    ts.isCatchClause(current) ||
+                    ts.isClassDeclaration(current) ||
+                    ts.isClassExpression(current) ||
+                    ts.isForInStatement(current) ||
+                    ts.isForOfStatement(current) ||
+                    ts.isForStatement(current) ||
+                    (current as { parameters?: unknown }).parameters !== undefined
+                ) {
+                    nested = true;
+                }
+            }
+
+            if (nested) {
+                scoped = false;
+                return;
+            }
+        }
+
+        node.forEachChild(visit);
+    };
+
+    expr.forEachChild(visit);
+
+    return scoped;
 }
 
 function isLiteral(expr: ts.Expression): boolean {
