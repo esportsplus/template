@@ -1,8 +1,7 @@
 import { ts } from '@esportsplus/typescript';
-import { ast, uid, type ReplacementIntent } from '@esportsplus/typescript/compiler';
+import { ast, checker as checkers, uid, type ReplacementIntent } from '@esportsplus/typescript/compiler';
 import { ANCHOR_LAST, ANCHOR_SOLE } from '../constants';
 import parse from '../event/parse';
-import { cached } from './checker';
 import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
 import type { Entrypoint } from './constants';
 import { analyze, fold, selectorComparison } from './ts-analyzer';
@@ -865,7 +864,7 @@ function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], e
 // rewrite — emitting it separately would produce overlapping replacements.
 const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): CodegenResult => {
     let ctx: CodegenContext = {
-            checker: checker && cached(checker, program),
+            checker: checker && checkers.cached(checker, program),
             constants,
             hoisted: new Map(),
             singles: new Set(),

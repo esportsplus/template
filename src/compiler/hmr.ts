@@ -1,7 +1,6 @@
 import { ts } from '@esportsplus/typescript';
 import { languageService, uid } from '@esportsplus/typescript/compiler';
 import type { Plugin, SourceMapV3, TransformContext } from '@esportsplus/typescript/compiler';
-import { cached } from './checker';
 import { PACKAGE_NAME } from './constants';
 import scan from './scan';
 import type { Element, Statement } from './scan';
@@ -37,7 +36,7 @@ const REGEX_JSX = /\.[jt]sx$/;
 // Decides which exports to wrap, on the original source with the project's checker. Returns null
 // when any export or top-level statement makes the module unsafe to re-evaluate in place.
 function analyze(ctx: TransformContext): Site[] | null {
-    let checker = cached(ctx.checker, ctx.program),
+    let checker = ctx.checker,
         sites: Site[] = [],
         statements = ctx.sourceFile.statements;
 
