@@ -792,6 +792,71 @@ describe('attributes', () => {
             expect(element.style.color).toBe('red');
         });
 
+        it('sets a changed declaration value through setProperty, leaving the rest of the style alone', async () => {
+            let width = signal(10),
+                written: string[] = [];
+
+            setStyle(element as unknown as Element, ['color: red', () => `width: ${read(width)}px`]);
+
+            let style = element.style,
+                set = style.setProperty.bind(style);
+
+            Object.defineProperty(style, 'cssText', {
+                configurable: true,
+                get: () => '',
+                set(value: string) {
+                    written.push(value);
+                }
+            });
+            style.setProperty = (property: string, value: string | null, priority?: string) => {
+                written.push(`${property}=${value}${priority ? '!' + priority : ''}`);
+                set(property, value, priority);
+            };
+
+            write(width, 20);
+            await Promise.resolve();
+
+            expect(written).toEqual(['width=20px']);
+            expect(element.style.width).toBe('20px');
+            expect(element.style.color).toBe('red');
+        });
+
+        it('keeps the priority of an important declaration', async () => {
+            let width = signal(10);
+
+            setStyle(element as unknown as Element, ['', () => `width: ${read(width)}px !important`]);
+            write(width, 20);
+            await Promise.resolve();
+
+            expect(element.style.getPropertyValue('width')).toBe('20px');
+            expect(element.style.getPropertyPriority('width')).toBe('important');
+        });
+
+        it('rewrites the whole style when a part changes a declaration name', async () => {
+            let horizontal = signal(true);
+
+            setStyle(element as unknown as Element, ['', () => read(horizontal) ? 'width: 10px' : 'height: 10px']);
+            write(horizontal, false);
+            await Promise.resolve();
+
+            expect(element.style.width).toBe('');
+            expect(element.style.height).toBe('10px');
+        });
+
+        it('rewrites the whole style when another writer declares the same name', async () => {
+            let width = signal(10);
+
+            setStyle(element as unknown as Element, ['width: 1px', () => `width: ${read(width)}px`]);
+
+            expect(element.style.width).toBe('10px');
+
+            write(width, 20);
+            await Promise.resolve();
+
+            expect(element.style.width).toBe('20px');
+            expect(element.getAttribute('style')).toBe('width: 20px;');
+        });
+
         it('leaves class and style to the merged call when setProperties is told so', () => {
             let attributes = { class: 'from-spread', id: 'x', style: 'color: red' };
 

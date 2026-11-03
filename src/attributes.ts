@@ -149,9 +149,6 @@ function group(ctx: Context, element: Element, name: string, fns: Function[], ba
             }
 
             return true;
-        },
-        commit = () => {
-            apply(element, name, join(ctx.store![name] as ListState, ATTRIBUTE_DELIMITERS[name]));
         };
 
     stop = effect(() => {
@@ -165,8 +162,10 @@ function group(ctx: Context, element: Element, name: string, fns: Function[], ba
                     part = parts[i];
 
                 effect(() => {
+                    let previous = part.tokens;
+
                     if (guard() && list(ctx, element, part, name, fn(element))) {
-                        commit();
+                        rewrite(ctx, element, name, previous, part.tokens!);
                     }
                 });
             }
@@ -190,7 +189,7 @@ function group(ctx: Context, element: Element, name: string, fns: Function[], ba
             batch.changed = true;
         }
         else {
-            commit();
+            apply(element, name, join(ctx.store![name] as ListState, ATTRIBUTE_DELIMITERS[name]));
         }
     });
 
@@ -331,6 +330,8 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
 
         // A class or style list takes a returned array or style object whole, as one diff and one write
         if (part !== null) {
+            let previous = part.tokens;
+
             if (!list(ctx, element, part, name, v)) {
                 return;
             }
@@ -339,7 +340,7 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
                 batch.changed = true;
             }
             else {
-                apply(element, name, join(ctx.store![name] as ListState, ATTRIBUTE_DELIMITERS[name]));
+                rewrite(ctx, element, name, previous, part.tokens!);
             }
 
             return;
@@ -358,6 +359,59 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
     });
 
     unowned(element, stop);
+}
+
+// Writes a list after one part's rerun changed it from 'previous' to 'tokens'. A style part whose change keeps every
+// declaration's name, where no other writer declares those names, sets just the changed values: the store still
+// records every writer's declarations, and the next whole write joins them all.
+function rewrite(ctx: Context, element: Element, name: string, previous: string[] | null, tokens: string[]) {
+    let listState = ctx.store![name] as ListState;
+
+    if (name === 'style' && previous !== null && previous.length === tokens.length) {
+        let declared = true,
+            style = element.style;
+
+        for (let i = 0, n = tokens.length; i < n && declared; i++) {
+            let next = tokens[i];
+
+            if (next === previous[i]) {
+                continue;
+            }
+
+            let colon = next.indexOf(':'),
+                property = colon > 0 ? next.slice(0, colon).trim() : '',
+                was = previous[i].indexOf(':');
+
+            declared = property !== '' &&
+                was > 0 &&
+                previous[i].slice(0, was).trim() === property &&
+                sole(listState, property, next);
+        }
+
+        if (declared) {
+            for (let i = 0, n = tokens.length; i < n; i++) {
+                let next = tokens[i];
+
+                if (next === previous[i]) {
+                    continue;
+                }
+
+                let colon = next.indexOf(':'),
+                    value = next.slice(colon + 1).trim(),
+                    important = value.endsWith('!important');
+
+                style.setProperty(
+                    next.slice(0, colon).trim(),
+                    important ? value.slice(0, -10).trimEnd() : value,
+                    important ? 'important' : ''
+                );
+            }
+
+            return;
+        }
+    }
+
+    apply(element, name, join(listState, ATTRIBUTE_DELIMITERS[name]));
 }
 
 // The list the element's attribute holds, as a static list
@@ -384,6 +438,31 @@ function state(ctx: Context, element: Element, name: string) {
     }
 
     return listState;
+}
+
+// Whether 'token' is the only declaration of 'property' in the list, static part included
+function sole(listState: ListState, property: string, token: string) {
+    let declarations = listState.static;
+
+    if (declarations.indexOf(property) !== -1) {
+        let parts = declarations.split(';');
+
+        for (let i = 0, n = parts.length; i < n; i++) {
+            let colon = parts[i].indexOf(':');
+
+            if (colon > 0 && parts[i].slice(0, colon).trim() === property) {
+                return false;
+            }
+        }
+    }
+
+    for (let key of listState.dynamic) {
+        if (key !== token && key.startsWith(property) && key.slice(0, key.indexOf(':')).trim() === property) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // Every SVG element carries ownerSVGElement, null on an outermost <svg>; HTML elements have none
