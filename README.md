@@ -9,7 +9,7 @@ High-performance, compiler-optimized HTML templating library for JavaScript/Type
 - **Reactive integration** - Works with `@esportsplus/reactivity` for dynamic updates; changes reach the DOM at the end of the task that made them (reactivity's microtask pass, which also applies each task's array changes to array slots in one batch), and `flush()` from `@esportsplus/reactivity` applies them synchronously. Array slots have no `flush()` of their own; an array slot's `length` is the array's, ahead of the rendered rows only until that pass
 - **Event delegation** - Efficient event handling with automatic delegation
 - **Lifecycle events** - `onconnect`, `ondisconnect`, `onfirstpaint`, `ontick`
-- **Async slots** - Async function support with fallback content in `EffectSlot`
+- **Async slots** - Async functions run as async computeds in `EffectSlot`: fallback content while pending, re-runs on their signals, latest result wins
 - **Non-destructive reordering** - Uses `moveBefore` DOM API for array sort/reverse when available
 - **HMR support** - Fine-grained hot module replacement for templates in development
 - **Type-safe** - Full TypeScript support
@@ -253,7 +253,12 @@ The runtime class is `VirtualSlot`; its instance exposes reactive `length` and `
 
 ### Async Slots
 
-Async functions are supported in effect slots, with an optional fallback callback for loading states:
+An async function in an effect slot runs as an async computed. While it is pending the slot shows what `fallback()` was
+given, if anything, then the result. It re-runs when a signal it read before its first `await` changes, and only the
+latest run's result is shown, so a slow earlier response never overwrites a newer one. A rejection is reported through
+`reportError` (with the `@esportsplus/template:` prefix) and the slot keeps what it showed. Content the function builds
+before its first `await`, such as its fallback, belongs to that run: it is released when the function re-runs or the slot
+is released.
 
 ```typescript
 import { html } from '@esportsplus/template';
@@ -266,11 +271,18 @@ const asyncContent = () =>
         return html`<span>${data}</span>`;
     }}</div>`;
 
-// Simple async (no fallback)
+// Simple async (no fallback): empty until it settles
 const simpleAsync = () =>
     html`<div>${async () => {
         const data = await fetchData();
         return html`<span>${data}</span>`;
+    }}</div>`;
+
+// Re-fetches whenever `id` changes; a response for an older id is dropped
+const user = (id: Signal<number>) =>
+    html`<div>${async () => {
+        const current = read(id);
+        return html`<span>${(await fetchUser(current)).name}</span>`;
     }}</div>`;
 ```
 

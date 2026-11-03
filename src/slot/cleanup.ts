@@ -196,14 +196,14 @@ function release(slot: Slot | null, errors: unknown[] | null): unknown[] | null 
 }
 
 // Heals and sweeps run where no caller could catch, so their errors are reported, never thrown
-function report(errors: unknown[] | null) {
+function report(errors: unknown[] | null, subject: string = 'cleanup of removed content') {
     if (errors === null) {
         return;
     }
 
     let error = errors.length === 1
-            ? new Error(`${PACKAGE_NAME}: cleanup of removed content threw`, { cause: errors[0] })
-            : new AggregateError(errors, `${PACKAGE_NAME}: cleanup of removed content produced multiple errors`);
+            ? new Error(`${PACKAGE_NAME}: ${subject} threw`, { cause: errors[0] })
+            : new AggregateError(errors, `${PACKAGE_NAME}: ${subject} produced multiple errors`);
 
     if (typeof reportError === 'function') {
         reportError(error);

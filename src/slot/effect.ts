@@ -1,9 +1,10 @@
-import { effect, owner } from '@esportsplus/reactivity';
+import { computed, effect, owner, read, root, signal, write } from '@esportsplus/reactivity';
+import type { Computed } from '@esportsplus/reactivity';
 import { isAsyncFunction } from '@esportsplus/utilities';
 import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable, SlotGroup } from '../types';
 import { text } from '../utilities'
-import { claim, detach, ondisconnect, own, run, stale, track, MOUNTED } from './cleanup';
+import { claim, detach, ondisconnect, own, report, run, stale, track, MOUNTED } from './cleanup';
 import type { Owner, Slot } from './cleanup';
 import render from './render';
 
@@ -48,20 +49,52 @@ class EffectSlot implements Slot {
         ondisconnect(anchor, () => this.release());
 
         if (isAsyncFunction(fn)) {
-            (fn as (fallback: (content: Renderable<any>) => void) => Promise<Renderable<any>>)(
-                (content) => {
+            // An async computed: it reruns when a signal read before its first await changes, keeps only the latest
+            // result, and a rejection surfaces through read(). What fallback() is given shows while it is pending.
+            this.disposer = root((dispose) => {
+                let fallback = signal<unknown>(undefined),
+                    value = computed(() => (fn as (fallback: (content: Renderable<any>) => void) => Promise<Renderable<any>>)(
+                        (content) => write(fallback, content)
+                    )) as Computed<unknown> & { pending: Computed<boolean> };
+
+                effect(() => {
+                    if (this.anchor.isConnected) {
+                        this.state |= MOUNTED;
+                    }
+                    else if (this.state & MOUNTED) {
+                        stale(this);
+                        return;
+                    }
+
+                    own(this);
+
+                    let content: unknown;
+
+                    if (read(value.pending)) {
+                        content = read(fallback);
+
+                        // Nothing to show until fallback() is called or the function settles
+                        if (content === undefined) {
+                            return;
+                        }
+                    }
+                    else {
+                        try {
+                            content = read(value);
+                        }
+                        catch (e) {
+                            report([e], 'async slot');
+                            return;
+                        }
+                    }
+
                     if (!this.disposed) {
                         this.update(content);
                     }
-                }
-            ).then(
-                (value) => {
-                    if (!this.disposed) {
-                        this.update(value);
-                    }
-                },
-                () => {}
-            );
+                });
+
+                return dispose;
+            });
         }
         else {
             let dispose = fn.length ? () => this.dispose() : undefined,

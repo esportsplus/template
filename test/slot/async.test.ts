@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { root } from '@esportsplus/reactivity';
+import { read, root, signal, write } from '@esportsplus/reactivity';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
 import type { Element } from '../../src/types';
@@ -239,26 +239,42 @@ describe('slot/EffectSlot (async)', () => {
     });
 
     describe('error handling', () => {
-        it('renders nothing when async function rejects (rejection swallowed)', async () => {
+        it('renders nothing and reports the error when the async function rejects', async () => {
+            let reported: unknown[] = [];
+
+            vi.stubGlobal('reportError', (error: unknown) => reported.push(error));
             new EffectSlot(anchor, async () => {
                 throw new Error('async failure');
             });
 
             await vi.waitFor(() => {
-                expect(container.childNodes.length).toBe(1);
-                expect(container.firstChild).toBe(anchor as unknown as Node);
+                expect(reported).toHaveLength(1);
             });
+
+            expect((reported[0] as Error).message).toBe('@esportsplus/template: async slot threw');
+            expect(((reported[0] as Error).cause as Error).message).toBe('async failure');
+            expect(container.childNodes.length).toBe(1);
+            expect(container.firstChild).toBe(anchor as unknown as Node);
+
+            vi.unstubAllGlobals();
         });
 
-        it('renders fallback even if promise rejects', async () => {
+        it('keeps the fallback shown when the promise rejects', async () => {
+            let reported: unknown[] = [];
+
+            vi.stubGlobal('reportError', (error: unknown) => reported.push(error));
             new EffectSlot(anchor, async (fallback: any) => {
                 fallback('Fallback shown');
                 throw new Error('rejected');
             });
 
             await vi.waitFor(() => {
-                expect(container.textContent).toContain('Fallback shown');
+                expect(reported).toHaveLength(1);
             });
+
+            expect(container.textContent).toContain('Fallback shown');
+
+            vi.unstubAllGlobals();
         });
     });
 
@@ -309,10 +325,25 @@ describe('slot/EffectSlot (async)', () => {
     });
 
     describe('disposer behavior', () => {
-        it('sets disposer to null for async functions', () => {
-            let slot = new EffectSlot(anchor, async () => 'test');
+        it('releases the async computed with the slot', async () => {
+            let runs = 0,
+                s = signal(1),
+                slot = new EffectSlot(anchor, async () => {
+                    runs++;
 
-            expect(slot.disposer).toBeNull();
+                    return read(s);
+                });
+
+            await vi.waitFor(() => {
+                expect(container.textContent).toBe('1');
+            });
+
+            slot.release();
+            write(s, 2);
+            await new Promise((resolve) => setTimeout(resolve));
+
+            expect(runs).toBe(1);
+            expect(container.textContent).toBe('1');
         });
 
         it('dispose() is a no-op for async slots', () => {
@@ -435,6 +466,35 @@ describe('slot/EffectSlot (async)', () => {
                 expect(container.textContent).not.toContain('text fallback');
                 expect(container.querySelector('div')?.textContent).toBe('replaced');
             });
+        });
+    });
+    describe('re-running', () => {
+        it('re-runs when a signal read before the first await changes, and shows only the latest result', async () => {
+            let id = signal(1),
+                resolvers: ((value: string) => void)[] = [];
+
+            new EffectSlot(anchor, async () => {
+                let current = read(id);
+
+                return new Promise<string>((resolve) => {
+                    resolvers.push(() => resolve(`user ${current}`));
+                });
+            });
+
+            write(id, 2);
+            await new Promise((resolve) => setTimeout(resolve));
+
+            expect(resolvers).toHaveLength(2);
+
+            resolvers[1]('');
+            await vi.waitFor(() => {
+                expect(container.textContent).toBe('user 2');
+            });
+
+            resolvers[0]('');
+            await new Promise((resolve) => setTimeout(resolve));
+
+            expect(container.textContent).toBe('user 2');
         });
     });
 });

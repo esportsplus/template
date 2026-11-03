@@ -164,6 +164,8 @@ describe('page swap of content built without an owner', () => {
         resolve();
         await ready;
         await Promise.resolve();
+        // The async computed settles, then the slot's effect shows it
+        await Promise.resolve();
         frame();
 
         expect(host.querySelector('article')).not.toBeNull();

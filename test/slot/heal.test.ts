@@ -900,12 +900,12 @@ describe('ownership', () => {
         parent.remove();
     });
 
-    it('adopts async content into the slot and releases it when replaced', async () => {
+    it('adopts async content into the slot, and keeps what the run built before its first await until the run ends', async () => {
         let parent = host(),
             calls: string[] = [],
             resolve!: (value: Node) => void;
 
-        new EffectSlot(anchor(parent), async (fallback: (content: unknown) => void) => {
+        let slot = new EffectSlot(anchor(parent), async (fallback: (content: unknown) => void) => {
             let loading = element('span');
 
             hook(loading, () => calls.push('loading'));
@@ -922,10 +922,16 @@ describe('ownership', () => {
         resolve(done as unknown as Node);
         await tick();
         await tick();
+        await tick();
 
-        expect(calls).toEqual(['loading']);
+        // The fallback belongs to the async computed's run that built it, not to what the slot shows
+        expect(calls).toEqual([]);
         expect(parent.textContent).toBe('');
         expect(parent.querySelector('b')).not.toBeNull();
+
+        slot.release();
+
+        expect(calls).toEqual(['loading', 'done']);
 
         parent.remove();
     });
