@@ -149,8 +149,9 @@ describe('compiler/transform', () => {
                 "let a = html`<div>static</div>`;\nlet b = html.reactive(items, (item) => html`<li>${item}</li>`);"
             ));
 
+            // Both top-level rewrites, and the template nested in the call's callback, composed inside the call's
             expect(result.replacements).toBeDefined();
-            expect(result.replacements!.length).toBe(2);
+            expect(result.replacements!.length).toBe(3);
         });
     });
 });

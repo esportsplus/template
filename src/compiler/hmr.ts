@@ -405,6 +405,7 @@ const apply = (code: string, map: SourceMapV3, id: string, plan: Site[]): { code
 // coordinator to re-sync the project program before the next plugin. It only records a plan, and
 // only for modules that use html (under any name), which are the ones HMR wraps.
 const plugin = (state: HmrState): Plugin => ({
+    name: HMR_PACKAGE,
     transform: (ctx) => {
         if (state.id === null) {
             state.plan = null;

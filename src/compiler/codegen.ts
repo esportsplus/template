@@ -14,12 +14,18 @@ import { specialize } from './specialize';
 type CodegenContext = {
     checker?: ts.Checker;
     constants?: Set<string>;
+    // What each token in generated code stands for; see resolve()
+    deferred?: Deferred[];
     // Root of a specialized variant: it must lower to an expression, never an arrow block body
     expression?: ts.Node;
-    // Module-level constants by their code, shared by every variant
-    hoisted?: Map<string, string>;
+    // Module-level constants by their code with source copied as it was written (see hoist()), shared by every variant
+    hoisted?: Map<string, { code: string; id: string }>;
     // Whether each parameter is never reassigned, by its symbol; see specialize()
     immutables?: Map<ts.Symbol, boolean>;
+    // Target nodes of the rewrites in `nested`
+    markers?: Set<ts.Node>;
+    // One intent per rewrite nested in copied source, generating its marker; see mark()
+    nested?: ReplacementIntent[];
     prefoldCache?: WeakMap<ts.Node, Prefolded>;
     selectorFired?: boolean;
     // Template html whose clone is its one root element (see parser's single())
@@ -32,11 +38,19 @@ type CodegenContext = {
 };
 
 type CodegenResult = {
+    // Intents of the rewrites nested in copied source, returned beside `replacements` for the coordinator to compose
+    nested: ReplacementIntent[];
     prepend: string[];
     replacements: ReplacementIntent[];
     selectorFired: boolean;
     templates: Map<string, string>;
 };
+
+// A node whose source is copied into generated code: its composed text (see resolve()), with the code of each rewrite
+// nested in it, or the value a shorthand property reads
+type Deferred = { nested: Nested[]; node: ts.Node; shorthand: boolean };
+
+type Nested = { code: string; node: ts.Node };
 
 type ParseResult = ReturnType<typeof parser.parse>;
 
@@ -44,6 +58,12 @@ type Prefolded = { expressions: ts.Expression[]; literals: string[] };
 
 type Range = { end: number; start: number };
 
+type Text = (node: ts.Node) => string;
+
+
+// Neither occurs in source text: a marker is what the coordinator's composed text holds where a nested rewrite goes,
+// a token what generated code holds where composed source goes
+const MARKER = '\u0000M';
 
 const PARSED = new Map<string, ParseResult>();
 
@@ -59,9 +79,15 @@ const PART_VALUE = 3;
 
 const REGEX_ATTRIBUTE_VALUE_OPEN = /=\s*(["']?)$/;
 
+const REGEX_MARKER = /\u0000M(\d+)\u0000/g;
+
 const REGEX_TEMPLATE_SYNTAX = /[\\`\r]|\$\{/g;
 
+const REGEX_TOKEN = /\u0000T(\d+)\u0000/g;
+
 const REGEX_UNQUOTED_VALUE_CLOSE = /^(?:[\s>]|\/>)/;
+
+const TOKEN = '\u0000T';
 
 
 // What a composed value's part is: a function to call per run, a string or number to join as it is (nothing to drop or
@@ -113,12 +139,11 @@ function classify(checker: ts.Checker | undefined, expr: ts.Expression | undefin
     return text === types.length ? PART_TEXT : PART_VALUE;
 }
 
-function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: (Range & { text: string })[], inObserver: boolean): void {
+function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: Nested[], inObserver: boolean): void {
     if (isHtmlTemplate(node, ctx.sites)) {
-        let text = generateNestedTemplateCode(ctx, node),
-            target = replaced(node, text);
+        let code = generateNestedTemplateCode(ctx, node);
 
-        replacements.push({ end: target.end, start: target.getStart(ctx.sourceFile), text });
+        replacements.push(mark(ctx, replaced(node, code), code));
 
         return;
     }
@@ -128,11 +153,7 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
     if (entrypoint) {
         // Slots nested in arbitrary expressions have no provable parent element,
         // so they never receive the sole-child flag
-        replacements.push({
-            end: node.end,
-            start: node.getStart(ctx.sourceFile),
-            text: generateSlotCode(ctx, node as ts.CallExpression, entrypoint, false)
-        });
+        replacements.push(mark(ctx, node, generateSlotCode(ctx, node as ts.CallExpression, entrypoint, false)));
 
         return;
     }
@@ -141,14 +162,13 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
         let selector = selectorComparison(node as ts.Expression, ctx.checker);
 
         if (selector !== null) {
-            // SIG/KEY are rewritten recursively so nested templates/reactive calls inside them
-            // still lower; the replacement spans the whole comparison, so returning here keeps
-            // its offsets from overlapping any child replacement under the descending-start sort
-            replacements.push({
-                end: node.end,
-                start: node.getStart(ctx.sourceFile),
-                text: `${selector.negated ? '!' : ''}${SIGNAL}.selector(${rewriteExpression(ctx, selector.node)}, ${rewriteExpression(ctx, selector.key)})`
-            });
+            // SIG/KEY are rewritten recursively so nested templates/reactive calls inside them still lower; the
+            // rewrite spans the whole comparison, so returning here keeps any child rewrite inside it
+            replacements.push(mark(
+                ctx,
+                node,
+                `${selector.negated ? '!' : ''}${SIGNAL}.selector(${rewriteExpression(ctx, selector.node)}, ${rewriteExpression(ctx, selector.key)})`
+            ));
             ctx.selectorFired = true;
 
             return;
@@ -193,6 +213,78 @@ function declareElement(declarations: string[], elements: Map<string, string>, p
 
     declarations.push(`${name} = ${value} as ${NAMESPACE}.Element`);
     elements.set(key, name);
+}
+
+// A token standing for the node's source as it is composed when the output is generated (see resolve())
+function defer(ctx: CodegenContext, node: ts.Node, nested: Nested[], shorthand: boolean = false): string {
+    let deferred = ctx.deferred ??= [];
+
+    deferred.push({ nested, node, shorthand });
+
+    return TOKEN + (deferred.length - 1) + '\u0000';
+}
+
+// The deferred node's composed text with each nested rewrite's code in place of its marker. Text holding no marker
+// is the node's own source (a caller composing nothing, as a single-plugin harness does), so the rewrites splice in
+// at their source offsets. Any other text lost a nested rewrite to an enclosing replacement that did not copy it.
+function expand(ctx: CodegenContext, { nested, node, shorthand }: Deferred, text: Text): string {
+    let composed = text(node);
+
+    if (shorthand) {
+        let key = ((node as ts.ShorthandPropertyAssignment).name as ts.Identifier).text;
+
+        if (composed === key) {
+            return key;
+        }
+
+        // Another plugin rewrote the shorthand into `key: value`; the binding takes the value
+        let colon = composed.indexOf(':');
+
+        if (colon === -1 || composed.slice(0, colon).trim() !== key) {
+            throw new Error(`${PACKAGE_NAME}: shorthand property '${key}' was rewritten to '${composed}', which is not a '${key}: value' property`);
+        }
+
+        return composed.slice(colon + 1).trim();
+    }
+
+    if (nested.length === 0) {
+        return composed;
+    }
+
+    let found = new Set<Nested>();
+
+    composed = composed.replace(REGEX_MARKER, (_, index: string) => {
+        let target = ctx.nested![Number(index)].node;
+
+        for (let i = 0, n = nested.length; i < n; i++) {
+            if (nested[i].node === target) {
+                found.add(nested[i]);
+
+                return resolve(ctx, nested[i].code, text);
+            }
+        }
+
+        throw new Error(`${PACKAGE_NAME}: ${location(ctx, target)} nested rewrite surfaced outside the expression it belongs to`);
+    });
+
+    if (found.size === nested.length) {
+        return composed;
+    }
+
+    if (found.size > 0 || composed !== node.getText(ctx.sourceFile)) {
+        throw new Error(`${PACKAGE_NAME}: ${location(ctx, node)} a replacement around compiled template code dropped it`);
+    }
+
+    let ordered = [...nested].sort((a, b) => b.node.getStart(ctx.sourceFile) - a.node.getStart(ctx.sourceFile)),
+        start = node.getStart(ctx.sourceFile);
+
+    for (let i = 0, n = ordered.length; i < n; i++) {
+        let { code, node: target } = ordered[i];
+
+        composed = composed.slice(0, target.getStart(ctx.sourceFile) - start) + resolve(ctx, code, text) + composed.slice(target.end - start);
+    }
+
+    return composed;
 }
 
 function generateAttributeBinding(ctx: CodegenContext, element: string, name: string, expr: string): string {
@@ -476,7 +568,7 @@ function generateTemplateCode(ctx: CodegenContext, { html, single, slots }: Pars
                     for (let k = 0, p = expr.properties.length; k < p; k++) {
                         let prop = expr.properties[k] as ts.PropertyAssignment | ts.ShorthandPropertyAssignment,
                             key = (prop.name as ts.Identifier | ts.StringLiteral).text,
-                            value = ts.isPropertyAssignment(prop) ? rewriteExpression(ctx, prop.initializer) : key;
+                            value = ts.isPropertyAssignment(prop) ? rewriteExpression(ctx, prop.initializer) : defer(ctx, prop, [], true);
 
                         if (key === 'class' || key === 'style') {
                             lists[key].push(value);
@@ -583,16 +675,19 @@ function getTemplateID(ctx: CodegenContext, html: string, single: boolean): stri
     return id;
 }
 
+// Keyed by the code with source copied as written: two copies of the same module-scoped source compose alike, since
+// every name in them resolves to the same module-level declaration
 function hoist(ctx: CodegenContext, code: string, name: string = 'options'): string {
     let hoisted = ctx.hoisted ??= new Map(),
-        id = hoisted.get(code);
+        key = resolve(ctx, code, written(ctx)),
+        entry = hoisted.get(key);
 
-    if (!id) {
-        id = uid(name);
-        hoisted.set(code, id);
+    if (!entry) {
+        entry = { code, id: uid(name) };
+        hoisted.set(key, entry);
     }
 
-    return id;
+    return entry.id;
 }
 
 function isArrowExpressionBody(node: ts.Node): boolean {
@@ -784,6 +879,29 @@ function literal(text: string): string {
     return '`' + text.replace(REGEX_TEMPLATE_SYNTAX, match => match === '\r' ? '\\r' : '\\' + match) + '`';
 }
 
+function location(ctx: CodegenContext, node: ts.Node): string {
+    let { character, line } = ctx.sourceFile.getLineAndCharacterOfPosition(node.getStart(ctx.sourceFile));
+
+    return `${ctx.sourceFile.fileName}:${line + 1}:${character + 1}`;
+}
+
+// A rewrite nested in copied source is an intent of its own, so the coordinator composes it under whatever another
+// plugin replaces around it; its intent generates a marker, and each copy of the enclosing source puts its own code
+// for the rewrite in the marker's place (see expand())
+function mark(ctx: CodegenContext, node: ts.Node, code: string): Nested {
+    let markers = ctx.markers ??= new Set(),
+        nested = ctx.nested ??= [];
+
+    if (!markers.has(node)) {
+        let marker = MARKER + nested.length + '\u0000';
+
+        markers.add(node);
+        nested.push({ generate: () => marker, node });
+    }
+
+    return { code, node };
+}
+
 // parse() is pure in its literals, so each distinct template is parsed once across transforms: a dev server's HMR
 // transform re-parses only what changed. The key joins the (post-prefold) literals on NUL; text holding a NUL of its
 // own could collide, so it skips the cache.
@@ -858,21 +976,36 @@ function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], e
     return result;
 }
 
+// Generated code with every token replaced by its node's composed source (see expand())
+function resolve(ctx: CodegenContext, code: string, text: Text): string {
+    return code.replace(REGEX_TOKEN, (_, index: string) => expand(ctx, ctx.deferred![Number(index)], text));
+}
+
+// Source as it is written, composing nothing
+function written(ctx: CodegenContext): Text {
+    return (node) => node.getText(ctx.sourceFile);
+}
+
 
 // Top-level reactive calls lower first, then root templates. A call nested in a template or
 // in an already-lowered call, and a template nested in either, is emitted by its enclosing
 // rewrite — emitting it separately would produce overlapping replacements.
+// Code is generated here, in source order, so ids and template factories come out the same whatever the
+// coordinator composes; the source it copies is composed when the coordinator generates each replacement.
 const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): CodegenResult => {
     let ctx: CodegenContext = {
             checker: checker && checkers.cached(checker, program),
             constants,
+            deferred: [],
             hoisted: new Map(),
+            markers: new Set(),
+            nested: [],
             singles: new Set(),
             sites,
             sourceFile,
             templates: new Map()
         },
-        nested: Range[] = [],
+        inner: Range[] = [],
         prepend: string[] = [],
         replacements: ReplacementIntent[] = [],
         templateRanges: Range[] = [];
@@ -883,46 +1016,81 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
         templateRanges.push({ end, start });
 
         for (let j = 0, m = expressions.length; j < m; j++) {
-            nested.push({ end: expressions[j].end, start: expressions[j].getStart(sourceFile) });
+            inner.push({ end: expressions[j].end, start: expressions[j].getStart(sourceFile) });
         }
     }
+
+    let roots: { code: string; node: ts.Node }[] = [];
 
     for (let i = 0, n = calls.length; i < n; i++) {
         let { end, entrypoint, node, start } = calls[i];
 
-        if (ast.inRange(templateRanges, start, end) || ast.inRange(nested, start, end)) {
+        if (ast.inRange(templateRanges, start, end) || ast.inRange(inner, start, end)) {
             continue;
         }
 
-        let code = generateSlotCode(ctx, node, entrypoint, false);
-
-        nested.push({ end, start });
-        replacements.push({ generate: () => code, node });
+        inner.push({ end, start });
+        roots.push({ code: generateSlotCode(ctx, node, entrypoint, false), node });
     }
 
     for (let i = 0, n = templates.length; i < n; i++) {
         let { end, node, start } = templates[i];
 
-        if (ast.inRange(nested, start, end)) {
+        if (ast.inRange(inner, start, end)) {
             continue;
         }
 
         let code = generateNestedTemplateCode(ctx, node);
 
-        replacements.push({ generate: () => code, node: replaced(node, code) });
+        roots.push({ code, node: replaced(node, code) });
     }
 
     for (let [html, id] of ctx.templates) {
         prepend.push(`const ${id} = ${NAMESPACE}.template(${literal(html)}${ctx.singles.has(html) ? ', true' : ''});`);
     }
 
-    for (let [code, id] of ctx.hoisted!) {
-        prepend.push(`const ${id} = ${code};`);
+    // A hoisted constant copying source is written with that source as it stands until the first replacement is
+    // generated, which composes it in place: the coordinator applies `prepend` after generating every replacement
+    let late: { at: number; code: string; id: string }[] = [],
+        source = written(ctx);
+
+    for (let { code, id } of ctx.hoisted!.values()) {
+        REGEX_TOKEN.lastIndex = 0;
+
+        if (REGEX_TOKEN.test(code)) {
+            late.push({ at: prepend.length, code, id });
+        }
+
+        prepend.push(`const ${id} = ${resolve(ctx, code, source)};`);
     }
 
-    return { prepend, replacements, selectorFired: ctx.selectorFired === true, templates: ctx.templates };
+    let settle = (text: Text) => {
+        for (let i = 0, n = late.length; i < n; i++) {
+            let { at, code, id } = late[i];
+
+            prepend[at] = `const ${id} = ${resolve(ctx, code, text)};`;
+        }
+
+        late = [];
+    };
+
+    for (let i = 0, n = roots.length; i < n; i++) {
+        let { code, node } = roots[i];
+
+        replacements.push({
+            generate: (_sourceFile, text) => {
+                settle(text);
+
+                return resolve(ctx, code, text);
+            },
+            node
+        });
+    }
+
+    return { nested: ctx.nested!, prepend, replacements, selectorFired: ctx.selectorFired === true, templates: ctx.templates };
 };
 
+// Code for the expression, copying its source as a token the coordinator's composed text fills in (see resolve())
 const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => {
     if (isHtmlTemplate(expr, ctx.sites)) {
         return generateNestedTemplateCode(ctx, expr);
@@ -934,29 +1102,14 @@ const rewriteExpression = (ctx: CodegenContext, expr: ts.Expression): string => 
         return generateSlotCode(ctx, expr as ts.CallExpression, entrypoint, false);
     }
 
-    let replacements: (Range & { text: string })[] = [],
+    let replacements: Nested[] = [],
         rootObserver = ts.isArrowFunction(expr) || ts.isFunctionExpression(expr);
 
     expr.forEachChild(child => collectNestedReplacements(ctx, child, replacements, rootObserver));
 
-    if (replacements.length === 0) {
-        return expr.getText(ctx.sourceFile);
-    }
-
-    let start = expr.getStart(ctx.sourceFile),
-        text = expr.getText(ctx.sourceFile);
-
-    replacements.sort((a, b) => b.start - a.start);
-
-    for (let i = 0, n = replacements.length; i < n; i++) {
-        let r = replacements[i];
-
-        text = text.slice(0, r.start - start) + r.text + text.slice(r.end - start);
-    }
-
-    return text;
+    return defer(ctx, expr, replacements);
 };
 
 
-export { generateCode, rewriteExpression };
+export { generateCode, resolve, rewriteExpression };
 export type { CodegenContext, CodegenResult };

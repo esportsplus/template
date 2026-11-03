@@ -2,9 +2,9 @@ import * as reactivity_u0 from '@esportsplus/reactivity';
 import * as template_u1 from '@esportsplus/template';
 const template_1ycdwrs1 = template_u1.template(`<button>+</button><button>-</button><button>sum</button><button>step</button><output>`);
 const template_1ycdwrsc = template_u1.template(`<button>`, true);
-const handler_1ycdwrs7 = (event: Event) => { reactivity_u0.write(step, (event.target as HTMLInputElement).valueAsNumber || step)reactivity_u0.read(step); };
-const handler_1ycdwrs8 = () => { reactivity_u0.write(total, count + step)reactivity_u0.read(count) + reactivity_u0.read(step); };
-const handler_1ycdwrs9 = () => { reactivity_u0.write(count, count.value - step)reactivity_u0.read(step); };
+const handler_1ycdwrs7 = (event: Event) => { reactivity_u0.write(step, (event.target as HTMLInputElement).valueAsNumber || reactivity_u0.read(step)); };
+const handler_1ycdwrs8 = () => { reactivity_u0.write(total, reactivity_u0.read(count) + reactivity_u0.read(step)); };
+const handler_1ycdwrs9 = () => { reactivity_u0.write(count, count.value - reactivity_u0.read(step)); };
 const handler_1ycdwrsa = () => ((_t0) => (reactivity_u0.write(count, _t0 + 1), _t0))(count.value);
 
 

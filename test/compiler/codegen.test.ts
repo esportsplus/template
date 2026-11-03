@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { languageService } from '@esportsplus/typescript/compiler';
-import { generateCode, rewriteExpression } from '../../src/compiler/codegen';
+import { generateCode, resolve, rewriteExpression } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 import { written } from './written';
@@ -498,7 +498,7 @@ describe('compiler/codegen', () => {
             };
 
             let expr = templates[0].expressions[0],
-                rewritten = rewriteExpression(ctx, expr);
+                rewritten = resolve(ctx, rewriteExpression(ctx, expr), written);
 
             expect(rewritten).not.toContain('html`');
         });
@@ -516,7 +516,7 @@ describe('compiler/codegen', () => {
             };
 
             let expr = templates[0].expressions[0],
-                rewritten = rewriteExpression(ctx, expr);
+                rewritten = resolve(ctx, rewriteExpression(ctx, expr), written);
 
             expect(rewritten).toBe('value');
         });

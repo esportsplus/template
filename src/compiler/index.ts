@@ -1,6 +1,6 @@
 import { ts } from '@esportsplus/typescript';
 import { imports as sourceImports } from '@esportsplus/typescript/compiler';
-import type { ImportIntent, TransformContext } from '@esportsplus/typescript/compiler';
+import type { ImportIntent, Plugin, TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, NAMESPACE, PACKAGE_NAME, PACKAGE_REACTIVITY, SIGNAL } from './constants';
 import { generateCode } from './codegen';
 import { findRemovals } from './removal';
@@ -58,7 +58,8 @@ function hasSignalImport(sourceFile: ts.SourceFile): boolean {
 // re-export), so every file is resolved against the program and only its sites are compiled.
 // 'report' receives each file's hand removals of template output; the tsc path has no channel
 // to warn through, so it passes none and they are not looked for.
-const compiler = (report: ((removals: Removal[]) => void) | null = null) => ({
+const compiler = (report: ((removals: Removal[]) => void) | null = null): Plugin => ({
+    name: PACKAGE_NAME,
     transform: (ctx: TransformContext) => {
         let artifacts = findTemplateArtifacts(ctx.sourceFile, ctx.checker, ctx.program);
 
@@ -74,7 +75,7 @@ const compiler = (report: ((removals: Removal[]) => void) | null = null) => ({
             }
         }
 
-        let { prepend, replacements, selectorFired } = generateCode(artifacts, ctx.sourceFile, ctx.checker, ctx.program);
+        let { nested, prepend, replacements, selectorFired } = generateCode(artifacts, ctx.sourceFile, ctx.checker, ctx.program);
 
         if (replacements.length === 0 && prepend.length === 0) {
             return artifacts.dependencies.length > 0 ? { dependencies: artifacts.dependencies } : {};
@@ -93,7 +94,8 @@ const compiler = (report: ((removals: Removal[]) => void) | null = null) => ({
             });
         }
 
-        return { dependencies: artifacts.dependencies, imports, prepend, replacements };
+        // `prepend` is returned as generated: generating the replacements completes it in place (see generateCode)
+        return { dependencies: artifacts.dependencies, imports, prepend, replacements: [...replacements, ...nested] };
     }
 });
 
