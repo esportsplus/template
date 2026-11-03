@@ -1,4 +1,5 @@
 import { hasOwner, onCleanup, read, signal, write } from '@esportsplus/reactivity';
+import { DEV } from '@esportsplus/template/env';
 import { CLEANUP, PACKAGE_NAME } from '../constants';
 import { Element, SlotGroup } from '../types';
 
@@ -132,7 +133,8 @@ function heals() {
 }
 
 // Content no owner was building has nowhere to register, so its cleanups wait on its nodes for the template insertion
-// that adopts them; still unadopted at the next sweep, each node is tracked like a slot of its own.
+// that adopts them. In development, one still unadopted at the next sweep is tracked like a slot of its own; in
+// production nothing sweeps, so content no owner adopts is its builder's to dispose.
 function orphan(node: Orphan, fn: VoidFunction) {
     let fns = node[CLEANUP];
 
@@ -143,6 +145,10 @@ function orphan(node: Orphan, fn: VoidFunction) {
 
     node[CLEANUP] = [fn];
     orphans.push(node);
+
+    if (!DEV) {
+        return;
+    }
 
     if (node.isConnected) {
         connected.add(node);
@@ -388,7 +394,18 @@ const sweep = (deadline?: IdleDeadline) => {
             }
 
             if (state & MOUNTED) {
-                errors = release(climb(slot), errors);
+                let outermost = climb(slot);
+
+                // A leak in production, where nothing sweeps: released here so the development session stays clean
+                if (outermost !== null && !outermost.disposed) {
+                    console.warn(
+                        `${PACKAGE_NAME}: content was removed from the document by code outside the library and never disposed; ` +
+                        'it is released here in development only. Remove it through its owner, or dispose what built it.',
+                        outermost.anchor
+                    );
+                }
+
+                errors = release(outermost, errors);
             }
             else if (state < AGE * SWEEP_LIMIT) {
                 slot.state = state + AGE;
@@ -418,7 +435,7 @@ const sweep = (deadline?: IdleDeadline) => {
 // tracked. A nested slot is released with the outermost slot removed along with it, or by its own guard, so only slots
 // with no parent are watched.
 const track = (slot: Slot) => {
-    if (slot.parent !== null || slot.state & TRACKED) {
+    if (!DEV || slot.parent !== null || slot.state & TRACKED) {
         return;
     }
 

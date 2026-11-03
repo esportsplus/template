@@ -73,6 +73,10 @@ function within(fn: () => void) {
 
 
 describe('slot/cleanup sweep scheduling', () => {
+    it('runs with the development build of env, which Vitest resolves by default', async () => {
+        expect((await import('@esportsplus/template/env')).DEV).toBe(true);
+    });
+
     afterEach(() => {
         vi.useRealTimers();
     });
@@ -142,6 +146,8 @@ describe('slot/cleanup sweep', () => {
     });
 
     it('releases a mounted slot found out of the document once, then forgets it', () => {
+        using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
         let connected = true,
             { reads, slot } = probe(() => connected);
 
@@ -153,7 +159,10 @@ describe('slot/cleanup sweep', () => {
 
         expect(slot.release).toHaveBeenCalledTimes(1);
         expect(slot.disposed).toBe(true);
-        expect(reads()).toBe(3);
+        // Two visits, the release, and the warning naming the anchor
+        expect(reads()).toBe(4);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0][0]).toContain('@esportsplus/template: content was removed from the document by code outside the library');
     });
 
     it('resumes across idle slices, keeps slots tracked mid-pass, and compacts correctly', () => {

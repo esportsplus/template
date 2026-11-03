@@ -24,6 +24,11 @@
             "types": "./build/compiler/plugins/vite.d.ts",
             "default": "./build/compiler/plugins/vite.js"
         },
+        "./env": {
+            "types": "./build/env.d.ts",
+            "development": "./build/env.development.js",
+            "default": "./build/env.js"
+        },
         "./hmr": {
             "types": "./build/hmr.d.ts",
             "default": "./build/hmr.js"

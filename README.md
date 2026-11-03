@@ -459,9 +459,12 @@ Content built while a reactivity owner runs (a template slot, a `root()` or `eff
 or `onfirstpaint` listener) registers on that owner. Content built with no owner at all (an `html` template called at
 module scope, in an event handler, or after an `await`) has nowhere to register, so its cleanups wait on its nodes
 until a template insertion that contains them adopts them: `render()` into its root, a static slot into its owner, an
-effect or async slot into the content it shows, released when that content is replaced. Cleanups still unadopted at
-the next idle sweep stay with their nodes and are released by the idle sweep (see
-[Removing Template Content](#removing-template-content)) once the node has been in the document and left it.
+effect or async slot into the content it shows, released when that content is replaced.
+
+The rule: content lives under `render()` or another owner, or whoever built it disposes it. In development, cleanups
+still unadopted at the next idle sweep are released by the sweep (see
+[Removing Template Content](#removing-template-content)) once their node has been in the document and left it, so
+`ondisconnect` on an element with no owner fires there only. Production builds never sweep.
 
 ### Removing Template Content
 
@@ -476,11 +479,15 @@ template element and removing them again is fine, as long as the template's own 
 
 What is still healed when other code removes template content, without a `MutationObserver`:
 
-- **A whole root.** An idle sweep (`requestIdleCallback`, `setTimeout` fallback; about once a second, only while
-  something is tracked) checks the anchors of top-level slots: `render()` roots, HMR instances, slots created outside
-  any template, and nodes holding unadopted cleanups. When a host removes the container, the outermost slot removed
-  with it is released, along with everything it owns, including effects nothing they read ever changes again and
-  content inside shadow roots.
+- **A whole root, in development.** An idle sweep (`requestIdleCallback`, `setTimeout` fallback; about once a second,
+  only while something is tracked) checks the anchors of top-level slots: `render()` roots, HMR instances, slots
+  created outside any template, and nodes holding unadopted cleanups. When a host removes the container, the outermost
+  slot removed with it is released, along with everything it owns, including effects nothing they read ever changes
+  again and content inside shadow roots, and a `@esportsplus/template:` warning names it: in production the sweep does
+  not exist, so the same removal leaks. The sweep is in the package's development build only, selected by the
+  `development` export condition of `@esportsplus/template/env`, which Vite, webpack, Rollup (with node-resolve) and
+  esbuild set for development builds and Vitest sets for tests; tooling without export conditions gets the production
+  build.
 - **Window and document handlers, and bindings made through `onconnect`'s `on`.** A handler whose element is out of the document is
   never run; if the element had been mounted, the outermost slot removed with it is released at the end of the task.
 - **Effects and reactive attributes.** One that reruns on a mounted node now out of the document skips its work and
