@@ -51,23 +51,8 @@ function isAsset(query: string): boolean {
     return false;
 }
 
-// The removal's offset in the source Vite passed in: the analysis ran on code an earlier plugin may have edited
-function locate(code: string, removal: Removal): number {
-    let at = -1;
-
-    for (let i = 0; i <= removal.occurrence; i++) {
-        at = code.indexOf(removal.text, at + 1);
-
-        if (at === -1) {
-            return removal.start;
-        }
-    }
-
-    return at;
-}
-
 function warning(code: string, id: string, removal: Removal): string {
-    let offset = locate(code, removal),
+    let offset = removal.start,
         line = 1,
         start = 0;
 
@@ -157,7 +142,8 @@ export default ({ root }: { root?: string } = {}) => {
                 }
 
                 // The pipeline runs synchronously, so this handshake cannot interleave across modules. HMR wraps a
-                // module under its own id only.
+                // module under its own id only. A build answered from the host's result cache runs no plugin: nothing
+                // is reported twice, and `state.templates` (dev only, where nothing is cached) is left as it was.
                 state.id = isDev && options?.ssr !== true && query === -1 ? path.replace(REGEX_PATH_SEPARATOR, '/') : null;
                 state.plan = null;
                 removals = [];

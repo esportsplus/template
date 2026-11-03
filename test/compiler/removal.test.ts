@@ -128,14 +128,14 @@ describe('compiler/removal', () => {
         });
     });
 
-    it('locates each removal by text and occurrence', () => {
+    it('locates each removal by its offset in the source', () => {
         let sourceFile = languageService.parse(process.cwd() + '/removal.ts', [
                 `html\`<a onconnect=\${(el) => el.remove()}></a>\`;`,
                 `html\`<b onconnect=\${(el) => el.remove()}></b>\`;`
             ].join('\n')),
             removals = findRemovals(findTemplateArtifacts(sourceFile), sourceFile);
 
-        expect(removals.map(r => [r.member, r.occurrence, r.text])).toEqual([['remove', 0, 'el.remove'], ['remove', 1, 'el.remove']]);
-        expect(sourceFile.text.slice(removals[1].start, removals[1].start + 9)).toBe('el.remove');
+        expect(removals.map(r => [r.member, r.text])).toEqual([['remove', 'el.remove'], ['remove', 'el.remove']]);
+        expect(removals[1].start).toBe(sourceFile.text.lastIndexOf('el.remove'));
     });
 });

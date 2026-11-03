@@ -33,7 +33,7 @@ describe('compiler/vite removal warnings', () => {
         expect(messages[0]).toContain(`README 'Removing template content'`);
     });
 
-    it('reports the position in the source it was given after an earlier plugin edited the code', () => {
+    it('reports the position in the source it was given when reactivity also compiles the module', () => {
         let code = [
                 `import { reactive } from '@esportsplus/reactivity';`,
                 `let state = reactive({ open: false });`,

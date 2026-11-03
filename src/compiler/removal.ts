@@ -3,11 +3,9 @@ import { REMOVALS } from './constants';
 import type { Artifacts } from './ts-parser';
 
 
-// A flagged access, located by its text and how many times that text occurs before it: the code this runs on may
-// have been edited by an earlier plugin, so the caller finds the same occurrence in the source it was given
+// A flagged access: its offset in the source every plugin analyses, and its text
 type Removal = {
     member: string;
-    occurrence: number;
     start: number;
     text: string;
 };
@@ -262,15 +260,9 @@ const findRemovals = (artifacts: Artifacts, sourceFile: ts.SourceFile): Removal[
             continue;
         }
 
-        let start = access.getStart(sourceFile),
-            snippet = text.slice(start, access.end),
-            occurrence = 0;
+        let start = access.getStart(sourceFile);
 
-        for (let at = text.indexOf(snippet); at !== -1 && at < start; at = text.indexOf(snippet, at + 1)) {
-            occurrence++;
-        }
-
-        removals.push({ member, occurrence, start, text: snippet });
+        removals.push({ member, start, text: text.slice(start, access.end) });
     }
 
     return removals;
