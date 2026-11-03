@@ -50,4 +50,4 @@ const isEntrypoint = (value: string): value is Entrypoint => {
 
 export { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, isEntrypoint, NAMESPACE, PACKAGE_REACTIVITY, REMOVALS, SIGNAL, TYPES };
 export type { Entrypoint };
-export { PACKAGE_NAME, UNCOMPILED } from '~/constants';
+export { PACKAGE_NAME, UNCOMPILED } from '../constants';

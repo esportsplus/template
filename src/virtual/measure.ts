@@ -1,5 +1,5 @@
-import { PACKAGE_NAME } from '~/constants';
-import { Element } from '~/types';
+import { PACKAGE_NAME } from '../constants';
+import { Element } from '../types';
 
 
 type Target = {
