@@ -1,5 +1,4 @@
 import { effect, flush, read, signal, write } from '@esportsplus/reactivity';
-import { interpolate } from '../../src/attributes';
 import type { Case } from './harness';
 
 
@@ -23,6 +22,27 @@ function element(html: string): Element {
     tmpl.innerHTML = html;
 
     return tmpl.content.firstChild as Element;
+}
+
+// The runtime join composed values used before the compiler emitted concatenation (0.57.0's interpolate)
+function interpolate(parts: unknown[]): string | ((element?: unknown) => string) {
+    let callbacks = parts.map(part => typeof part === 'function');
+
+    const join = (element?: unknown) => {
+        let result = '';
+
+        for (let i = 0; i < parts.length; i++) {
+            let value = callbacks[i] ? (parts[i] as Function)(element) : parts[i];
+
+            if (value != null && value !== false) {
+                result += String(value);
+            }
+        }
+
+        return result;
+    };
+
+    return callbacks.some(Boolean) ? join : join();
 }
 
 function fragment(html: string): DocumentFragment {

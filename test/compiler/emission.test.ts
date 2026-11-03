@@ -284,14 +284,15 @@ describe('compiler emission', () => {
             expect(p.className).toBe('a n-0');
         });
 
+        // joined: concatenated as is; stripped: null, undefined and false dropped once; reactive: a function of the element
         it.each([
-            ['strings and numbers', 'label: string, count: number', true],
-            ['literal and template literal types', "label: 'a' | 'b', count: 1 | 2 | `x${number}`", true],
-            ['a nullable part', 'label: string | null, count: number', false],
-            ['a boolean part', 'label: string, count: boolean', false],
-            ['an unknown part', 'label: string, count: unknown', false],
-            ['a callback part', 'label: string, count: () => number', false]
-        ])('joins %s with %s', (_label, parameters, joined) => {
+            ['strings and numbers', 'label: string, count: number', 'joined'],
+            ['literal and template literal types', "label: 'a' | 'b', count: 1 | 2 | `x${number}`", 'joined'],
+            ['a nullable part', 'label: string | null, count: number', 'stripped'],
+            ['a boolean part', 'label: string, count: boolean', 'stripped'],
+            ['an unknown part', 'label: string, count: unknown', 'reactive'],
+            ['a callback part', 'label: string, count: () => number', 'reactive']
+        ])('joins %s with %s', (_label, parameters, form) => {
             let { output } = compile([
                     `function view(${parameters}) {`,
                     '    return html`<p title="${label}: ${count}">x</p>`;',
@@ -299,8 +300,10 @@ describe('compiler emission', () => {
                     'let value = null;'
                 ].join('\n'));
 
-            expect(output.includes('.interpolate(')).toBe(!joined);
-            expect(output.includes('"" + (label) + ": " + (count)')).toBe(joined);
+            expect(output.includes('"" + (label) + ": " + (count)')).toBe(form === 'joined');
+            expect(/part_\w+\(/.test(output)).toBe(form !== 'joined');
+            expect(/Element\) => /.test(output)).toBe(form === 'reactive');
+            expect(output).not.toContain('interpolate');
         });
 
         it('keeps a callback part reactive', async () => {

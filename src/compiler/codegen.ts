@@ -45,12 +45,69 @@ type Prefolded = { expressions: ts.Expression[]; literals: string[] };
 type Range = { end: number; start: number };
 
 
+const PART_FUNCTION = 0;
+
+const PART_TEXT = 1;
+
+const PART_UNKNOWN = 2;
+
+const PART_VALUE = 3;
+
 const REGEX_ATTRIBUTE_VALUE_OPEN = /=\s*(["']?)$/;
 
 const REGEX_TEMPLATE_SYNTAX = /[\\`\r]|\$\{/g;
 
 const REGEX_UNQUOTED_VALUE_CLOSE = /^(?:[\s>]|\/>)/;
 
+
+// What a composed value's part is: a function to call per run, a string or number to join as it is (nothing to drop or
+// call), another value to join without null, undefined and false, or unknown until it runs
+function classify(checker: ts.Checker | undefined, expr: ts.Expression | undefined): number {
+    if (expr === undefined) {
+        return PART_VALUE;
+    }
+
+    while (ts.isParenthesizedExpression(expr)) {
+        expr = expr.expression;
+    }
+
+    if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) {
+        return PART_FUNCTION;
+    }
+
+    if (isLiteral(expr) || ts.isTemplateExpression(expr)) {
+        return PART_TEXT;
+    }
+
+    let type = checker?.getTypeAtLocation(expr);
+
+    if (!type || type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) {
+        return PART_UNKNOWN;
+    }
+
+    let callable = 0,
+        text = 0,
+        types = type.isUnionType() ? type.getTypes() : [type];
+
+    for (let i = 0, n = types.length; i < n; i++) {
+        if (checker!.getSignaturesOfType(types[i], ts.SignatureKind.Call).length > 0) {
+            callable++;
+        }
+        else if (types[i].flags & (ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike)) {
+            text++;
+        }
+    }
+
+    if (callable === types.length) {
+        return PART_FUNCTION;
+    }
+
+    if (callable > 0) {
+        return PART_UNKNOWN;
+    }
+
+    return text === types.length ? PART_TEXT : PART_VALUE;
+}
 
 function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: (Range & { text: string })[], inObserver: boolean): void {
     if (isHtmlTemplate(node, ctx.sites)) {
@@ -146,6 +203,74 @@ function generateAttributeBinding(ctx: CodegenContext, element: string, name: st
     }
 
     return `${NAMESPACE}.setProperty(${element}, '${name}', ${expr});`;
+}
+
+// A value composed of literal text and expressions, joined by concatenation. Each expression is evaluated once, where
+// the binding is created; one that is (or may be) a function makes the value a function of the element, which calls it
+// on every run. A part drops null, undefined and false; a proven string or number joins as it is.
+function generateComposedValue(ctx: CodegenContext, code: string[], segments: (string | { expr: ts.Expression | undefined; text: string })[]): string {
+    let declarations: string[] = [],
+        dynamic = false,
+        element = '',
+        kinds: number[] = [],
+        pieces: string[] = [],
+        strip = '';
+
+    for (let i = 0, n = segments.length; i < n; i++) {
+        let segment = segments[i];
+
+        kinds[i] = typeof segment === 'string' ? PART_TEXT : classify(ctx.checker, segment.expr);
+        dynamic ||= kinds[i] === PART_FUNCTION || kinds[i] === PART_UNKNOWN;
+    }
+
+    if (dynamic) {
+        element = uid('element');
+    }
+
+    for (let i = 0, n = segments.length; i < n; i++) {
+        let kind = kinds[i],
+            segment = segments[i];
+
+        if (typeof segment === 'string') {
+            pieces.push(JSON.stringify(segment));
+            continue;
+        }
+
+        if (kind !== PART_TEXT) {
+            strip ||= hoist(ctx, `(value: unknown) => value == null || value === false ? '' : value`, 'part');
+        }
+
+        // A static value is joined once where the binding is created: nothing to hold
+        if (!dynamic || (kind === PART_TEXT && segment.expr !== undefined && isLiteral(segment.expr))) {
+            pieces.push(kind === PART_TEXT ? `(${segment.text})` : `${strip}(${segment.text})`);
+            continue;
+        }
+
+        let id = uid('value');
+
+        // A function part may declare no parameter, or a narrower element than the binding passes
+        if (kind === PART_FUNCTION) {
+            declarations.push(`${id}: Function = ${segment.text}`);
+            pieces.push(`${strip}(${id}(${element}))`);
+        }
+        else if (kind === PART_UNKNOWN) {
+            declarations.push(`${id}: any = ${segment.text}`);
+            pieces.push(`${strip}(typeof ${id} === 'function' ? ${id}(${element}) : ${id})`);
+        }
+        else {
+            declarations.push(kind === PART_TEXT ? `${id} = ${segment.text}` : `${id} = ${strip}(${segment.text})`);
+            pieces.push(id);
+        }
+    }
+
+    if (declarations.length) {
+        code.push(`let ${declarations.join(', ')};`);
+    }
+
+    // The leading string keeps two numbers from adding
+    let joined = (pieces[0][0] === '"' ? '' : '"" + ') + pieces.join(' + ');
+
+    return dynamic ? `(${element}: ${NAMESPACE}.Element) => ${joined}` : joined;
 }
 
 function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplateExpression): string {
@@ -389,27 +514,21 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
                     value = text(index++);
                 }
                 else {
-                    let textual = ctx.checker !== undefined,
-                        values: string[] = [];
+                    let segments: (string | { expr: ts.Expression | undefined; text: string })[] = [];
 
                     for (let k = j; k <= last; k++) {
                         if (parts[k].prefix) {
-                            values.push(JSON.stringify(parts[k].prefix));
+                            segments.push(parts[k].prefix);
                         }
 
-                        textual &&= isTextual(ctx.checker!, expressions[index]);
-                        values.push(`(${text(index++)})`);
+                        segments.push({ expr: expressions[index], text: text(index++) });
                     }
 
                     if (parts[last].suffix) {
-                        values.push(JSON.stringify(parts[last].suffix));
+                        segments.push(parts[last].suffix);
                     }
 
-                    // Proven strings and numbers join exactly as interpolate() would; the leading string keeps two numbers
-                    // from adding
-                    value = textual
-                        ? (values[0][0] === '"' ? '' : '"" + ') + values.join(' + ')
-                        : `${NAMESPACE}.interpolate([${values.join(', ')}])`;
+                    value = generateComposedValue(ctx, code, segments);
                     j = last;
                 }
 
@@ -448,12 +567,12 @@ function getTemplateID(ctx: CodegenContext, html: string): string {
     return id;
 }
 
-function hoist(ctx: CodegenContext, code: string): string {
+function hoist(ctx: CodegenContext, code: string, name: string = 'options'): string {
     let hoisted = ctx.hoisted ??= new Map(),
         id = hoisted.get(code);
 
     if (!id) {
-        id = uid('options');
+        id = uid(name);
         hoisted.set(code, id);
     }
 
@@ -474,23 +593,8 @@ function replaced(node: ts.Node, code: string): ts.Node {
     return code[0] === '{' && isReturned(node) ? node.parent : node;
 }
 
-// A string or number in every case: no null, undefined or boolean to drop, nothing to call or stringify
-function isTextual(checker: ts.Checker, expression: ts.Expression | undefined): boolean {
-    let type = expression && checker.getTypeAtLocation(expression);
-
-    if (!type) {
-        return false;
-    }
-
-    let types = type.isUnionType() ? type.getTypes() : [type];
-
-    for (let i = 0, n = types.length; i < n; i++) {
-        if ((types[i].flags & (ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike)) === 0) {
-            return false;
-        }
-    }
-
-    return true;
+function isLiteral(expr: ts.Expression): boolean {
+    return ts.isStringLiteral(expr) || ts.isNumericLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr);
 }
 
 // A spread typed as an object that is never an array and declares both class and style, as Attributes does:

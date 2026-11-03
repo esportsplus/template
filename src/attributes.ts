@@ -588,26 +588,4 @@ const setStyle = (element: Element, parts: unknown[]) => {
 };
 
 
-// Called only for composed values. Standalone slots keep setList/setProperty's
-// native boolean/array semantics. Expression factories have already run once.
-const interpolate = (parts: unknown[]): string | ((element: Element) => string) => {
-    let callbacks = parts.map(part => typeof part === 'function');
-
-    const join = (element?: Element) => {
-        let result = '';
-
-        for (let i = 0; i < parts.length; i++) {
-            let value = callbacks[i] ? (parts[i] as Function)(element) : parts[i];
-
-            if (value != null && value !== false) {
-                result += String(value);
-            }
-        }
-
-        return result;
-    };
-
-    return callbacks.some(Boolean) ? join : join();
-};
-
-export { interpolate, setClass, setList, setProperty, setProperties, setStyle };
+export { setClass, setList, setProperty, setProperties, setStyle };

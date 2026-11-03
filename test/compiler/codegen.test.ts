@@ -150,8 +150,8 @@ describe('compiler/codegen', () => {
 
             expect(code.match(/setClass\(/g)).toHaveLength(1);
             expect(code.match(/setStyle\(/g)).toHaveLength(1);
-            expect(code).toContain(`, ["a b", one, ${NAMESPACE}.interpolate(["c-", (two)]), () => three]);`);
-            expect(code).toContain(`, ["color: red", ${NAMESPACE}.interpolate([" ", (sty)])]);`);
+            expect(code).toMatch(/, \["a b", one, \(element_\w+: \w+\.Element\) => "c-" \+ part_\w+\([^\]]+\), \(\) => three\]\);/);
+            expect(code).toMatch(/, \["color: red", \(element_\w+: \w+\.Element\) => " " \+ part_\w+\([^\]]+\)\]\);/);
             expect(result.prepend[0]).not.toContain('class');
             expect(result.prepend[0]).not.toContain('style');
         });
@@ -676,21 +676,24 @@ describe('compiler/codegen', () => {
             let code = result.replacements[0].generate(EMPTY);
 
             expect(code).toContain(`${NAMESPACE}.setClass(`);
-            expect(code).toContain(`["button", ${NAMESPACE}.interpolate(["button--", (modifier)])]`);
+            expect(code).toMatch(/let (value_\w+): any = modifier;/);
+            expect(code).toMatch(/\["button", \(element_\w+: \w+\.Element\) => "button--" \+ part_\w+\(typeof value_\w+ === 'function'/);
         });
 
         it('binds a property attribute with its prefix and suffix', () => {
             let { result } = codegen(`let x = html\`<a href="/users/\${id}/edit">x</a>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`.interpolate(["/users/", (id), "/edit"])`);
+            expect(code).toMatch(/let value_\w+: any = id;/);
+            expect(code).toMatch(/=> "\/users\/" \+ part_\w+\([^;]+\) \+ "\/edit"\);/);
         });
 
         it('emits one binding for several markers in one value', () => {
             let { result } = codegen(`let x = html\`<a href="/users/\${id}/edit/\${tab}">x</a>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`.interpolate(["/users/", (id), "/edit/", (tab)])`);
+            expect(code).toMatch(/let value_\w+: any = id, value_\w+: any = tab;/);
+            expect(code).toMatch(/=> "\/users\/" \+ part_\w+\([^;]+\) \+ "\/edit\/" \+ part_\w+\([^;]+\)\);/);
             expect(code.match(/setProperty\(/g)).toHaveLength(1);
         });
 
@@ -698,15 +701,15 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let x = html\`<div class="a-\${one} b-\${two}">x</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`.interpolate(["a-", (one)])`);
-            expect(code).toContain(`.interpolate(["b-", (two)])`);
+            expect(code).toMatch(/=> "a-" \+ part_/);
+            expect(code).toMatch(/=> "b-" \+ part_/);
         });
 
         it('parenthesizes a concatenated expression so precedence holds', () => {
             let { result } = codegen(`let x = html\`<div class="tab-\${active ? "on" : "off"}">x</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`.interpolate(["tab-", (active ? "on" : "off")])`);
+            expect(code).toMatch(/let value_\w+: any = active \? "on" : "off";/);
         });
 
         it('leaves a slot owning the whole value unwrapped', () => {
