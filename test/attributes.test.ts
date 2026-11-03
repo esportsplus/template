@@ -157,6 +157,25 @@ describe('attributes', () => {
             expect(element.style.cssText).toContain('font-size: 14px');
         });
 
+        it('trims the trailing semicolon of a serialised style seed', () => {
+            let style = element.style,
+                written: string[] = [];
+
+            style.cssText = 'width: 10px';
+
+            expect(element.getAttribute('style')).toBe('width: 10px;');
+
+            Object.defineProperty(style, 'cssText', {
+                configurable: true,
+                set(value: string) {
+                    written.push(value);
+                }
+            });
+            setList(element as unknown as Element, 'style', 'color: red');
+
+            expect(written).toEqual(['width: 10px;color: red']);
+        });
+
         it('handles null value', () => {
             setList(element as unknown as Element, 'class', null);
 

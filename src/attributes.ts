@@ -105,10 +105,14 @@ function list(ctx: Context | null, element: Element, id: null | number, name: st
         listState = store[name] as ListState | undefined;
 
     if (!listState) {
-        listState = {
-            dynamic: new Set(),
-            static: (element.getAttribute(name) || '').trim()
-        };
+        let seed = (element.getAttribute(name) || '').trim();
+
+        // A browser-serialised cssText ends in ';', which would join as ';;'
+        if (seed.endsWith(delimiter)) {
+            seed = seed.slice(0, -1).trimEnd();
+        }
+
+        listState = { dynamic: new Set(), static: seed };
         store[name] = listState;
     }
 
