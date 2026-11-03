@@ -37,7 +37,7 @@ const REGEX_JSX = /\.[jt]sx$/;
 // Decides which exports to wrap, on the original source with the project's checker. Returns null
 // when any export or top-level statement makes the module unsafe to re-evaluate in place.
 function analyze(ctx: TransformContext): Site[] | null {
-    let checker = cached(ctx.checker),
+    let checker = cached(ctx.checker, ctx.program),
         sites: Site[] = [],
         statements = ctx.sourceFile.statements;
 

@@ -74,7 +74,7 @@ const compiler = (report: ((removals: Removal[]) => void) | null = null) => ({
             }
         }
 
-        let { prepend, replacements, selectorFired } = generateCode(artifacts, ctx.sourceFile, ctx.checker);
+        let { prepend, replacements, selectorFired } = generateCode(artifacts, ctx.sourceFile, ctx.checker, ctx.program);
 
         if (replacements.length === 0 && prepend.length === 0) {
             return artifacts.dependencies.length > 0 ? { dependencies: artifacts.dependencies } : {};

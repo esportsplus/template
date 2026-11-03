@@ -17,6 +17,9 @@ const CACHED = new Set<PropertyKey>([
     'resolveName'
 ]);
 
+// The cached checker of each program, dropped with the program
+const PROGRAMS = new WeakMap<ts.Program, { checker: ts.Checker; proxy: ts.Checker }>();
+
 
 // Keyed on (first argument, second argument); a call passing more arguments (e.g. resolveName's
 // optional location) is answered by the checker directly rather than risk a wrong cache hit
@@ -47,11 +50,7 @@ function memoize(query: Query): Query {
     };
 }
 
-
-// Every checker query is a synchronous IPC round-trip to tsgo, and codegen asks the same
-// question about the same node repeatedly (each specialized variant re-folds, re-analyzes and
-// re-matches selectors). Scope one cache to one transform so no answer outlives its snapshot.
-const cached = (checker: ts.Checker): ts.Checker => {
+function proxy(checker: ts.Checker): ts.Checker {
     let methods = new Map<PropertyKey, Query>();
 
     return new Proxy(checker, {
@@ -77,6 +76,26 @@ const cached = (checker: ts.Checker): ts.Checker => {
             return method;
         }
     });
+}
+
+
+// Every checker query is a synchronous IPC round-trip to tsgo, and codegen asks the same
+// question about the same node repeatedly (each specialized variant re-folds, re-analyzes and
+// re-matches selectors). One cache serves every transform of a program, since its answers are fixed
+// for that snapshot; a new program, or a new checker for it, starts a new cache.
+const cached = (checker: ts.Checker, program?: ts.Program): ts.Checker => {
+    if (program === undefined) {
+        return proxy(checker);
+    }
+
+    let entry = PROGRAMS.get(program);
+
+    if (entry === undefined || entry.checker !== checker) {
+        entry = { checker, proxy: proxy(checker) };
+        PROGRAMS.set(program, entry);
+    }
+
+    return entry.proxy;
 };
 
 

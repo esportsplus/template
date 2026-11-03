@@ -764,9 +764,9 @@ function prefoldCached(ctx: CodegenContext, node: ts.Node, literals: string[], e
 // Top-level reactive calls lower first, then root templates. A call nested in a template or
 // in an already-lowered call, and a template nested in either, is emitted by its enclosing
 // rewrite — emitting it separately would produce overlapping replacements.
-const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker): CodegenResult => {
+const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): CodegenResult => {
     let ctx: CodegenContext = {
-            checker: checker && cached(checker),
+            checker: checker && cached(checker, program),
             constants,
             hoisted: new Map(),
             singles: new Set(),
