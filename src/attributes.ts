@@ -211,23 +211,15 @@ function reactive(element: Element, name: string, value: unknown) {
             return;
         }
 
-        let next: unknown,
-            v = (value as Function)(element);
+        let v = (value as Function)(element);
 
-        // A class or style list takes a returned array or style object whole, as one diff and one write
-        if (fn === list || v == null || typeof v !== 'object') {
-            next = fn(ctx, element, id, name, v);
+        // A class or style list takes a returned array or style object whole, as one diff and one write;
+        // a plain attribute has no object form
+        if (fn !== list && v != null && typeof v === 'object') {
+            return;
         }
-        else if (isArray(v)) {
-            // One write for the whole array, whichever of its values changed.
-            for (let i = 0, n = v.length; i < n; i++) {
-                let part = fn(ctx, element, id, name, v[i]);
 
-                if (part !== undefined) {
-                    next = part;
-                }
-            }
-        }
+        let next = fn(ctx, element, id, name, v);
 
         if (next !== undefined) {
             apply(element, name, next);

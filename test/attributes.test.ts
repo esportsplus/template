@@ -488,28 +488,6 @@ describe('attributes', () => {
             observer.disconnect();
         });
 
-        it('applies an array of values in one write', async () => {
-            let s = signal('a'),
-                writes = 0;
-
-            setProperty(element as unknown as Element, 'title', () => [read(s), 'last'] as unknown as string);
-
-            let observer = new MutationObserver((records) => {
-                writes += records.length;
-            });
-
-            observer.observe(element, { attributeFilter: ['title'], attributes: true });
-            write(s, 'b');
-
-            await Promise.resolve();
-            await new Promise((resolve) => setTimeout(resolve));
-
-            expect(element.title).toBe('last');
-            expect(writes).toBe(1);
-
-            observer.disconnect();
-        });
-
         it('removes stale dynamic class values on reactive update', async () => {
             let s = signal('foo bar');
 
