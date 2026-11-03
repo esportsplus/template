@@ -16,6 +16,9 @@ type Plugin = ReturnType<typeof vite>;
 
 const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => (...args: unknown[]) => Promise<(label: string) => Node>;
 
+// A central module re-exporting html under another name
+const APP = "export { html as h } from '@esportsplus/template';";
+
 
 const BARREL = [
     "export { html as tag } from '@esportsplus/template';",
@@ -26,6 +29,9 @@ const BARREL = [
     'export const alias = html;'
 ].join('\n');
 
+// `export *` two levels from the package: this module, then the barrel
+const DEEP = "export * from './barrel';";
+
 // A parameter can be reassigned, so like a `let` it never holds html: nothing in the module is a site to lower or report
 const DESTRUCTURED: Form = ['', 'html', ['{ html }', '@esportsplus/template']];
 
@@ -34,10 +40,12 @@ const FORMS: Record<string, Form> = {
     'barrel-default': ["import d from './barrel';", 'd'],
     'barrel-renamed': ["import { tag } from './barrel';", 'tag'],
     'barrel-star': ["import { html as h } from './barrel';", 'h'],
+    'central-renamed': ["import * as app from './app';", 'app.h'],
     'const-alias': ["import { alias } from './barrel';", 'alias'],
     'destructured': ["import * as B from './barrel';\nconst { html: h } = B.T;", 'h'],
     'destructured-nested': ["import * as B from './barrel';\nconst { T } = B, { html } = T;", 'html'],
     'direct': ["import { html } from '@esportsplus/template';", 'html'],
+    'direct-renamed': ["import { html as h } from '@esportsplus/template';", 'h'],
     'dynamic-destructured': ["const { html } = await import('@esportsplus/template');", 'html'],
     'dynamic-member': ['', "(await import('@esportsplus/template')).html"],
     'import-require': ["import T = require('@esportsplus/template');", 'T.html'],
@@ -48,8 +56,12 @@ const FORMS: Record<string, Form> = {
     'nested': ["import * as B from './barrel';", 'B.T.html'],
     'nested-const': ["import * as B from './barrel';\nconst T = B.T;", 'T.html'],
     'parameter-member': ['', 'B.tag', ['B', './barrel']],
-    'parameter-nested': ['', 'B.T.html', ['B', './barrel']]
+    'parameter-nested': ['', 'B.T.html', ['B', './barrel']],
+    'star-two-deep': ["import { html } from './deep';", 'html']
 };
+
+// The modules every form may import from
+const MODULES = { 'app.ts': APP, 'barrel.ts': BARREL, 'deep.ts': DEEP };
 
 const STAGE = "import { reactive } from '@esportsplus/reactivity';\nconst state = reactive({ count: 1 });";
 
@@ -107,7 +119,9 @@ async function render(code: string, label: string): Promise<string> {
             .replace(/export const (\w+) =/g, 'const $1 =')
             .replace(/export default /, 'return '),
         modules: Record<string, unknown> = {
+            './app': { h: runtime.html },
             './barrel': { ...runtime, alias: runtime.html, default: runtime.html, T: runtime, tag: runtime.html },
+            './deep': runtime,
             '@esportsplus/reactivity': reactivity,
             '@esportsplus/template': runtime,
             load: async (source: string) => modules[source]
@@ -137,7 +151,7 @@ afterEach(() => {
 describe('compiler site discovery', () => {
     describe.each([['staged', true], ['unstaged', false]] as const)('%s programs', (_label, staged) => {
         it.each(Object.keys(FORMS))('compiles html reached through %s', async (name) => {
-            let files = { 'barrel.ts': BARREL, [name + '.ts']: consumer(FORMS[name], staged) },
+            let files: Record<string, string> = { ...MODULES, [name + '.ts']: consumer(FORMS[name], staged) },
                 { directory, plugin } = project(files),
                 output = transform(plugin, directory, name + '.ts', files[name + '.ts'])!.code;
 
@@ -152,7 +166,7 @@ describe('compiler site discovery', () => {
         });
 
         it('compiles every form in sequence with one plugin, with no false escape', async () => {
-            let files: Record<string, string> = { 'barrel.ts': BARREL };
+            let files: Record<string, string> = { ...MODULES };
 
             for (let name of Object.keys(FORMS)) {
                 files[name + '.ts'] = consumer(FORMS[name], staged);
