@@ -1,6 +1,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import component from '../src/component';
 import { delegate, direct, on, ondocument, onwindow } from '../src/event';
+import html from '../src/html';
+import { ArraySlot } from '../src/slot/array';
+import { VirtualSlot } from '../src/virtual/slot';
 import type { Attributes, Effect, Element as Bound } from '../src/types';
 import type * as Public from '../src';
 
@@ -217,6 +220,19 @@ describe('types', () => {
                 };
 
             expect(effect).toBeTypeOf('function');
+        });
+    });
+
+    describe('row templates', () => {
+        it('accept what html returns, which the compiled slots are built from', () => {
+            let row = ((_value: number) => document.createElement('li')) as (value: number) => ReturnType<typeof html>,
+                rows: [
+                    Parameters<typeof html.reactive<number>>[1],
+                    ConstructorParameters<typeof ArraySlot<number>>[1],
+                    ConstructorParameters<typeof VirtualSlot<number>>[1]
+                ] = [row, row, row];
+
+            expect(rows).toHaveLength(3);
         });
     });
 

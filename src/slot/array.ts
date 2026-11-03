@@ -100,7 +100,7 @@ class ArraySlot<T> implements Slot {
 
 
     // 'managed': the slot's owner (a VirtualSlot) disposes it, so it registers nothing on the running owner
-    constructor(private array: Reactive<T[]>, template: (value: T) => DocumentFragment | Element | Text, soleChild: boolean = false, managed: boolean = false) {
+    constructor(private array: Reactive<T[]>, template: (value: T) => DocumentFragment | globalThis.Element | Text, soleChild: boolean = false, managed: boolean = false) {
         let fragment = this.fragment = clone(EMPTY_FRAGMENT),
             node!: Owner;
 

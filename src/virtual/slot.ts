@@ -79,7 +79,7 @@ class VirtualSlot<T> implements Slot {
     readonly fragment: DocumentFragment;
 
 
-    constructor(array: Reactive<T[]>, template: (value: T) => DocumentFragment | Element | Text, options: VirtualOptions = {}) {
+    constructor(array: Reactive<T[]>, template: (value: T) => DocumentFragment | globalThis.Element | Text, options: VirtualOptions = {}) {
         this.anchored = options.anchor === 'end';
         this.array = array;
         this.within = owner();
