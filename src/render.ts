@@ -1,10 +1,10 @@
-import { root } from '@esportsplus/reactivity';
+import { owner, root } from '@esportsplus/reactivity';
 import { EMPTY_OBJECT } from '@esportsplus/utilities';
 import { Attributes, Element, Renderable } from './types';
 import { marker } from './utilities';
 import { setProperties } from './attributes';
 import { EffectSlot, render as node } from './slot';
-import { adopt, context, detach, enter, exit, track } from './slot/cleanup';
+import { adopt, detach, own, track } from './slot/cleanup';
 import type { Slot } from './slot/cleanup';
 
 
@@ -36,33 +36,28 @@ function render<T>(parent: E, one?: A | C<T>, two?: C<T>): VoidFunction {
             slot: Slot = {
                 anchor,
                 disposed: false,
-                parent: context(),
                 release: dispose,
-                state: 0
+                state: 0,
+                within: owner()
             },
-            tail: Element = anchor,
-            prev = enter(slot);
+            tail: Element = anchor;
 
-        try {
-            setProperties(parent as Element, (one || EMPTY_OBJECT) as A);
+        own(slot);
+        setProperties(parent as Element, (one || EMPTY_OBJECT) as A);
 
-            let content = two ? two() : undefined;
+        let content = two ? two() : undefined;
 
-            // A factory returning a function renders it reactively, as any function slot does
-            if (typeof content === 'function') {
-                effect = new EffectSlot(anchor, content);
-            }
-            else {
-                let nodes = node(content);
-
-                // Content the factory returns but did not build, built outside any owner, is owned from here
-                adopt(nodes);
-                tail = ((nodes.nodeType === 11 ? nodes.lastChild : nodes) || anchor) as Element;
-                anchor.after(nodes);
-            }
+        // A factory returning a function renders it reactively, as any function slot does
+        if (typeof content === 'function') {
+            effect = new EffectSlot(anchor, content);
         }
-        finally {
-            exit(prev);
+        else {
+            let nodes = node(content);
+
+            // Content the factory returns but did not build, built outside any owner, is owned from here
+            adopt(nodes);
+            tail = ((nodes.nodeType === 11 ? nodes.lastChild : nodes) || anchor) as Element;
+            anchor.after(nodes);
         }
 
         track(slot);

@@ -1,9 +1,9 @@
-import { read, root, signal, write, Reactive } from '@esportsplus/reactivity';
+import { owner, read, root, signal, write, Reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
 import { clone, EMPTY_FRAGMENT, marker, untracked } from '../utilities';
-import { context, detach, enter, exit, ondisconnect, release, throws, track } from './cleanup';
-import type { Slot } from './cleanup';
+import { detach, ondisconnect, own, release, throws, track } from './cleanup';
+import type { Owner, Slot } from './cleanup';
 
 
 type ArraySlotOp<T> =
@@ -100,14 +100,15 @@ class ArraySlot<T> implements Slot {
     anchor: Element;
     disposed = false;
     private nodes: Item[] = [];
-    parent: Slot | null;
     private queue: ArraySlotOp<T>[] = [];
     private scheduled = false;
     private signal;
     private soleChild: boolean;
     state = 0;
     private template: (value: T) => Item;
+    private unroot: VoidFunction;
     private unsubscribe: VoidFunction[] = [];
+    within: Owner | null;
 
     readonly fragment: DocumentFragment;
 
@@ -115,12 +116,19 @@ class ArraySlot<T> implements Slot {
     // 'managed': the slot's owner (a VirtualSlot) disposes it, so it registers nothing on the running owner
     constructor(private array: Reactive<T[]>, template: (value: T) => DocumentFragment | Element | Text, soleChild: boolean = false, managed: boolean = false) {
         let fragment = this.fragment = clone(EMPTY_FRAGMENT),
-            slot = this;
+            node!: Owner;
 
         this.anchor = marker.cloneNode() as unknown as Element;
-        this.parent = context();
         this.signal = signal(untracked(array).length);
         this.soleChild = soleChild;
+        this.within = owner();
+        // The owner rows are made within, so this slot is their parent; it owns nothing, the rows being roots of their own
+        this.unroot = root((dispose) => {
+            node = owner()!;
+            own(this);
+
+            return dispose;
+        });
         // Each row gets a root of its own, outside any owner: rows come and go with the array, and dispose()
         // releases the ones left
         this.template = function (data) {
@@ -128,22 +136,16 @@ class ArraySlot<T> implements Slot {
                     anchor: null,
                     disposed: false,
                     head: null,
-                    parent: slot,
                     release: null,
                     state: 0,
-                    tail: null
+                    tail: null,
+                    within: node
                 } as unknown as Item,
                 frag = root((dispose) => {
-                    let parent = enter(item);
-
+                    own(item);
                     item.release = dispose;
 
-                    try {
-                        return template(data);
-                    }
-                    finally {
-                        exit(parent);
-                    }
+                    return template(data);
                 });
 
             // A single-root row is its element, with no fragment around it
@@ -249,7 +251,12 @@ class ArraySlot<T> implements Slot {
             unsubscribe[i]();
         }
 
-        dispose(this.nodes.splice(0));
+        try {
+            dispose(this.nodes.splice(0));
+        }
+        finally {
+            this.unroot();
+        }
     }
 
     flush() {

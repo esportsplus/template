@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { effect, flush, read, root, signal, write } from '@esportsplus/reactivity';
 import { CLEANUP } from '../../src/constants';
-import { adopt, claim, detach, enter, exit, ondisconnect, release, sweep, throws } from '../../src/slot/cleanup';
+import { adopt, claim, detach, ondisconnect, own, release, sweep, throws } from '../../src/slot/cleanup';
 import type { Slot } from '../../src/slot/cleanup';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
@@ -17,23 +17,16 @@ function owned(head: Node, tail: Node, build: () => void = () => {}): Group {
             anchor: head,
             disposed: false,
             head,
-            parent: null,
             release: null,
             state: 0,
-            tail
+            tail,
+            within: null
         } as unknown as Group;
 
     root((dispose) => {
-        let parent = enter(group);
-
+        own(group);
         group.release = dispose;
-
-        try {
-            build();
-        }
-        finally {
-            exit(parent);
-        }
+        build();
     });
 
     return group;

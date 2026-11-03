@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { reactive, Reactive } from '@esportsplus/reactivity';
+import { parent as parentOf } from '../../src/slot/cleanup';
+import type { Slot } from '../../src/slot/cleanup';
 import { INDEX } from '../../src/virtual/measure';
 import { VirtualSlot } from '../../src/virtual/slot';
 import type { VirtualOptions } from '../../src/virtual/slot';
@@ -712,9 +714,9 @@ describe('virtual/VirtualSlot', () => {
     describe('ownership', () => {
         it('builds its inner array slot as its own child, so it is not watched as a top-level slot', () => {
             let slot = setup([1, 2, 3]),
-                inner = (slot as unknown as { arraySlot: { parent: unknown; state: number } }).arraySlot;
+                inner = (slot as unknown as { arraySlot: Slot }).arraySlot;
 
-            expect(inner.parent).toBe(slot);
+            expect(parentOf(inner)).toBe(slot);
             expect(inner.state & 4).toBe(0);
         });
     });

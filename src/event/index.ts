@@ -1,7 +1,8 @@
+import { owner as running } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
 import { DIRECT_ATTACH_EVENTS, PACKAGE_NAME, PASSIVE_EVENTS } from '../constants';
-import { context, heal, MOUNTED, ondisconnect as disconnect } from '../slot/cleanup';
-import type { Slot } from '../slot/cleanup';
+import { heal, MOUNTED, ondisconnect as disconnect } from '../slot/cleanup';
+import type { Owner, Slot } from '../slot/cleanup';
 import { Attributes, Element, EventOptions, On } from '../types';
 import connect from './onconnect';
 import onfirstpaint from './onfirstpaint';
@@ -23,10 +24,10 @@ type Member = Binding & {
     anchor: Element | null;
     disposed: boolean;
     next: Member | null;
-    parent: Slot | null;
     prev: Member | null;
     self: unknown;
     state: number;
+    within: Owner | null;
 };
 
 type Once = Pick<EventOptions, 'once'>;
@@ -75,7 +76,7 @@ function bind(
     options: EventOptions | undefined,
     flags: number,
     owner: Element | null,
-    parent: Slot | null
+    within: Owner | null
 ): VoidFunction {
     let capture = false,
         direct = false,
@@ -100,10 +101,10 @@ function bind(
 
     // Delegated capture never exists, so the template never has to order it against bubbling listeners
     if (!capture && !direct && (target as Node).nodeType === 1 && !DIRECT_ATTACH_EVENTS.has(event)) {
-        return chain(registration(document, event, false, passive), target as Element, listener, flags, owner, parent, signal);
+        return chain(registration(document, event, false, passive), target as Element, listener, flags, owner, within, signal);
     }
 
-    return subscribe(registration(target, event, capture, passive), target, listener, flags, owner, parent, signal);
+    return subscribe(registration(target, event, capture, passive), target, listener, flags, owner, within, signal);
 }
 
 function chain(
@@ -112,7 +113,7 @@ function chain(
     listener: Function,
     flags: number,
     owner: Element | null,
-    parent: Slot | null,
+    within: Owner | null,
     signal: AbortSignal | undefined
 ): VoidFunction {
     // Every binding allocates this closure: it reads what it can back from the binding and registration rather than
@@ -149,7 +150,7 @@ function chain(
             registration.release();
         },
         binding: Binding = flags & GUARDED
-            ? { anchor: owner, disposed: false, flags, listener, next: null, parent, release, state: 0 } as Guarded
+            ? { anchor: owner, disposed: false, flags, listener, next: null, release, state: 0, within } as Guarded
             : { flags, listener, next: null, release };
 
     registration.count++;
@@ -315,7 +316,7 @@ function subscribe(
     listener: Function,
     flags: number,
     owner: Element | null,
-    parent: Slot | null,
+    within: Owner | null,
     signal: AbortSignal | undefined
 ): VoidFunction {
     // As in chain(), the per-binding closure reads back rather than captures
@@ -360,12 +361,12 @@ function subscribe(
             flags,
             listener,
             next: null,
-            parent,
             prev: tail,
             release,
             // Attribute keys run with their element, as delegated ones do; on() runs with its target
             self: flags & ATTRIBUTE ? owner : target,
-            state: 0
+            state: 0,
+            within
         };
 
     if (tail === null) {
@@ -411,13 +412,13 @@ const on = ((target: EventTarget, event: string, listener: Function, options?: E
 // Once the element first connects, 'listener' gets it and an on() whose bindings are guarded by the element and released
 // with it. The guard heals the slot rendering the element, which is only current now, not at connect.
 const onconnect = (element: Element, listener: NonNullable<Attributes['onconnect']>): void => {
-    let parent = context();
+    let within = running();
 
     connect(element, () => {
         listener(
             element,
             ((target: EventTarget, event: string, fn: Function, options?: EventOptions) =>
-                bind(target, event, fn, options, GUARDED, element, parent)) as On
+                bind(target, event, fn, options, GUARDED, element, within)) as On
         );
     });
 };
@@ -428,11 +429,11 @@ const ondisconnect = (element: Element, listener: NonNullable<Attributes[`ondisc
 
 // Run only while the element is in the document
 const ondocument = ((element: Element, event: string, listener: Function, options?: Once) => {
-    subscribe(documents[event] ?? registration(document, event, false, undefined), document, listener, attribute(options) | GUARDED, element, context(), undefined);
+    subscribe(documents[event] ?? registration(document, event, false, undefined), document, listener, attribute(options) | GUARDED, element, running(), undefined);
 }) as Keyed<'ondocument'>;
 
 const onwindow = ((element: Element, event: string, listener: Function, options?: Once) => {
-    subscribe(registration(window, event, false, undefined), window, listener, attribute(options) | GUARDED, element, context(), undefined);
+    subscribe(registration(window, event, false, undefined), window, listener, attribute(options) | GUARDED, element, running(), undefined);
 }) as Keyed<'onwindow'>;
 
 const hooks = { onconnect, ondisconnect, onfirstpaint, ontick };

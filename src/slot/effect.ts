@@ -1,10 +1,10 @@
-import { effect } from '@esportsplus/reactivity';
+import { effect, owner } from '@esportsplus/reactivity';
 import { isAsyncFunction } from '@esportsplus/utilities';
 import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable, SlotGroup } from '../types';
 import { text } from '../utilities'
-import { claim, context, detach, enter, exit, ondisconnect, run, stale, track, MOUNTED } from './cleanup';
-import type { Slot } from './cleanup';
+import { claim, detach, ondisconnect, own, run, stale, track, MOUNTED } from './cleanup';
+import type { Owner, Slot } from './cleanup';
 import render from './render';
 
 
@@ -31,17 +31,17 @@ class EffectSlot implements Slot {
     disposer: VoidFunction | null;
     group: SlotGroup | null = null;
     mode: number;
-    parent: Slot | null;
     state = 0;
     textnode: Node | null = null;
     value: unknown = null;
+    within: Owner | null;
 
 
     constructor(anchor: Element, fn: ((...args: any[]) => any), mode: number = ANCHOR_MARKER) {
         this.anchor = anchor;
         this.disposer = null;
         this.mode = mode;
-        this.parent = context();
+        this.within = owner();
 
         // Owner disposal removes the DOM range wholesale; releasing is all that is left, so late promise work cannot
         // write into detached nodes or create orphan effects
@@ -77,17 +77,13 @@ class EffectSlot implements Slot {
                         return;
                     }
 
-                    let parent = enter(this);
+                    // Slots the run builds are made within this effect, so this slot is their parent
+                    own(this);
 
-                    try {
-                        let value = unwrap( fn(dispose) );
+                    let value = unwrap( fn(dispose) );
 
-                        if (!this.disposed) {
-                            this.update(value);
-                        }
-                    }
-                    finally {
-                        exit(parent);
+                    if (!this.disposed) {
+                        this.update(value);
                     }
                 });
 

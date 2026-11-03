@@ -1,22 +1,28 @@
-import { hasOwner, onCleanup, read, signal, write } from '@esportsplus/reactivity';
+import { hasOwner, onCleanup, owner, read, signal, write } from '@esportsplus/reactivity';
+import type { Computed } from '@esportsplus/reactivity';
 import { DEV } from '@esportsplus/template/env';
 import { CLEANUP, PACKAGE_NAME } from '../constants';
 import { Element, SlotGroup } from '../types';
 
 
+type Orphan = Node & { [CLEANUP]?: VoidFunction[] };
+
+// A reactivity node that owns what is created while it runs; its .owner chain reaches every enclosing one
+type Owner = Computed<unknown>;
+
 // A unit of ownership with a node that is in the document exactly while its content is: render() roots, array,
 // virtual and effect slots, array items, HMR instances, and the bindings a guard checks (host events, reactive
-// attributes). Climbing parent pointers finds the outermost one foreign code took out of the document.
+// attributes). Its parent is the nearest owner, from the one it was made within outward, that is a slot's own (see
+// own()): climbing parents finds the outermost one foreign code took out of the document.
 interface Slot {
     anchor: Node;
     disposed: boolean;
-    parent: Slot | null;
     state: number;
+    // The reactivity owner running when the slot was made
+    within: Owner | null;
     // Releases what the slot owns and leaves its nodes alone; idempotent
     release(): void;
 }
-
-type Orphan = Node & { [CLEANUP]?: VoidFunction[] };
 
 
 // Unmounted sweeps a tracked slot may stay out of the document before it stops being tracked, counted above the flags
@@ -38,8 +44,6 @@ let compactAt = 1024,
     // Orphaned nodes already in the document when their first cleanup was registered: seen mounted from the start, so
     // one removed before any sweep is still released
     connected = new WeakSet<Node>(),
-    // The slot whose content is being built: the parent of every slot created meanwhile
-    current: Slot | null = null,
     cursor = 0,
     healing: Slot[] = [],
     idle: (fn: (deadline?: IdleDeadline) => void) => void = typeof requestIdleCallback === 'function'
@@ -50,6 +54,8 @@ let compactAt = 1024,
     // Read by every guarded effect that skipped a run, so one found back in the document runs again
     revival = signal(0),
     scheduled = false,
+    // The slot whose content each owner builds: an owner's slot is the parent of every slot made within it
+    slots = new WeakMap<Owner, Slot>(),
     sweeping = false,
     tracked: Slot[] = [];
 
@@ -59,11 +65,11 @@ function climb(slot: Slot): Slot | null {
         return null;
     }
 
-    let parent = slot.parent;
+    let next = parent(slot);
 
-    while (parent !== null && !parent.disposed && !parent.anchor.isConnected) {
-        slot = parent;
-        parent = slot.parent;
+    while (next !== null && !next.disposed && !next.anchor.isConnected) {
+        slot = next;
+        next = parent(slot);
     }
 
     return slot;
@@ -159,6 +165,19 @@ function orphan(node: Orphan, fn: VoidFunction) {
     }
 }
 
+// The nearest owner, from the one 'slot' was made within outward, that is another slot's own
+function parent(slot: Slot): Slot | null {
+    for (let node = slot.within; node !== null; node = node.owner) {
+        let found = slots.get(node);
+
+        if (found !== undefined && found !== slot) {
+            return found;
+        }
+    }
+
+    return null;
+}
+
 function release(slot: Slot | null, errors: unknown[] | null): unknown[] | null {
     if (slot === null || slot.disposed) {
         return errors;
@@ -226,7 +245,6 @@ function settle() {
         let slot: Slot = {
                 anchor: node,
                 disposed: false,
-                parent: null,
                 release: () => {
                     let fns = node[CLEANUP];
 
@@ -238,7 +256,8 @@ function settle() {
 
                     throws(drain(fns, null));
                 },
-                state: connected.has(node) ? MOUNTED : 0
+                state: connected.has(node) ? MOUNTED : 0,
+                within: null
             };
 
         track(slot);
@@ -301,8 +320,6 @@ const claim = (content: Node): VoidFunction[] | null => {
     return claimed;
 };
 
-const context = () => current;
-
 const detach = (group: SlotGroup) => {
     let head = group.head,
         node: ChildNode | null = group.tail as ChildNode;
@@ -313,19 +330,6 @@ const detach = (group: SlotGroup) => {
         node.remove();
         node = prev;
     }
-};
-
-// Makes 'slot' the parent of every slot created until exit(); the caller provides the reactivity owner
-const enter = (slot: Slot) => {
-    let parent = current;
-
-    current = slot;
-
-    return parent;
-};
-
-const exit = (parent: Slot | null) => {
-    current = parent;
 };
 
 // Queues the outermost slot foreign code took out of the document along with 'slot'; it is released at the end of the
@@ -358,6 +362,17 @@ const stale = (slot: Slot) => {
     read(revival);
     heal(slot);
 };
+
+// Makes 'slot' the slot of the owner running now (a root's scope or a computed/effect run), so every slot made within
+// that owner, and within the owners it creates, has 'slot' as its parent
+const own = (slot: Slot) => {
+    let node = owner();
+
+    if (node !== null) {
+        slots.set(node, slot);
+    }
+};
+
 
 // Runs every cleanup even when one throws
 const run = (fns: VoidFunction[]) => {
@@ -435,7 +450,7 @@ const sweep = (deadline?: IdleDeadline) => {
 // tracked. A nested slot is released with the outermost slot removed along with it, or by its own guard, so only slots
 // with no parent are watched.
 const track = (slot: Slot) => {
-    if (!DEV || slot.parent !== null || slot.state & TRACKED) {
+    if (!DEV || slot.state & TRACKED || parent(slot) !== null) {
         return;
     }
 
@@ -458,5 +473,5 @@ const unowned = (node: Element | Node, fn: VoidFunction) => {
 };
 
 
-export { adopt, claim, context, detach, enter, exit, heal, MOUNTED, ondisconnect, release, run, stale, sweep, throws, track, unowned };
-export type { Slot };
+export { adopt, claim, detach, heal, MOUNTED, ondisconnect, own, parent, release, run, stale, sweep, throws, track, unowned };
+export type { Owner, Slot };

@@ -1,8 +1,8 @@
-import { read, signal, write, Reactive, ReactiveArray } from '@esportsplus/reactivity';
+import { owner, read, root, signal, write, Reactive, ReactiveArray } from '@esportsplus/reactivity';
 import { onconnect } from '../event';
 import { ArraySlot } from '../slot/array';
-import { context, enter, exit, ondisconnect, track } from '../slot/cleanup';
-import type { Slot } from '../slot/cleanup';
+import { ondisconnect, own, track } from '../slot/cleanup';
+import type { Owner, Slot } from '../slot/cleanup';
 import { Element } from '../types';
 import { clone, EMPTY_FRAGMENT, marker as MARKER, untracked } from '../utilities';
 import { create, index, insert, offset, remove, reorder, set, size } from './cache';
@@ -56,7 +56,6 @@ class VirtualSlot<T> implements Slot {
     private listTop = 0;
     private marker: Element;
     private offset = 0;
-    parent: Slot | null;
     private pending: { align: Align; index: number } | null = null;
     private pinned = false;
     private rangeSignal;
@@ -68,10 +67,12 @@ class VirtualSlot<T> implements Slot {
     private spacerTop: HTMLElement;
     private start = 0;
     state = 0;
+    private unroot: VoidFunction;
     private unsubscribe: VoidFunction[] = [];
     private viewportElement: Element | null = null;
     private viewportSize = 0;
     private windowed: Reactive<T[]>;
+    within: Owner | null;
     private written = -1;
 
 
@@ -81,7 +82,7 @@ class VirtualSlot<T> implements Slot {
     constructor(array: Reactive<T[]>, template: (value: T) => DocumentFragment | Element | Text, options: VirtualOptions = {}) {
         this.anchored = options.anchor === 'end';
         this.array = array;
-        this.parent = context();
+        this.within = owner();
         this.cache = create(untracked(array).length, 200);
         this.lengthSignal = signal(untracked(array).length);
         this.rangeSignal = signal<[number, number]>([0, 0]);
@@ -94,11 +95,14 @@ class VirtualSlot<T> implements Slot {
         this.spacerTop = document.createElement('div');
         this.spacerBottom = document.createElement('div');
 
-        // Built as this slot's child, and managed: dispose() disposes it
-        let parent = enter(this);
+        // Built within this slot's own owner, so this slot is its parent, and managed: dispose() disposes it
+        let unroot!: VoidFunction;
 
-        try {
-            this.arraySlot = new ArraySlot(this.windowed, (value) => {
+        this.arraySlot = root((dispose) => {
+            own(this);
+            unroot = dispose;
+
+            return new ArraySlot(this.windowed, (value) => {
                 let frag = template(value),
                     head = (frag.nodeType === 11 ? frag.firstChild : frag) as unknown as Element;
 
@@ -109,10 +113,8 @@ class VirtualSlot<T> implements Slot {
 
                 return frag;
             }, false, true);
-        }
-        finally {
-            exit(parent);
-        }
+        });
+        this.unroot = unroot;
 
         fragment.append(this.marker);
         fragment.append(this.spacerTop);
@@ -360,8 +362,13 @@ class VirtualSlot<T> implements Slot {
             unsubscribe[i]();
         }
 
-        this.arraySlot.dispose();
-        this.windowed.dispose();
+        try {
+            this.arraySlot.dispose();
+            this.windowed.dispose();
+        }
+        finally {
+            this.unroot();
+        }
 
         this.spacerTop.remove();
         this.spacerBottom.remove();

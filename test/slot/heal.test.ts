@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { flush, reactive, read, root, signal, write } from '@esportsplus/reactivity';
+import { flush, owner, reactive, read, root, signal, write } from '@esportsplus/reactivity';
 import { setProperty } from '../../src/attributes';
 import { CLEANUP } from '../../src/constants';
 import { delegate, direct, ondisconnect as hook, ondocument, onfirstpaint, onwindow } from '../../src/event';
 import { ArraySlot } from '../../src/slot/array';
-import { enter, exit, ondisconnect, sweep, track } from '../../src/slot/cleanup';
+import { ondisconnect, own, parent as parentOf, sweep, track } from '../../src/slot/cleanup';
 import type { Slot } from '../../src/slot/cleanup';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
@@ -42,9 +42,9 @@ function probe(connected: () => boolean) {
                 return { isConnected: connected() } as Node;
             },
             disposed: false,
-            parent: null,
             release: vi.fn(),
-            state: 0
+            state: 0,
+            within: null
         };
 
     return { reads: () => reads, slot };
@@ -57,15 +57,8 @@ function tick() {
 // Runs 'fn' as a slot's content is built: inside a root, with a slot to parent what it creates
 function within(fn: () => void) {
     return root((dispose) => {
-        let slot: Slot = { anchor: document.body, disposed: false, parent: null, release: dispose, state: 0 },
-            parent = enter(slot);
-
-        try {
-            fn();
-        }
-        finally {
-            exit(parent);
-        }
+        own({ anchor: document.body, disposed: false, release: dispose, state: 0, within: null });
+        fn();
 
         return dispose;
     });
@@ -239,7 +232,7 @@ describe('slot/cleanup sweep', () => {
         });
         flush();
 
-        expect(slot!.parent).not.toBeNull();
+        expect(parentOf(slot!)).not.toBeNull();
 
         sweep();
         parent.remove();
@@ -262,11 +255,16 @@ describe('slot/cleanup sweep', () => {
                     return document.body;
                 },
                 disposed: false,
-                parent: { anchor: document.body, disposed: false, parent: null, release: () => {}, state: 0 },
                 release: vi.fn(),
-                state: 0
+                state: 0,
+                within: null
             };
 
+        // Made within the owner of a slot being built
+        root((dispose) => {
+            own({ anchor: document.body, disposed: false, release: dispose, state: 0, within: null });
+            nested.within = owner();
+        });
         track(nested);
         sweep();
 

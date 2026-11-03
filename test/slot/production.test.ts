@@ -25,7 +25,7 @@ describe('slot/cleanup in production', () => {
         vi.stubGlobal('requestIdleCallback', idle);
 
         let element = document.createElement('div'),
-            slot: Slot = { anchor: element, disposed: false, parent: null, release: () => {}, state: 0 };
+            slot: Slot = { anchor: element, disposed: false, release: () => {}, state: 0, within: null };
 
         document.body.append(element);
         track(slot);
@@ -39,7 +39,7 @@ describe('slot/cleanup in production', () => {
     it('releases nothing foreign code removed', () => {
         let element = document.createElement('div'),
             released = 0,
-            slot: Slot = { anchor: element, disposed: false, parent: null, release: () => { released++; }, state: 0 };
+            slot: Slot = { anchor: element, disposed: false, release: () => { released++; }, state: 0, within: null };
 
         document.body.append(element);
         track(slot);

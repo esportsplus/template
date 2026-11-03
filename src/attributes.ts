@@ -1,9 +1,9 @@
-import { effect } from '@esportsplus/reactivity';
+import { effect, owner } from '@esportsplus/reactivity';
 import { isArray, isObject } from '@esportsplus/utilities';
 import { ATTRIBUTE_DELIMITERS, STORE } from './constants';
 import { Attributes, Element } from './types';
 import { runtime } from './event';
-import { context as current, stale, unowned } from './slot/cleanup';
+import { stale, unowned } from './slot/cleanup';
 import type { Slot } from './slot/cleanup';
 
 
@@ -238,10 +238,10 @@ function property(ctx: Context | null, name: string, value: unknown) {
 // the same task as the change, and its flush() makes it synchronous.
 function reactive(ctx: Context, element: Element, name: string, value: unknown, batch: Batch | null) {
     let mounted = false,
-        parent = current(),
         part: Part | null = name === 'class' || name === 'style' ? { raw: undefined, tokens: null } : null,
         slot: Slot | null = null,
-        stop: VoidFunction;
+        stop: VoidFunction,
+        within = owner();
 
     stop = effect(() => {
         if (element.isConnected) {
@@ -249,7 +249,7 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
         }
         // Out of the document after being seen in it: idle until the end of the task tells a move from a removal
         else if (mounted) {
-            stale(slot ??= { anchor: element, disposed: false, parent, release: stop, state: 0 });
+            stale(slot ??= { anchor: element, disposed: false, release: stop, state: 0, within });
             return;
         }
 

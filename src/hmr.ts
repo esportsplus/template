@@ -1,5 +1,5 @@
-import { onCleanup, root } from '@esportsplus/reactivity';
-import { context, enter, exit, release, throws, track as watch, unowned } from './slot/cleanup';
+import { onCleanup, owner, root } from '@esportsplus/reactivity';
+import { own, release, throws, track as watch, unowned } from './slot/cleanup';
 import type { Slot } from './slot/cleanup';
 import render from './slot/render';
 import { clone, EMPTY_FRAGMENT } from './utilities';
@@ -100,10 +100,10 @@ function build(entry: Entry, invocation: Invocation, impl: Function): DocumentFr
             dispose: null,
             end,
             invocation,
-            parent: context(),
             release: null,
             start,
-            state: 0
+            state: 0,
+            within: owner()
         } as unknown as Instance,
         content = root((release) => {
             instance.release = release;
@@ -211,16 +211,10 @@ function wrapperFor(entry: Entry, impl: Function, tracked: boolean): Function {
 // released through 'dispose' when a remount replaces it
 function mount(instance: Instance, impl: Function): unknown {
     return root((dispose) => {
-        let parent = enter(instance);
-
+        own(instance);
         instance.dispose = dispose;
 
-        try {
-            return Reflect.apply(impl, instance.invocation.thisArg, instance.invocation.args);
-        }
-        finally {
-            exit(parent);
-        }
+        return Reflect.apply(impl, instance.invocation.thisArg, instance.invocation.args);
     });
 }
 

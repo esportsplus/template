@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flush, read, signal, write } from '@esportsplus/reactivity';
 import { CLEANUP } from '../src/constants';
-import { ondisconnect } from '../src/slot/cleanup';
+import { ondisconnect, parent as parentOf } from '../src/slot/cleanup';
 import { EffectSlot } from '../src/slot/effect';
 import type { Element } from '../src/types';
 import { marker } from '../src/utilities';
@@ -246,7 +246,7 @@ describe('render', () => {
                     return div;
                 });
 
-            expect(slot!.parent).not.toBeNull();
+            expect(parentOf(slot!)).not.toBeNull();
             expect((container.firstElementChild as unknown as Element)[CLEANUP]).toBeUndefined();
 
             stop();
