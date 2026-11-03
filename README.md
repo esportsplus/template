@@ -551,9 +551,11 @@ const circle = (fill: string) =>
 |--------|-------------|
 | `html` | Template literal tag for HTML and SVG |
 | `render` | Mount renderable to DOM element |
+| `setClass` | Write an element's whole class list in one call: `[static, ...parts]`, merged with every other writer |
 | `setList` | Set class/style list attributes with merge support |
 | `setProperty` | Set a single element property/attribute |
 | `setProperties` | Set multiple properties from an object |
+| `setStyle` | Write an element's whole style list in one call: `[static, ...parts]`, merged with every other writer |
 | `on` | Bind a listener to any `EventTarget`; returns its disposer |
 | `onconnect` | Lifecycle: element connected to DOM, just before its first paint; gets an `on` owned by the element |
 | `ondisconnect` | Lifecycle: element disconnected from DOM |

@@ -7,6 +7,12 @@ import { context as current, stale, unowned } from './slot/cleanup';
 import type { Slot } from './slot/cleanup';
 
 
+// The first runs of a merged call's parts record their tokens here instead of writing, so the call writes once
+type Batch = {
+    changed: boolean;
+    open: boolean;
+};
+
 type Context = {
     cold?: Record<number, Record<PropertyKey, true>>;
     effect?: number,
@@ -93,30 +99,29 @@ function context(element: Element) {
     return (element[STORE] ??= { element }) as Context;
 }
 
-// The element's full list once 'value' changes it, undefined while it stays as it is.
-function list(ctx: Context | null, element: Element, id: null | number, name: string, value: unknown) {
-    if (value == null || value === false || value === '') {
+function empty(value: unknown) {
+    return value == null || value === false || value === '';
+}
+
+function join(state: ListState, delimiter: string) {
+    let joined = state.static;
+
+    for (let key of state.dynamic) {
+        joined += (joined ? delimiter : '') + key;
+    }
+
+    return joined;
+}
+
+// Whether 'value' changes the element's list. A static value (id null) appends to the list's static part.
+function list(ctx: Context, element: Element, id: null | number, name: string, value: unknown) {
+    if (empty(value)) {
         value = '';
     }
 
     let changed = false,
         delimiter = ATTRIBUTE_DELIMITERS[name],
-        store = (ctx ??= context(element)).store ??= {},
-        listState = store[name] as ListState | undefined;
-
-    if (!listState) {
-        let seed = (element.getAttribute(name) || '').trim();
-
-        // A browser-serialised cssText ends in ';', which would join as ';;'
-        if (seed.endsWith(delimiter)) {
-            seed = seed.slice(0, -1).trimEnd();
-        }
-
-        listState = { dynamic: new Set(), static: seed };
-        store[name] = listState;
-    }
-
-    let dynamic = listState.dynamic;
+        listState = state(ctx, element, name);
 
     if (id === null) {
         let parts: string[] = [];
@@ -130,7 +135,8 @@ function list(ctx: Context | null, element: Element, id: null | number, name: st
     }
     // An array or object is diffed whole each run: it may be the same instance with new contents
     else if (typeof value === 'object' || (ctx.raw ??= [])[id] !== value) {
-        let hot: Record<PropertyKey, true> = {},
+        let dynamic = listState.dynamic,
+            hot: Record<PropertyKey, true> = {},
             parts: string[] = [];
 
         collect(name, delimiter, value, parts);
@@ -163,22 +169,38 @@ function list(ctx: Context | null, element: Element, id: null | number, name: st
         ctx.cold[id] = hot;
     }
 
-    if (!changed) {
-        return undefined;
+    return changed;
+}
+
+// Binds each part of a merged call: functions get their own effect, arrays bind entry by entry, anything
+// else joins the static list. Returns whether a static part changed the list.
+function merge(ctx: Context, element: Element, name: string, value: unknown, batch: Batch): boolean {
+    if (empty(value)) {
+        return false;
     }
 
-    let joined = listState.static;
+    if (typeof value === 'function') {
+        reactive(ctx, element, name, value, batch);
 
-    for (let key of dynamic) {
-        joined += (joined ? delimiter : '') + key;
+        return false;
     }
 
-    return joined;
+    if (isArray(value)) {
+        let changed = false;
+
+        for (let i = 0, n = value.length; i < n; i++) {
+            changed = merge(ctx, element, name, value[i], batch) || changed;
+        }
+
+        return changed;
+    }
+
+    return list(ctx, element, null, name, value);
 }
 
 // The value to write once 'value' changes the binding, undefined while it stays as it is.
 function property(ctx: Context | null, element: Element, id: null | number, name: string, value: unknown) {
-    if (value == null || value === false || value === '') {
+    if (empty(value)) {
         value = '';
     }
 
@@ -199,9 +221,8 @@ function property(ctx: Context | null, element: Element, id: null | number, name
 
 // Written as the effect runs: reactivity already defers reruns to a microtask, so the DOM lands in
 // the same task as the change, and its flush() makes it synchronous.
-function reactive(element: Element, name: string, value: unknown) {
-    let ctx = context(element),
-        fn = (name === 'class' || name === 'style') ? list : property,
+function reactive(ctx: Context, element: Element, name: string, value: unknown, batch: Batch | null) {
+    let lists = name === 'class' || name === 'style',
         mounted = false,
         parent = current(),
         slot: Slot | null = null,
@@ -223,13 +244,28 @@ function reactive(element: Element, name: string, value: unknown) {
 
         let v = (value as Function)(element);
 
-        // A class or style list takes a returned array or style object whole, as one diff and one write;
-        // a plain attribute has no object form
-        if (fn !== list && v != null && typeof v === 'object') {
+        // A class or style list takes a returned array or style object whole, as one diff and one write
+        if (lists) {
+            if (!list(ctx, element, id, name, v)) {
+                return;
+            }
+
+            if (batch !== null && batch.open) {
+                batch.changed = true;
+            }
+            else {
+                apply(element, name, join(ctx.store![name] as ListState, ATTRIBUTE_DELIMITERS[name]));
+            }
+
             return;
         }
 
-        let next = fn(ctx, element, id, name, v);
+        // A plain attribute has no object form
+        if (v != null && typeof v === 'object') {
+            return;
+        }
+
+        let next = property(ctx, element, id, name, v);
 
         if (next !== undefined) {
             apply(element, name, next);
@@ -239,22 +275,89 @@ function reactive(element: Element, name: string, value: unknown) {
     unowned(element, stop);
 }
 
+function state(ctx: Context, element: Element, name: string) {
+    let store = ctx.store ??= {},
+        listState = store[name] as ListState | undefined;
+
+    if (!listState) {
+        let delimiter = ATTRIBUTE_DELIMITERS[name],
+            seed = (element.getAttribute(name) || '').trim();
+
+        // A browser-serialised cssText ends in ';', which would join as ';;'
+        if (seed.endsWith(delimiter)) {
+            seed = seed.slice(0, -1).trimEnd();
+        }
+
+        listState = { dynamic: new Set(), static: seed };
+        store[name] = listState;
+    }
+
+    return listState;
+}
+
 // Every SVG element carries ownerSVGElement, null on an outermost <svg>; HTML elements have none
 function svg(element: Element) {
     return element['ownerSVGElement'] !== undefined;
 }
 
+// The compiled form of an element's class or style: one call for every writer the template has.
+// 'parts[0]' is the element's static list, trimmed and joined by the compiler and absent from the clone,
+// so a list this call creates is seeded with it as is, without reading the attribute.
+function write(element: Element, name: 'class' | 'style', parts: unknown[]) {
+    let n = parts.length,
+        seed = parts[0] as string;
+
+    if (seed === '') {
+        let i = 1;
+
+        while (i < n && empty(parts[i])) {
+            i++;
+        }
+
+        if (i === n) {
+            return;
+        }
+    }
+
+    let batch: Batch = { changed: false, open: true },
+        changed = false,
+        ctx = context(element),
+        store = ctx.store ??= {};
+
+    if (store[name] === undefined) {
+        store[name] = { dynamic: new Set(), static: seed } satisfies ListState;
+        changed = seed !== '';
+    }
+    else if (seed !== '') {
+        changed = list(ctx, element, null, name, seed);
+    }
+
+    for (let i = 1; i < n; i++) {
+        changed = merge(ctx, element, name, parts[i], batch) || changed;
+    }
+
+    batch.open = false;
+
+    if (changed || batch.changed) {
+        apply(element, name, join(store[name] as ListState, ATTRIBUTE_DELIMITERS[name]));
+    }
+}
+
+
+const setClass = (element: Element, parts: unknown[]) => {
+    write(element, 'class', parts);
+};
 
 const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
     if (typeof value === 'function') {
-        reactive(element, name, value);
+        reactive(context(element), element, name, value, null);
     }
     // A static array can hold functions, so each entry binds on its own
     else if (isArray(value)) {
         for (let i = 0, n = value.length; i < n; i++) {
             let v = value[i];
 
-            if (v == null || v === false || v === '') {
+            if (empty(v)) {
                 continue;
             }
 
@@ -262,26 +365,28 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
         }
     }
     else {
-        let next = list(null, element, null, name, value);
+        let ctx = context(element);
 
-        if (next !== undefined) {
-            apply(element, name, next);
+        if (list(ctx, element, null, name, value)) {
+            apply(element, name, join(ctx.store![name] as ListState, ATTRIBUTE_DELIMITERS[name]));
         }
     }
 };
 
 const setProperty = (element: Element, name: string, value: unknown) => {
     if (typeof value === 'function') {
-        reactive(element, name, value);
+        reactive(context(element), element, name, value, null);
     }
     else {
         apply(element, name, property(null, element, null, name, value));
     }
 };
 
+// 'merged' skips class and style: the compiled setClass/setStyle call of the element already took them
 const setProperties = function (
     element: Element,
-    properties: Attributes | Attributes[] | false | null | undefined
+    properties: Attributes | Attributes[] | false | null | undefined,
+    merged: boolean = false
 ) {
     if (!properties) {
         return;
@@ -290,19 +395,21 @@ const setProperties = function (
         for (let name in properties) {
             let value = properties[name];
 
-            if (value == null || value === false || value === '') {
+            if (empty(value)) {
                 continue;
             }
 
             if (name === 'class' || name === 'style') {
-                setList(element, name, value);
+                if (!merged) {
+                    setList(element, name, value);
+                }
             }
             else if (typeof value === 'function') {
                 if (name[0] === 'o' && name[1] === 'n') {
                     runtime(element, name as `on${string}`, value as Function);
                 }
                 else {
-                    reactive(element, name, value);
+                    reactive(context(element), element, name, value, null);
                 }
             }
             else  {
@@ -315,6 +422,10 @@ const setProperties = function (
             setProperties(element, properties[i]);
         }
     }
+};
+
+const setStyle = (element: Element, parts: unknown[]) => {
+    write(element, 'style', parts);
 };
 
 
@@ -340,4 +451,4 @@ const interpolate = (parts: unknown[]): string | ((element: Element) => string) 
     return callbacks.some(Boolean) ? join : join();
 };
 
-export { interpolate, setList, setProperty, setProperties };
+export { interpolate, setClass, setList, setProperty, setProperties, setStyle };

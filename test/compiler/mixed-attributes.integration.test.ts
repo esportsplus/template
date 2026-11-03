@@ -88,9 +88,9 @@ describe('mixed attributes through compiler plugins', () => {
             for (let name of Object.keys(sources)) outputs[name] = readFileSync(join(fixture, 'out', name + '.js'), 'utf8');
         }
 
-        // Static class text must exist in cloned HTML, not just in a runtime test.
+        // Static class text is a compile-time seed of the class call, not just in a runtime test
         for (let name of ['checkbox', 'checkbox checkbox--radio', 'switch']) {
-            expect(outputs.factory).toContain(`class="${name} `);
+            expect(outputs.factory).toContain(`["${name}", `);
         }
         expect(outputs.factory).not.toContain('html`');
         let factoryModule = execute(outputs.factory, { '@esportsplus/template': runtime, '@esportsplus/reactivity': reactivity }, true);
@@ -131,7 +131,7 @@ describe('mixed attributes through compiler plugins', () => {
         let output = plugin.transform.handler(source, path.replace(/\\/g, '/'))!.code;
         expect(output).toContain('import.meta.hot.accept(');
         expect(output).toContain('.factory(');
-        expect(output).toContain('class="checkbox checkbox--radio ');
+        expect(output).toContain('["checkbox checkbox--radio", ');
         expect(output).not.toContain('html`');
     });
 

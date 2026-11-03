@@ -128,20 +128,50 @@ describe('compiler/codegen', () => {
             expect(code).toContain('value');
         });
 
-        it('generates setList for class binding', () => {
+        it('generates setClass for class binding', () => {
             let { result } = codegen(`let x = html\`<div class=\${cls}>text</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`${NAMESPACE}.setList(`);
-            expect(code).toContain("'class'");
+            expect(code).toContain(`${NAMESPACE}.setClass(`);
+            expect(code).toContain('["", cls]');
         });
 
-        it('generates setList for style binding', () => {
+        it('generates setStyle for style binding', () => {
             let { result } = codegen(`let x = html\`<div style=\${sty}>text</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`${NAMESPACE}.setList(`);
-            expect(code).toContain("'style'");
+            expect(code).toContain(`${NAMESPACE}.setStyle(`);
+            expect(code).toContain('["", sty]');
+        });
+
+        it('merges every class part of an element into one call with its static tokens first', () => {
+            let { result } = codegen(`let x = html\`<div class="a b \${one} c-\${two} \${() => three}" style="color: red; \${sty}">text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code.match(/setClass\(/g)).toHaveLength(1);
+            expect(code.match(/setStyle\(/g)).toHaveLength(1);
+            expect(code).toContain(`, ["a b", one, ${NAMESPACE}.interpolate(["c-", (two)]), () => three]);`);
+            expect(code).toContain(`, ["color: red", ${NAMESPACE}.interpolate([" ", (sty)])]);`);
+            expect(result.prepend[0]).not.toContain('class');
+            expect(result.prepend[0]).not.toContain('style');
+        });
+
+        it('keeps a static class in the clone when nothing else writes the list', () => {
+            let { result } = codegen(`let x = html\`<div class="a b" id=\${id}>text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code).not.toContain('setClass(');
+            expect(result.prepend[0]).toContain('class="a b"');
+        });
+
+        it('moves a static class into the class call when a spread may write the list', () => {
+            let { result } = codegen(`let x = html\`<div class="a b" \${attrs}>text</div>\`;`);
+            let code = result.replacements[0].generate(EMPTY);
+
+            expect(code).toContain(`${NAMESPACE}.setProperties(`);
+            expect(code).toContain(`${NAMESPACE}.setClass(`);
+            expect(code).toContain('["a b"]');
+            expect(result.prepend[0]).not.toContain('class');
         });
     });
 
@@ -398,7 +428,7 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let x = html\`<div class=\${cls}>\${content}</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`${NAMESPACE}.setList(`);
+            expect(code).toContain(`${NAMESPACE}.setClass(`);
             expect(code).toContain(`${NAMESPACE}.slot(`);
         });
 
@@ -407,7 +437,7 @@ describe('compiler/codegen', () => {
             let code = result.replacements[0].generate(EMPTY);
 
             expect(code).toContain(`${NAMESPACE}.setProperty(`);
-            expect(code).toContain(`${NAMESPACE}.setList(`);
+            expect(code).toContain(`${NAMESPACE}.setClass(`);
         });
     });
 
@@ -495,8 +525,8 @@ describe('compiler/codegen', () => {
 
             expect(code).toContain(`${NAMESPACE}.setProperty(`);
             expect(code).toContain("'id'");
-            expect(code).toContain(`${NAMESPACE}.setList(`);
-            expect(code).toContain("'class'");
+            expect(code).toContain(`${NAMESPACE}.setClass(`);
+            expect(code).toContain(`["", 'foo']`);
         });
 
         it('falls back to setProperties for object with spread assignment', () => {
@@ -530,12 +560,12 @@ describe('compiler/codegen', () => {
             expect(code).toContain("'data-value'");
         });
 
-        it('expands object with style property into setList', () => {
+        it('expands object with style property into setStyle', () => {
             let { result } = codegen(`let x = html\`<div \${{ style: sty }}>text</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`${NAMESPACE}.setList(`);
-            expect(code).toContain("'style'");
+            expect(code).toContain(`${NAMESPACE}.setStyle(`);
+            expect(code).toContain('["", sty]');
         });
 
         it('expands object with event handler into delegate', () => {
@@ -645,8 +675,8 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let x = html\`<div class="button button--\${modifier}">x</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`${NAMESPACE}.setList(`);
-            expect(code).toContain(`.interpolate(["button--", (modifier)])`);
+            expect(code).toContain(`${NAMESPACE}.setClass(`);
+            expect(code).toContain(`["button", ${NAMESPACE}.interpolate(["button--", (modifier)])]`);
         });
 
         it('binds a property attribute with its prefix and suffix', () => {
@@ -683,7 +713,7 @@ describe('compiler/codegen', () => {
             let { result } = codegen(`let x = html\`<div class="\${value}">x</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).toContain(`'class', value)`);
+            expect(code).toContain(`["", value]`);
             expect(code).not.toContain(' + ');
         });
 
@@ -704,11 +734,11 @@ describe('compiler/codegen', () => {
             expect(code).toContain(`${NAMESPACE}.text(`);
         });
 
-        it('folds a literal attribute value into a static attribute (no setList emitted)', () => {
+        it('folds a literal attribute value into a static attribute (no list call emitted)', () => {
             let { result } = codegen(`let x = html\`<div class="static \${"foo"}">x</div>\`;`);
             let code = result.replacements[0].generate(EMPTY);
 
-            expect(code).not.toContain(`${NAMESPACE}.setList(`);
+            expect(code).not.toContain(`${NAMESPACE}.setClass(`);
             expect(result.prepend[0]).toContain('static foo');
         });
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { flush, read, signal, write } from '@esportsplus/reactivity';
-import { setList, setProperties, setProperty } from '../src/attributes';
+import { setClass, setList, setProperties, setProperty, setStyle } from '../src/attributes';
+import { STORE } from '../src/constants';
 import type { Element } from '../src/types';
 
 
@@ -607,6 +608,117 @@ describe('attributes', () => {
 
             expect(element.className).not.toContain('foo');
             expect(element.className).not.toContain('bar');
+        });
+    });
+
+    describe('setClass and setStyle', () => {
+        function writes(target: HTMLElement, name: string) {
+            let records: string[] = [],
+                observer = new MutationObserver((list) => {
+                    for (let record of list) {
+                        records.push(target.getAttribute(name) ?? '');
+                    }
+                });
+
+            observer.observe(target, { attributeFilter: [name], attributes: true });
+
+            return {
+                records,
+                [Symbol.dispose]: () => observer.disconnect()
+            };
+        }
+
+        it('writes every part once at creation, the static seed first', async () => {
+            using observed = writes(element, 'class');
+
+            setClass(element as unknown as Element, ['a b', 'c', () => 'd', () => ['e', 'f'], null, false]);
+
+            expect(element.className).toBe('a b c d e f');
+
+            await new Promise((resolve) => setTimeout(resolve));
+
+            expect(observed.records).toEqual(['a b c d e f']);
+        });
+
+        it('takes the static seed without reading the attribute', () => {
+            element.setAttribute('class', 'ignored');
+            setClass(element as unknown as Element, ['a', () => 'b']);
+
+            expect(element.className).toBe('a b');
+        });
+
+        it('writes nothing when every part is empty', () => {
+            setClass(element as unknown as Element, ['', null, undefined, false, '']);
+
+            expect(element.hasAttribute('class')).toBe(false);
+            expect(element[STORE]).toBeUndefined();
+        });
+
+        it('updates each function part on its own', async () => {
+            let a = signal('x'),
+                b = signal('y'),
+                runs = { a: 0, b: 0 };
+
+            setClass(element as unknown as Element, ['s', () => { runs.a++; return read(a); }, () => { runs.b++; return read(b); }]);
+            write(a, 'x2');
+            await Promise.resolve();
+
+            expect(element.className).toBe('s y x2');
+            expect(runs).toEqual({ a: 2, b: 1 });
+
+            write(b, '');
+            await Promise.resolve();
+
+            expect(element.className).toBe('s x2');
+        });
+
+        it('merges with a hand-written setList on the same element', async () => {
+            let s = signal('on');
+
+            setClass(element as unknown as Element, ['base', () => read(s)]);
+            setList(element as unknown as Element, 'class', 'extra');
+
+            expect(element.className).toBe('base extra on');
+
+            write(s, 'off');
+            await Promise.resolve();
+
+            expect(element.className).toBe('base extra off');
+        });
+
+        it('appends its static seed to a list another writer already created', () => {
+            setList(element as unknown as Element, 'class', () => 'first');
+            setClass(element as unknown as Element, ['second third']);
+
+            expect(element.className).toBe('second third first');
+        });
+
+        it('writes style objects and strings as one declaration list', async () => {
+            let width = signal(10);
+
+            setStyle(element as unknown as Element, ['color: red', () => ({ width: `${read(width)}px` }), 'opacity: 1']);
+
+            expect(element.style.color).toBe('red');
+            expect(element.style.width).toBe('10px');
+            expect(element.style.opacity).toBe('1');
+
+            write(width, 20);
+            await Promise.resolve();
+
+            expect(element.style.width).toBe('20px');
+            expect(element.style.color).toBe('red');
+        });
+
+        it('leaves class and style to the merged call when setProperties is told so', () => {
+            let attributes = { class: 'from-spread', id: 'x', style: 'color: red' };
+
+            setProperties(element as unknown as Element, attributes, true);
+            setClass(element as unknown as Element, ['own', attributes.class]);
+            setStyle(element as unknown as Element, ['', attributes.style]);
+
+            expect(element.id).toBe('x');
+            expect(element.className).toBe('own from-spread');
+            expect(element.style.color).toBe('red');
         });
     });
 

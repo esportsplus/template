@@ -98,9 +98,13 @@ describe('compiled regressions', () => {
     });
 
     it('specializes a parameter whose name is also a property name', () => {
-        let { result, value } = compile('const factory = (kind: "a" | "b", o: { kind: string }) => html`<div class="${o.kind} ${kind}"></div>`; let value = factory("b", { kind: "x" });');
+        let { output, result, value } = compile('const factory = (kind: "a" | "b", o: { kind: string }) => html`<div class="${o.kind} ${kind}"></div>`; let value = factory("b", { kind: "x" });');
 
-        expect(result.templates.size).toBe(3);
+        // The folded token is a compile-time static of the class call, so every variant clones one template
+        expect(result.templates.size).toBe(1);
+        expect(output).toContain(`${NAMESPACE}.setClass(`);
+        expect(output).toContain('["a", o.kind]');
+        expect(output).toContain('["b", o.kind]');
         expect([...value.firstChild.classList].sort()).toEqual(['b', 'x']);
     });
 
@@ -186,10 +190,9 @@ describe('compiled mixed attribute values', () => {
                 '};',
                 "let value = ['checkbox', 'radio', 'switch'].map(type => factory(type)());"
             ].join('\n'),
-            { value, result } = compile(source, { active: () => read(active) });
-        let html = [...result.templates.keys()].join('\n');
+            { output, value } = compile(source, { active: () => read(active) });
         for (let name of ['checkbox', 'checkbox checkbox--radio', 'switch']) {
-            expect(html).toContain(`class="${name} `);
+            expect(output).toContain(`["${name}", `);
         }
         let elements = value.map((fragment: DocumentFragment) => fragment.firstChild as HTMLElement);
         expect(elements.map((el: HTMLElement) => el.className.trim())).toEqual(['checkbox', 'checkbox checkbox--radio', 'switch']);
@@ -257,9 +260,8 @@ describe('compiled mixed attribute values', () => {
     });
 
     it('keeps literal-returning effects as runtime callbacks while folding constants', () => {
-        let { value, result, output } = compile('const base = "static"; let value = html`<div class="${base} ${() => "dynamic"}"></div>`;');
-        expect([...result.templates.keys()].join('')).toContain('static');
-        expect([...result.templates.keys()].join('')).not.toContain('dynamic');
+        let { value, output } = compile('const base = "static"; let value = html`<div class="${base} ${() => "dynamic"}"></div>`;');
+        expect(output).toContain('["static", () => "dynamic"]');
         expect(output).toContain('() => "dynamic"');
         expect(value.firstChild.className).toBe('static dynamic');
     });
@@ -299,17 +301,16 @@ describe('compiled mixed attribute values', () => {
     });
 
     it('keeps specialization caches isolated across nested factory templates', () => {
-        let { value, result } = compile('const factory = (type: "checkbox" | "radio") => () => html`<section>${html`<div class="${type} ${() => "ready"}"></div>`}</section>`; let value = [factory("checkbox")(), factory("radio")()];');
+        let { output, value } = compile('const factory = (type: "checkbox" | "radio") => () => html`<section>${html`<div class="${type} ${() => "ready"}"></div>`}</section>`; let value = [factory("checkbox")(), factory("radio")()];');
         expect(value.map((fragment: DocumentFragment) => fragment.querySelector('div')!.className)).toEqual(['checkbox ready', 'radio ready']);
-        expect([...result.templates.keys()].join('')).toContain('checkbox');
-        expect([...result.templates.keys()].join('')).toContain('radio');
+        expect(output).toContain('["checkbox", () => "ready"]');
+        expect(output).toContain('["radio", () => "ready"]');
     });
 
     it('specializes multiple immutable parameters without sharing the wrong clone', () => {
-        let { value, result } = compile('const factory = (type: "a" | "b", size: 1 | 2) => () => html`<div class="${type + size} ${() => "ready"}"></div>`; let value = [factory("a", 1)(), factory("b", 2)()];');
+        let { output, value } = compile('const factory = (type: "a" | "b", size: 1 | 2) => () => html`<div class="${type + size} ${() => "ready"}"></div>`; let value = [factory("a", 1)(), factory("b", 2)()];');
         expect(value.map((fragment: DocumentFragment) => fragment.firstElementChild!.className)).toEqual(['a1 ready', 'b2 ready']);
-        let html = [...result.templates.keys()].join('');
-        for (let name of ['a1', 'a2', 'b1', 'b2']) expect(html).toContain(name);
+        for (let name of ['a1', 'a2', 'b1', 'b2']) expect(output).toContain(`["${name}", `);
     });
 
     it('retains runtime calls even when their declared result is a literal', () => {
@@ -325,9 +326,8 @@ describe('compiled mixed attribute values', () => {
     });
 
     it('folds pure constant conditionals without folding the following callback', () => {
-        let { result, value } = compile('const type = "radio"; let value = html`<div class="${type === "radio" ? "checkbox checkbox--radio" : type} ${() => "ready"}"></div>`;');
-        expect([...result.templates.keys()].join('')).toContain('checkbox checkbox--radio');
-        expect([...result.templates.keys()].join('')).not.toContain('ready');
+        let { output, value } = compile('const type = "radio"; let value = html`<div class="${type === "radio" ? "checkbox checkbox--radio" : type} ${() => "ready"}"></div>`;');
+        expect(output).toContain('["checkbox checkbox--radio", () => "ready"]');
         expect(value.firstChild.className).toBe('checkbox checkbox--radio ready');
     });
 });

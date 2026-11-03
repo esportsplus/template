@@ -106,6 +106,8 @@ function metadata(found: string): AttributeMetadata {
         clean = '',
         delimiter = '',
         group = 0,
+        // Where each class/style attribute sits in 'clean', and how many markers it holds
+        lists: { end: number; markers: number; name: string; start: number }[] = [],
         names: string[] = [],
         parts: AttributePart[] = [],
         pending = -1,
@@ -136,6 +138,16 @@ function metadata(found: string): AttributeMetadata {
             i += SLOT_MARKER.length - 1;
             pending = parts.length - 1;
 
+            let open = lists.at(-1);
+
+            if (attribute && open !== undefined && open.end === -1) {
+                open.markers++;
+
+                if (!quote) {
+                    open.end = clean.length;
+                }
+            }
+
             // A quoted value ('a ${x} b ${y}') groups several markers under one attribute name,
             // so keep `attribute` while the quote is open. An unquoted attribute value (name=${x})
             // or a bare spread (${x}) is a single, self-contained marker — the next marker cannot
@@ -152,9 +164,14 @@ function metadata(found: string): AttributeMetadata {
         }
         else if (char === '=' && !quote) {
             attribute = buffer;
+            delimiter = ATTRIBUTE_DELIMITERS[attribute] || '';
+
+            if (delimiter) {
+                lists.push({ end: -1, markers: 0, name: attribute, start: clean.length });
+            }
+
             clean += buffer + char;
             buffer = '';
-            delimiter = ATTRIBUTE_DELIMITERS[attribute] || '';
             continue;
         }
         else if (char === '"' || char === "'") {
@@ -204,6 +221,12 @@ function metadata(found: string): AttributeMetadata {
             group++;
 
             if (close) {
+                let open = lists.at(-1);
+
+                if (attribute && open !== undefined && open.end === -1) {
+                    open.end = clean.length;
+                }
+
                 attribute = '';
                 delimiter = '';
                 quote = '';
@@ -213,6 +236,18 @@ function metadata(found: string): AttributeMetadata {
         }
 
         buffer += char;
+    }
+
+    // A class or style list the element binds, or a spread may write, is written whole by the element's
+    // compiled setClass/setStyle call, its static tokens included: the clone keeps only its markers
+    let spread = names.includes(TYPES.Attributes);
+
+    for (let i = lists.length - 1; i >= 0; i--) {
+        let { end, markers, name, start } = lists[i];
+
+        if (end !== -1 && (spread || names.includes(name))) {
+            clean = clean.slice(0, start) + SLOT_MARKER.repeat(markers) + ' ' + clean.slice(end);
+        }
     }
 
     // Remove only attributes whose values belong to runtime bindings. Keep the

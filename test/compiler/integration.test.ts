@@ -182,7 +182,7 @@ describe('compiler/integration', () => {
             expect(output).toContain(`console.log('done');`);
 
             expect(output).not.toContain('html`');
-            expect(output).toContain(`${NAMESPACE}.setList(`);
+            expect(output).toContain(`${NAMESPACE}.setClass(`);
             expect(output).toContain(`${NAMESPACE}.EffectSlot`);
         });
     });

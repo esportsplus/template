@@ -252,7 +252,8 @@ describe('compiler/parser', () => {
                 slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
 
             expect(result.html).not.toContain('button--');
-            expect(result.html).toContain('class="button ');
+            expect(result.html).not.toContain('class');
+            expect(slot.attributes.static.class).toBe('button');
             expect(slot.attributes.parts[0].prefix).toBe('button--');
             expect(slot.attributes.parts[0].suffix).toBe('');
         });
@@ -271,8 +272,8 @@ describe('compiler/parser', () => {
             let result = parser.parse(['<div style="color: red; width: ', 'px">x</div>']),
                 slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
 
-            expect(result.html).toContain('color: red;');
-            expect(result.html).not.toContain('width');
+            expect(result.html).not.toContain('style');
+            expect(slot.attributes.static.style).toBe('color: red');
             expect(slot.attributes.parts[0].prefix).toBe(' width: ');
             expect(slot.attributes.parts[0].suffix).toBe('px');
         });
@@ -311,23 +312,42 @@ describe('compiler/parser', () => {
         });
     });
 
-    describe('parse - static class/style retention', () => {
-        it('keeps a static class token in the emitted html and in slot metadata', () => {
+    describe('parse - static class/style tokens', () => {
+        it('moves a bound class list\'s static tokens from the html to slot metadata', () => {
             let result = parser.parse(['<div class="static ', '">x</div>']),
                 slot = result.slots![0] as { attributes: { static: Record<string, string> }; type: TYPES.Attribute };
 
-            // The static token rides the template clone; codegen no longer re-seeds it at runtime
-            expect(result.html).toContain('class="static');
-            expect(slot.attributes.static.class).toContain('static');
+            // The element's class call writes the whole list, its static tokens seeded at compile time
+            expect(result.html).toBe('<div>x');
+            expect(slot.attributes.static.class).toBe('static');
         });
 
-        it('keeps static style tokens in the emitted html and in slot metadata', () => {
+        it('moves a bound style list\'s static declarations from the html to slot metadata', () => {
             let result = parser.parse(['<div style="color: red; ', '">x</div>']),
                 slot = result.slots![0] as { attributes: { static: Record<string, string> }; type: TYPES.Attribute };
 
-            expect(result.html).toContain('style="color: red;');
-            expect(slot.attributes.static.style).toContain('color');
-            expect(slot.attributes.static.style).toContain('red');
+            expect(result.html).toBe('<div>x');
+            expect(slot.attributes.static.style).toBe('color: red');
+        });
+
+        it('keeps a static class list nothing binds in the html', () => {
+            let result = parser.parse(['<div class="a b" id="', '">x</div>']);
+
+            expect(result.html).toContain('class="a b"');
+        });
+
+        it('moves a static class list from the html when the element has a spread', () => {
+            let result = parser.parse(['<div class="a b" ', ' id="x">x</div>']),
+                slot = result.slots![0] as { attributes: AttributeMetadata; type: TYPES.Attribute };
+
+            expect(result.html).toBe('<div id=x>x');
+            expect(slot.attributes.static.class).toBe('a b');
+        });
+
+        it('moves an unquoted bound class from the html', () => {
+            let result = parser.parse(['<div class=', ' style="color: red" id="x">x</div>']);
+
+            expect(result.html).toBe('<div style="color: red" id=x>x');
         });
 
         it('drops a purely dynamic class from the html but records the slot', () => {

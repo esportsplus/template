@@ -145,12 +145,6 @@ function generateAttributeBinding(ctx: CodegenContext, element: string, name: st
         return `${NAMESPACE}.${key.route}(${element}, '${key.event}', ${expr}${key.once ? ', ' + hoist(ctx, '{ once: true }') : ''});`;
     }
 
-    if (name === 'class' || name === 'style') {
-        // Static class/style tokens ride the template clone; setList seeds them from the
-        // element's own attribute, so no compile-time static map is threaded here
-        return `${NAMESPACE}.setList(${element}, '${name}', ${expr});`;
-    }
-
     return `${NAMESPACE}.setProperty(${element}, '${name}', ${expr});`;
 }
 
@@ -336,8 +330,10 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
 
         let element = elements.get(keys[i])!,
             index = offsets[i],
+            lists: Record<string, string[]> = { class: [], style: [] },
             names = slot.attributes.names,
-            parts = slot.attributes.parts;
+            parts = slot.attributes.parts,
+            spread = false;
 
         for (let j = 0, m = names.length; j < m; j++) {
             let name = names[j];
@@ -345,15 +341,28 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
             if (name === TYPES.Attributes) {
                 let expr = expressions[index];
 
+                spread = true;
+
                 if (expr && isExpandable(expr)) {
                     for (let k = 0, p = expr.properties.length; k < p; k++) {
                         let prop = expr.properties[k] as ts.PropertyAssignment | ts.ShorthandPropertyAssignment,
-                            key = (prop.name as ts.Identifier | ts.StringLiteral).text;
+                            key = (prop.name as ts.Identifier | ts.StringLiteral).text,
+                            value = ts.isPropertyAssignment(prop) ? rewriteExpression(ctx, prop.initializer) : key;
 
-                        code.push(
-                            generateAttributeBinding(ctx, element, key, ts.isPropertyAssignment(prop) ? rewriteExpression(ctx, prop.initializer) : key)
-                        );
+                        if (key === 'class' || key === 'style') {
+                            lists[key].push(value);
+                        }
+                        else {
+                            code.push(generateAttributeBinding(ctx, element, key, value));
+                        }
                     }
+                }
+                else if (expr && ctx.checker && isAttributesObject(ctx.checker, expr)) {
+                    let id = uid('attributes');
+
+                    code.push(`let ${id} = ${text(index)};`, `${NAMESPACE}.setProperties(${element}, ${id}, true);`);
+                    lists.class.push(`${id}?.class`);
+                    lists.style.push(`${id}?.style`);
                 }
                 else {
                     code.push(`${NAMESPACE}.setProperties(${element}, ${text(index)});`);
@@ -369,44 +378,56 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
                 // literal text emit ONE binding. Resolve callback parts reactively,
                 // preserving independent bindings for separate class/style groups.
                 let group = parts[j].group,
-                    last = j;
+                    last = j,
+                    value: string;
 
                 while (last + 1 < m && names[last + 1] === name && parts[last + 1].group === group) {
                     last++;
                 }
 
                 if (last === j && !parts[j].prefix && !parts[j].suffix) {
-                    code.push(generateAttributeBinding(ctx, element, name, text(index++)));
-                    continue;
+                    value = text(index++);
                 }
+                else {
+                    let textual = ctx.checker !== undefined,
+                        values: string[] = [];
 
-                let textual = ctx.checker !== undefined,
-                    values: string[] = [];
+                    for (let k = j; k <= last; k++) {
+                        if (parts[k].prefix) {
+                            values.push(JSON.stringify(parts[k].prefix));
+                        }
 
-                for (let k = j; k <= last; k++) {
-                    if (parts[k].prefix) {
-                        values.push(JSON.stringify(parts[k].prefix));
+                        textual &&= isTextual(ctx.checker!, expressions[index]);
+                        values.push(`(${text(index++)})`);
                     }
 
-                    textual &&= isTextual(ctx.checker!, expressions[index]);
-                    values.push(`(${text(index++)})`);
-                }
+                    if (parts[last].suffix) {
+                        values.push(JSON.stringify(parts[last].suffix));
+                    }
 
-                if (parts[last].suffix) {
-                    values.push(JSON.stringify(parts[last].suffix));
-                }
-
-                // Proven strings and numbers join exactly as interpolate() would; the leading string keeps two numbers
-                // from adding
-                code.push(generateAttributeBinding(
-                    ctx,
-                    element,
-                    name,
-                    textual
+                    // Proven strings and numbers join exactly as interpolate() would; the leading string keeps two numbers
+                    // from adding
+                    value = textual
                         ? (values[0][0] === '"' ? '' : '"" + ') + values.join(' + ')
-                        : `${NAMESPACE}.interpolate([${values.join(', ')}])`
-                ));
-                j = last;
+                        : `${NAMESPACE}.interpolate([${values.join(', ')}])`;
+                    j = last;
+                }
+
+                if (name === 'class' || name === 'style') {
+                    lists[name].push(value);
+                }
+                else {
+                    code.push(generateAttributeBinding(ctx, element, name, value));
+                }
+            }
+        }
+
+        // One call per list writes every part the element has, its static tokens first (see parser's metadata())
+        for (let name of ['class', 'style']) {
+            let statics = slot.attributes.static[name] ?? '';
+
+            if (lists[name].length || (spread && statics)) {
+                code.push(`${NAMESPACE}.${name === 'class' ? 'setClass' : 'setStyle'}(${element}, [${JSON.stringify(statics)}${lists[name].map(part => ', ' + part).join('')}]);`);
             }
         }
     }
@@ -470,6 +491,40 @@ function isTextual(checker: ts.Checker, expression: ts.Expression | undefined): 
     }
 
     return true;
+}
+
+// A spread typed as an object that is never an array and declares both class and style, as Attributes does:
+// `value?.class` and `value?.style` are then sound to read, so they join the element's merged list calls
+function isAttributesObject(checker: ts.Checker, expr: ts.Expression): boolean {
+    let type = checker.getTypeAtLocation(expr);
+
+    if (!type) {
+        return false;
+    }
+
+    let found = false,
+        types = type.isUnionType() ? type.getTypes() : [type];
+
+    for (let i = 0, n = types.length; i < n; i++) {
+        let member = types[i];
+
+        if (member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) {
+            continue;
+        }
+
+        if (
+            (member.flags & (ts.TypeFlags.Object | ts.TypeFlags.Intersection)) === 0 ||
+            checker.isArrayLikeType(member) ||
+            !checker.getPropertyOfType(member, 'class') ||
+            !checker.getPropertyOfType(member, 'style')
+        ) {
+            return false;
+        }
+
+        found = true;
+    }
+
+    return found;
 }
 
 // A spread object literal expands into per-property bindings only when every member is a
