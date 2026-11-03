@@ -123,6 +123,80 @@ function empty(value: unknown) {
     return value == null || value === false || value === '';
 }
 
+// One effect runs every function part of a merged call until the first change, recording each part's tokens
+// under its own state; that change splits it into one effect per part, each reusing its state, so from then on
+// every part reruns on its own. The split effects belong to the first, which reads nothing more and never reruns.
+function group(ctx: Context, element: Element, name: string, fns: Function[], batch: Batch) {
+    let mounted = false,
+        n = fns.length,
+        parent = current(),
+        parts: Part[] = new Array(n),
+        ran = false,
+        slot: Slot | null = null,
+        stop: VoidFunction;
+
+    for (let i = 0; i < n; i++) {
+        parts[i] = { raw: undefined, tokens: null };
+    }
+
+    let guard = () => {
+            if (element.isConnected) {
+                mounted = true;
+            }
+            else if (mounted) {
+                stale(slot ??= { anchor: element, disposed: false, parent, release: stop, state: 0 });
+                return false;
+            }
+
+            return true;
+        },
+        commit = () => {
+            apply(element, name, join(ctx.store![name] as ListState, ATTRIBUTE_DELIMITERS[name]));
+        };
+
+    stop = effect(() => {
+        if (!guard()) {
+            return;
+        }
+
+        if (ran) {
+            for (let i = 0; i < n; i++) {
+                let fn = fns[i],
+                    part = parts[i];
+
+                effect(() => {
+                    if (guard() && list(ctx, element, part, name, fn(element))) {
+                        commit();
+                    }
+                });
+            }
+
+            return;
+        }
+
+        let changed = false;
+
+        ran = true;
+
+        for (let i = 0; i < n; i++) {
+            changed = list(ctx, element, parts[i], name, fns[i](element)) || changed;
+        }
+
+        if (!changed) {
+            return;
+        }
+
+        if (batch.open) {
+            batch.changed = true;
+        }
+        else {
+            commit();
+        }
+    });
+
+    unowned(element, stop);
+}
+
 function join(state: ListState, delimiter: string) {
     let joined = state.static;
 
@@ -188,15 +262,15 @@ function list(ctx: Context, element: Element, part: Part | null, name: string, v
     return changed;
 }
 
-// Binds each part of a merged call: functions get their own effect, arrays bind entry by entry, anything
-// else joins the static list. Returns whether a static part changed the list.
-function merge(ctx: Context, element: Element, name: string, value: unknown, batch: Batch): boolean {
+// Sorts each part of a merged call: functions are collected to bind together, arrays are sorted entry by entry,
+// anything else joins the static list. Returns whether a static part changed the list.
+function merge(ctx: Context, element: Element, name: string, value: unknown, fns: Function[]): boolean {
     if (empty(value)) {
         return false;
     }
 
     if (typeof value === 'function') {
-        reactive(ctx, element, name, value, batch);
+        fns.push(value);
 
         return false;
     }
@@ -205,7 +279,7 @@ function merge(ctx: Context, element: Element, name: string, value: unknown, bat
         let changed = false;
 
         for (let i = 0, n = value.length; i < n; i++) {
-            changed = merge(ctx, element, name, value[i], batch) || changed;
+            changed = merge(ctx, element, name, value[i], fns) || changed;
         }
 
         return changed;
@@ -336,10 +410,10 @@ function write(element: Element, name: 'class' | 'style', parts: unknown[]) {
         }
     }
 
-    let current = (element[STORE] as Context | undefined)?.store?.[name];
+    let existing = (element[STORE] as Context | undefined)?.store?.[name];
 
     // Nothing binds and nobody wrote the list: join it and write the attribute, with no list state
-    if (current === undefined) {
+    if (existing === undefined) {
         let i = 1;
 
         while (i < n && !bound(parts[i])) {
@@ -372,7 +446,7 @@ function write(element: Element, name: 'class' | 'style', parts: unknown[]) {
         ctx = context(element),
         store = ctx.store ??= {};
 
-    if (current === undefined) {
+    if (existing === undefined) {
         store[name] = { dynamic: new Set(), static: statics } satisfies ListState;
         changed = statics !== '';
     }
@@ -384,8 +458,17 @@ function write(element: Element, name: 'class' | 'style', parts: unknown[]) {
         }
     }
 
+    let fns: Function[] = [];
+
     for (let i = 1; i < n; i++) {
-        changed = merge(ctx, element, name, parts[i], batch) || changed;
+        changed = merge(ctx, element, name, parts[i], fns) || changed;
+    }
+
+    if (fns.length === 1) {
+        reactive(ctx, element, name, fns[0], batch);
+    }
+    else if (fns.length > 1) {
+        group(ctx, element, name, fns, batch);
     }
 
     batch.open = false;

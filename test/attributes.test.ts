@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { flush, read, signal, write } from '@esportsplus/reactivity';
+import { flush, read, root, signal, write } from '@esportsplus/reactivity';
 import { setClass, setList, setProperties, setProperty, setStyle } from '../src/attributes';
 import { STORE } from '../src/constants';
 import type { Element } from '../src/types';
@@ -654,22 +654,70 @@ describe('attributes', () => {
             expect(element[STORE]).toBeUndefined();
         });
 
-        it('updates each function part on its own', async () => {
+        it('drops the tokens of a part that empties', async () => {
             let a = signal('x'),
-                b = signal('y'),
-                runs = { a: 0, b: 0 };
+                b = signal('y');
 
-            setClass(element as unknown as Element, ['s', () => { runs.a++; return read(a); }, () => { runs.b++; return read(b); }]);
+            setClass(element as unknown as Element, ['s', () => read(a), () => read(b)]);
             write(a, 'x2');
             await Promise.resolve();
 
             expect(element.className).toBe('s y x2');
-            expect(runs).toEqual({ a: 2, b: 1 });
 
             write(b, '');
             await Promise.resolve();
 
             expect(element.className).toBe('s x2');
+        });
+
+        it('runs every part once more on the first change only, then each part on its own', async () => {
+            let a = signal('x'),
+                b = signal('y'),
+                runs = { a: 0, b: 0 };
+
+            setClass(element as unknown as Element, ['', () => { runs.a++; return read(a); }, () => { runs.b++; return read(b); }]);
+
+            expect(runs).toEqual({ a: 1, b: 1 });
+
+            write(a, 'x2');
+            await Promise.resolve();
+
+            expect(element.className).toBe('y x2');
+            expect(runs).toEqual({ a: 2, b: 2 });
+
+            write(a, 'x3');
+            await Promise.resolve();
+
+            expect(element.className).toBe('y x3');
+            expect(runs).toEqual({ a: 3, b: 2 });
+
+            write(b, 'y2');
+            await Promise.resolve();
+
+            expect(element.className).toBe('x3 y2');
+            expect(runs).toEqual({ a: 3, b: 3 });
+        });
+
+        it('disposes the split part effects with the list', async () => {
+            let a = signal('x'),
+                b = signal('y'),
+                dispose = () => {};
+
+            root((stop) => {
+                dispose = stop;
+                setClass(element as unknown as Element, ['', () => read(a), () => read(b)]);
+            });
+            write(a, 'x2');
+            await Promise.resolve();
+
+            expect(element.className).toBe('y x2');
+
+            dispose();
+            write(a, 'x3');
+            write(b, 'y3');
+            await Promise.resolve();
+
+            expect(element.className).toBe('y x2');
         });
 
         it('merges with a hand-written setList on the same element', async () => {
