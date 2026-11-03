@@ -817,7 +817,7 @@ describe('foreign removal', () => {
         expect(released).toEqual([2]);
 
         rows.splice(1, 1);
-        slot.flush();
+        flush();
 
         expect(released).toEqual([2]);
         expect(parent.textContent).toBe('22');
@@ -863,7 +863,7 @@ describe('ownership', () => {
         let walker = vi.spyOn(document, 'createTreeWalker');
 
         rows.shift();
-        slot.flush();
+        flush();
         write(s, 1);
         flush();
 

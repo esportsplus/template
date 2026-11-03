@@ -473,5 +473,5 @@ const unowned = (node: Element | Node, fn: VoidFunction) => {
 };
 
 
-export { adopt, claim, detach, heal, MOUNTED, ondisconnect, own, parent, release, run, stale, sweep, throws, track, unowned };
+export { adopt, claim, detach, heal, MOUNTED, ondisconnect, own, parent, release, report, run, stale, sweep, throws, track, unowned };
 export type { Owner, Slot };

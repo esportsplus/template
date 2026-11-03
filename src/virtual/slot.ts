@@ -1,4 +1,4 @@
-import { owner, read, root, signal, write, Reactive, ReactiveArray } from '@esportsplus/reactivity';
+import { flush, owner, read, root, signal, write, Reactive, ReactiveArray } from '@esportsplus/reactivity';
 import { onconnect } from '../event';
 import { ArraySlot } from '../slot/array';
 import { ondisconnect, own, track } from '../slot/cleanup';
@@ -124,47 +124,47 @@ class VirtualSlot<T> implements Slot {
         ondisconnect(this.marker, () => this.dispose());
         track(this);
 
+        // A task's changes in order: the size cache tracks the array through each, so every position is the one that
+        // change saw. ReactiveArray reports a splice's resolved start and the count actually removed.
         this.unsubscribe.push(
-            array.on('clear', () => {
-                this.removed(0, this.cache.length);
-                this.reset = true;
-                this.refresh();
-            }),
-            array.on('concat', ({ items }) => {
-                this.inserted(untracked(array).length - items.length, items.length);
-                this.refresh();
-            }),
-            array.on('pop', () => {
-                this.removed(untracked(array).length, 1);
-                this.refresh();
-            }),
-            array.on('push', ({ items }) => {
-                this.inserted(untracked(array).length - items.length, items.length);
-                this.refresh();
-            }),
-            array.on('reverse', () => {
-                this.permuteReverse();
-                this.refresh();
-            }),
-            array.on('set', () => {
-                this.replaced();
-                this.refresh();
-            }),
-            array.on('shift', () => {
-                this.removed(0, 1);
-                this.refresh();
-            }),
-            array.on('sort', ({ order }) => {
-                this.permuteSort(order);
-                this.refresh();
-            }),
-            // ReactiveArray dispatches the resolved start and the count actually removed
-            array.on('splice', ({ deleteCount, items, start }) => {
-                this.combine(start, deleteCount, items.length);
-                this.refresh();
-            }),
-            array.on('unshift', ({ items }) => {
-                this.inserted(0, items.length);
+            array.on('batch', (ops) => {
+                for (let i = 0, n = ops.length; i < n; i++) {
+                    let length = this.cache.length,
+                        op = ops[i];
+
+                    switch (op.op) {
+                        case 'clear':
+                            this.removed(0, length);
+                            this.reset = true;
+                            break;
+                        case 'concat':
+                        case 'push':
+                            this.inserted(length, op.items.length);
+                            break;
+                        case 'pop':
+                            this.removed(length - 1, 1);
+                            break;
+                        case 'reverse':
+                            this.permuteReverse();
+                            break;
+                        case 'set':
+                            this.replaced();
+                            break;
+                        case 'shift':
+                            this.removed(0, 1);
+                            break;
+                        case 'sort':
+                            this.permuteSort(op.order);
+                            break;
+                        case 'splice':
+                            this.combine(op.start, op.deleteCount, op.items.length);
+                            break;
+                        case 'unshift':
+                            this.inserted(0, op.items.length);
+                            break;
+                    }
+                }
+
                 this.refresh();
             })
         );
@@ -222,7 +222,7 @@ class VirtualSlot<T> implements Slot {
             }
 
             if (this.dirty || this.resync) {
-                this.arraySlot.flush();
+                flush();
                 this.sync();
 
                 this.resync = false;
@@ -263,7 +263,7 @@ class VirtualSlot<T> implements Slot {
             this.patch(start);
         }
 
-        this.arraySlot.flush();
+        flush();
         this.sync();
 
         this.resync = false;
@@ -381,8 +381,12 @@ class VirtualSlot<T> implements Slot {
         }
     }
 
-    // Renders a change made in this task now rather than at its end, for a caller about to measure the rows.
+    // Renders a change made in this task now rather than at its end, for a caller about to measure the rows: settles the
+    // reactivity pass that delivers the array's changes, then renders. Rendering waits for the end of that pass
+    // otherwise, since measuring needs the rows the inner array slot builds inside it.
     flush() {
+        flush();
+
         if (this.disposed || !this.scheduled) {
             return;
         }

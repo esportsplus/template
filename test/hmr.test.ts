@@ -228,7 +228,7 @@ describe('hmr', () => {
             document.body.appendChild(container);
             container.appendChild(slot.fragment);
             rows.pop();
-            slot.flush();
+            flush();
             update('release-owner', () => {
                 factory('release-owner', 'default', impl);
             });

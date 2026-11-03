@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { onCleanup, reactive } from '@esportsplus/reactivity';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { flush, onCleanup, reactive } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../../src/constants';
 import { ArraySlot } from '../../src/slot/array';
 import { ondisconnect } from '../../src/slot/cleanup';
@@ -1271,13 +1271,13 @@ describe('slot/ArraySlot', () => {
 
             container.appendChild(slot.fragment);
             arr.shift();
-            slot.flush();
+            flush();
 
             expect(calls).toEqual(['a1:true', 'a2']);
             expect(container.querySelectorAll('span').length).toBe(1);
         });
 
-        it('releases every removed row when one row cleanup throws, still removes them, then throws', () => {
+        it('releases every removed row when one row cleanup throws, still removes them, reports it and keeps applying changes', () => {
             let released: string[] = [],
                 arr = reactive(['a', 'b', 'c'] as string[]),
                 slot = new ArraySlot(arr, (value: string) => {
@@ -1295,12 +1295,24 @@ describe('slot/ArraySlot', () => {
                     return frag as unknown as DocumentFragment;
                 });
 
+            let reported: unknown[] = [];
+
+            vi.stubGlobal('reportError', (error: unknown) => reported.push(error));
             container.appendChild(slot.fragment);
             arr.splice(0, 3);
+            flush();
 
-            expect(() => slot.flush()).toThrow('boom');
             expect(released).toEqual(['b', 'c']);
             expect(container.querySelectorAll('span').length).toBe(0);
+            expect(reported).toHaveLength(1);
+            expect(((reported[0] as Error).cause as Error).message).toBe('boom');
+
+            arr.push('d');
+            flush();
+
+            expect(container.querySelectorAll('span').length).toBe(1);
+
+            vi.unstubAllGlobals();
         });
 
         it('repeated disposal is a no-op', () => {
@@ -1319,7 +1331,7 @@ describe('slot/ArraySlot', () => {
         });
     });
 
-    describe('flush', () => {
+    describe('flush from reactivity', () => {
         it('applies queued operations synchronously, leaves nothing for the pending pass, and is a no-op when idle', async () => {
             let rendered: string[] = [],
                 arr = reactive(['a'] as string[]),
@@ -1341,13 +1353,13 @@ describe('slot/ArraySlot', () => {
 
             expect(rendered).toEqual(['a']);
 
-            slot.flush();
+            flush();
 
             expect(rendered).toEqual(['a', 'b', 'c']);
             expect(container.querySelectorAll('span').length).toBe(3);
             expect(slot.length).toBe(3);
 
-            slot.flush();
+            flush();
             await Promise.resolve();
 
             expect(rendered).toEqual(['a', 'b', 'c']);
@@ -1368,7 +1380,7 @@ describe('slot/ArraySlot', () => {
             arr.push('b');
             slot.dispose();
 
-            expect(() => slot.flush()).not.toThrow();
+            expect(() => flush()).not.toThrow();
         });
     });
 

@@ -1,22 +1,11 @@
-import { owner, read, root, signal, write, Reactive } from '@esportsplus/reactivity';
+import { owner, root, Reactive } from '@esportsplus/reactivity';
+import type { ArrayOp } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
 import { clone, EMPTY_FRAGMENT, marker, untracked } from '../utilities';
-import { detach, ondisconnect, own, release, throws, track } from './cleanup';
+import { detach, ondisconnect, own, release, report, throws, track } from './cleanup';
 import type { Owner, Slot } from './cleanup';
 
-
-type ArraySlotOp<T> =
-    | { items: T[]; op: 'concat' }
-    | { deleteCount: number; items: T[]; op: 'splice'; start: number }
-    | { items: T[]; op: 'push' }
-    | { index: number; item: T; op: 'set' }
-    | { items: T[]; op: 'unshift' }
-    | { op: 'clear' }
-    | { op: 'pop' }
-    | { op: 'reverse' }
-    | { op: 'shift' }
-    | { op: 'sort'; order: number[] };
 
 // A row: its nodes and the root that owns everything its template bound
 type Item = Slot & SlotGroup;
@@ -100,9 +89,6 @@ class ArraySlot<T> implements Slot {
     anchor: Element;
     disposed = false;
     private nodes: Item[] = [];
-    private queue: ArraySlotOp<T>[] = [];
-    private scheduled = false;
-    private signal;
     private soleChild: boolean;
     state = 0;
     private template: (value: T) => Item;
@@ -119,7 +105,6 @@ class ArraySlot<T> implements Slot {
             node!: Owner;
 
         this.anchor = marker.cloneNode() as unknown as Element;
-        this.signal = signal(untracked(array).length);
         this.soleChild = soleChild;
         this.within = owner();
         // The owner rows are made within, so this slot is their parent; it owns nothing, the rows being roots of their own
@@ -182,41 +167,69 @@ class ArraySlot<T> implements Slot {
             });
         }
 
-        this.unsubscribe.push(
-            array.on('clear', () => {
-                this.queue.length = 0;
-                this.schedule({ op: 'clear' });
-            }),
-            array.on('concat', ({ items }) => {
-                this.schedule({ items, op: 'concat' });
-            }),
-            array.on('pop', () => {
-                this.schedule({ op: 'pop' });
-            }),
-            array.on('push', ({ items }) => {
-                this.schedule({ items, op: 'push' });
-            }),
-            array.on('reverse', () => {
-                this.schedule({ op: 'reverse' });
-            }),
-            array.on('set', ({ index, item }) => {
-                this.schedule({ op: 'set', item, index });
-            }),
-            array.on('shift', () => {
-                this.schedule({ op: 'shift' });
-            }),
-            array.on('sort', ({ order }) => {
-                this.schedule({ op: 'sort', order });
-            }),
-            array.on('splice', ({ deleteCount, items, start }) => {
-                this.schedule({ deleteCount, items, op: 'splice', start });
-            }),
-            array.on('unshift', ({ items }) => {
-                this.schedule({ items, op: 'unshift' });
-            })
-        );
+        // Every change made in a task lands in one pass inside the reactivity pass that follows it; flush() settles it
+        this.unsubscribe.push(array.on('batch', (ops) => this.apply(ops)));
     }
 
+
+    private apply(ops: ArrayOp<T>[]) {
+        if (this.disposed) {
+            return;
+        }
+
+        let errors: unknown[] | null = null;
+
+        // A change that throws (a released row's cleanup) is reported, never thrown: the array drops a listener that
+        // throws, and the next change still has to land
+        root(() => {
+            for (let i = 0, n = ops.length; i < n; i++) {
+                try {
+                    this.change(ops[i]);
+                }
+                catch (e) {
+                    (errors ??= []).push(e);
+                }
+            }
+        });
+
+        report(errors);
+    }
+
+    private change(op: ArrayOp<T>) {
+        switch (op.op) {
+            case 'clear':
+                this.clear();
+                break;
+            case 'concat':
+                this.push(op.items);
+                break;
+            case 'pop':
+                this.pop();
+                break;
+            case 'push':
+                this.push(op.items);
+                break;
+            case 'reverse':
+                this.nodes.reverse();
+                this.sync();
+                break;
+            case 'set':
+                this.splice(op.index, 1, [op.item]);
+                break;
+            case 'shift':
+                this.shift();
+                break;
+            case 'sort':
+                this.sort(op.order);
+                break;
+            case 'splice':
+                this.splice(op.start, op.deleteCount, op.items);
+                break;
+            case 'unshift':
+                this.unshift(op.items);
+                break;
+        }
+    }
 
     private clear() {
         if (this.soleChild) {
@@ -240,9 +253,6 @@ class ArraySlot<T> implements Slot {
 
         this.disposed = true;
 
-        this.queue = [];
-        this.scheduled = false;
-
         let unsubscribe = this.unsubscribe;
 
         this.unsubscribe = [];
@@ -257,14 +267,6 @@ class ArraySlot<T> implements Slot {
         finally {
             this.unroot();
         }
-    }
-
-    flush() {
-        if (this.disposed || !this.scheduled) {
-            return;
-        }
-
-        this.run();
     }
 
     // The node a row inserted after 'index' goes after
@@ -299,79 +301,6 @@ class ArraySlot<T> implements Slot {
 
     release() {
         this.dispose();
-    }
-
-    private run() {
-        this.scheduled = false;
-
-        if (this.disposed) {
-            this.queue = [];
-            return;
-        }
-
-        let queue = this.queue;
-
-        this.queue = [];
-
-        root(() => {
-            for (let i = 0, n = queue.length; i < n; i++) {
-                let op = queue[i];
-
-                switch (op.op) {
-                    case 'clear':
-                        this.clear();
-                        break;
-                    case 'concat':
-                        this.push(op.items);
-                        break;
-                    case 'pop':
-                        this.pop();
-                        break;
-                    case 'push':
-                        this.push(op.items);
-                        break;
-                    case 'reverse':
-                        this.nodes.reverse();
-                        this.sync();
-                        break;
-                    case 'set':
-                        this.splice(op.index, 1, [op.item]);
-                        break;
-                    case 'shift':
-                        this.shift();
-                        break;
-                    case 'sort':
-                        this.sort(op.order);
-                        break;
-                    case 'splice':
-                        this.splice(op.start, op.deleteCount, op.items);
-                        break;
-                    case 'unshift':
-                        this.unshift(op.items);
-                        break;
-                }
-            }
-        });
-
-        write(this.signal, this.nodes.length);
-    }
-
-    private schedule(op: ArraySlotOp<T>) {
-        this.queue.push(op);
-
-        if (this.scheduled) {
-            return;
-        }
-
-        this.scheduled = true;
-
-        // Every change made in this task lands in one pass at its end; a flush() before then has
-        // already run it.
-        queueMicrotask(() => {
-            if (this.scheduled) {
-                this.run();
-            }
-        });
     }
 
     private shift() {
@@ -523,8 +452,9 @@ class ArraySlot<T> implements Slot {
     }
 
 
+    // The array's length, which runs ahead of the rendered rows only between a change and the pass that renders it
     get length() {
-        return read(this.signal);
+        return this.array.$length;
     }
 }
 
