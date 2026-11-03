@@ -40,6 +40,10 @@ type TemplateInfo = {
 };
 
 
+// Any import declaration, dynamic import() or require(): a file without one has no binding from another module
+const REGEX_IMPORT = /\bimport\b|\brequire\s*\(/;
+
+
 // Deepest first so a nested template lowers before its parent consumes it, then document
 // order for position-deterministic emission
 function byDepthThenStart(a: TemplateInfo, b: TemplateInfo): number {
@@ -192,6 +196,11 @@ const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker, 
         };
 
     if (checker && program) {
+        // A file that imports nothing cannot reach `html`: no site, template or escape to find
+        if (!REGEX_IMPORT.test(sourceFile.text)) {
+            return artifacts;
+        }
+
         let targets = new Set(references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT).map(references.key));
 
         if (targets.size > 0) {
