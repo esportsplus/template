@@ -9,6 +9,11 @@ import { template } from '../../src/utilities';
 const ROW = template('<div><span></span></div>');
 
 
+// What a sample mounted, released after it untimed: in development every top-level slot is tracked until a sweep
+// drops it, and a synchronous bench loop never yields to one, so each sample's rows would stay reachable
+let mounted: { container: Element; slot: ArraySlot<number> } | null = null;
+
+
 function build(n: number): number[] {
     // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
     let items = new Array<number>(n);
@@ -18,6 +23,16 @@ function build(n: number): number[] {
     }
 
     return items;
+}
+
+function release(): void {
+    if (mounted === null) {
+        return;
+    }
+
+    mounted.slot.dispose();
+    mounted.container.textContent = '';
+    mounted = null;
 }
 
 function row(value: number) {
@@ -31,31 +46,34 @@ function row(value: number) {
 
 test('slot/array — bulk ops (regression guard)', async ({ bench }) => {
     await bench.compare(
-        bench('mount 10k + clear', () => {
+        bench('mount 10k + clear', { afterEach: release }, () => {
             let container = document.createElement('div'),
                 rows = reactive(build(10000)),
                 slot = new ArraySlot(rows, row as (value: number) => DocumentFragment, true);
 
+            mounted = { container, slot };
             container.appendChild(slot.fragment);
             flush();
             rows.clear();
             flush();
         }),
-        bench('mount 10k + splice half', () => {
+        bench('mount 10k + splice half', { afterEach: release }, () => {
             let container = document.createElement('div'),
                 rows = reactive(build(10000)),
                 slot = new ArraySlot(rows, row as (value: number) => DocumentFragment, true);
 
+            mounted = { container, slot };
             container.appendChild(slot.fragment);
             flush();
             rows.splice(2500, 5000);
             flush();
         }),
-        bench('mount 5k + append 5k', () => {
+        bench('mount 5k + append 5k', { afterEach: release }, () => {
             let container = document.createElement('div'),
                 rows = reactive(build(5000)),
                 slot = new ArraySlot(rows, row as (value: number) => DocumentFragment, true);
 
+            mounted = { container, slot };
             container.appendChild(slot.fragment);
             flush();
             rows.push(...build(5000));
