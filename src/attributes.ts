@@ -123,79 +123,6 @@ function empty(value: unknown) {
     return value == null || value === false || value === '';
 }
 
-// One effect runs every function part of a merged call until the first change, recording each part's tokens
-// under its own state; that change splits it into one effect per part, each reusing its state, so from then on
-// every part reruns on its own. The split effects belong to the first, which reads nothing more and never reruns.
-function group(ctx: Context, element: Element, name: string, fns: Function[], batch: Batch) {
-    let mounted = false,
-        n = fns.length,
-        parent = current(),
-        parts: Part[] = new Array(n),
-        ran = false,
-        slot: Slot | null = null,
-        stop: VoidFunction;
-
-    for (let i = 0; i < n; i++) {
-        parts[i] = { raw: undefined, tokens: null };
-    }
-
-    let guard = () => {
-            if (element.isConnected) {
-                mounted = true;
-            }
-            else if (mounted) {
-                stale(slot ??= { anchor: element, disposed: false, parent, release: stop, state: 0 });
-                return false;
-            }
-
-            return true;
-        };
-
-    stop = effect(() => {
-        if (!guard()) {
-            return;
-        }
-
-        if (ran) {
-            for (let i = 0; i < n; i++) {
-                let fn = fns[i],
-                    part = parts[i];
-
-                effect(() => {
-                    let previous = part.tokens;
-
-                    if (guard() && list(ctx, element, part, name, fn(element))) {
-                        rewrite(ctx, element, name, previous, part.tokens!);
-                    }
-                });
-            }
-
-            return;
-        }
-
-        let changed = false;
-
-        ran = true;
-
-        for (let i = 0; i < n; i++) {
-            changed = list(ctx, element, parts[i], name, fns[i](element)) || changed;
-        }
-
-        if (!changed) {
-            return;
-        }
-
-        if (batch.open) {
-            batch.changed = true;
-        }
-        else {
-            apply(element, name, join(ctx.store![name] as ListState, ATTRIBUTE_DELIMITERS[name]));
-        }
-    });
-
-    unowned(element, stop);
-}
-
 function join(state: ListState, delimiter: string) {
     let joined = state.static;
 
@@ -261,15 +188,15 @@ function list(ctx: Context, element: Element, part: Part | null, name: string, v
     return changed;
 }
 
-// Sorts each part of a merged call: functions are collected to bind together, arrays are sorted entry by entry,
-// anything else joins the static list. Returns whether a static part changed the list.
-function merge(ctx: Context, element: Element, name: string, value: unknown, fns: Function[]): boolean {
+// Binds each part of a merged call: functions get their own effect, arrays bind entry by entry, anything
+// else joins the static list. Returns whether a static part changed the list.
+function merge(ctx: Context, element: Element, name: string, value: unknown, batch: Batch): boolean {
     if (empty(value)) {
         return false;
     }
 
     if (typeof value === 'function') {
-        fns.push(value);
+        reactive(ctx, element, name, value, batch);
 
         return false;
     }
@@ -278,7 +205,7 @@ function merge(ctx: Context, element: Element, name: string, value: unknown, fns
         let changed = false;
 
         for (let i = 0, n = value.length; i < n; i++) {
-            changed = merge(ctx, element, name, value[i], fns) || changed;
+            changed = merge(ctx, element, name, value[i], batch) || changed;
         }
 
         return changed;
@@ -537,17 +464,8 @@ function write(element: Element, name: 'class' | 'style', parts: unknown[]) {
         }
     }
 
-    let fns: Function[] = [];
-
     for (let i = 1; i < n; i++) {
-        changed = merge(ctx, element, name, parts[i], fns) || changed;
-    }
-
-    if (fns.length === 1) {
-        reactive(ctx, element, name, fns[0], batch);
-    }
-    else if (fns.length > 1) {
-        group(ctx, element, name, fns, batch);
+        changed = merge(ctx, element, name, parts[i], batch) || changed;
     }
 
     batch.open = false;

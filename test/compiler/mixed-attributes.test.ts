@@ -213,11 +213,9 @@ describe('compiled mixed attribute values', () => {
         }, checked);
         write(first, true); await tick();
         expect(top(value).className).toBe('fixed one');
-        // The first change of an element's class runs every part once more, then each part runs on its own
-        expect(firstRuns).toBe(2); expect(secondRuns).toBe(2);
+        expect(firstRuns).toBe(2); expect(secondRuns).toBe(1);
         write(second, true); await tick();
         expect(top(value).classList.contains('two')).toBe(true);
-        expect(firstRuns).toBe(2); expect(secondRuns).toBe(3);
         write(first, false); await tick();
         expect(top(value).className).toBe('fixed two');
     });

@@ -670,7 +670,7 @@ describe('attributes', () => {
             expect(element.className).toBe('s x2');
         });
 
-        it('runs every part once more on the first change only, then each part on its own', async () => {
+        it('reruns each function part on its own', async () => {
             let a = signal('x'),
                 b = signal('y'),
                 runs = { a: 0, b: 0 };
@@ -683,22 +683,16 @@ describe('attributes', () => {
             await Promise.resolve();
 
             expect(element.className).toBe('y x2');
-            expect(runs).toEqual({ a: 2, b: 2 });
-
-            write(a, 'x3');
-            await Promise.resolve();
-
-            expect(element.className).toBe('y x3');
-            expect(runs).toEqual({ a: 3, b: 2 });
+            expect(runs).toEqual({ a: 2, b: 1 });
 
             write(b, 'y2');
             await Promise.resolve();
 
-            expect(element.className).toBe('x3 y2');
-            expect(runs).toEqual({ a: 3, b: 3 });
+            expect(element.className).toBe('x2 y2');
+            expect(runs).toEqual({ a: 2, b: 2 });
         });
 
-        it('disposes the split part effects with the list', async () => {
+        it('disposes the part effects with their owner', async () => {
             let a = signal('x'),
                 b = signal('y'),
                 dispose = () => {};
