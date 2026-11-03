@@ -24,6 +24,8 @@ type CodegenContext = {
     parseCache?: Map<string, ParseResult>;
     prefoldCache?: WeakMap<ts.Node, Prefolded>;
     selectorFired?: boolean;
+    // Template html whose clone is its one root element (see parser's single())
+    singles: Set<string>;
     sourceFile: ts.SourceFile;
     // Expressions denoting `html` (see Artifacts.sites)
     sites: Set<ts.Node>;
@@ -375,9 +377,9 @@ function generateSlotCode(ctx: CodegenContext, call: ts.CallExpression, entrypoi
     return code + ')';
 }
 
-function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult, expressions: ts.Expression[], templateNode: ts.Node): string {
+function generateTemplateCode(ctx: CodegenContext, { html, single, slots }: ParseResult, expressions: ts.Expression[], templateNode: ts.Node): string {
     if (!slots || slots.length === 0) {
-        return `${getTemplateID(ctx, html)}()`;
+        return `${getTemplateID(ctx, html, single)}()`;
     }
 
     // A template that is an arrow's body or a return's expression lowers to statements, not to a called closure
@@ -388,6 +390,8 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
         index = 0,
         keys: string[] = [],
         offsets: number[] = [],
+        // A single-root template clones its root element, so every path starts below the root's own first step
+        paths = slots.map(slot => single ? slot.path.slice(1) : slot.path),
         root = uid('root'),
         texts: string[] = [];
 
@@ -395,14 +399,14 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
     // slot construction) never pay for a rewrite they would discard
     let text = (i: number) => texts[i] ??= (expressions[i] ? rewriteExpression(ctx, expressions[i]) : 'undefined');
 
-    declarations.push(`${root} = ${getTemplateID(ctx, html)}()`);
+    declarations.push(`${root} = ${getTemplateID(ctx, html, single)}()${single ? ` as ${NAMESPACE}.Element` : ''}`);
     elements.set('', root);
 
     // Where two or more slot paths part, the ancestor they share is declared once, so none of them walks it again
     let branches = new Map<string, Set<string>>();
 
     for (let i = 0, n = slots.length; i < n; i++) {
-        let path = slots[i].path;
+        let path = paths[i];
 
         for (let j = 1, m = path.length; j < m; j++) {
             let prefix = path.slice(0, j).join('.'),
@@ -418,7 +422,7 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
     }
 
     for (let i = 0, n = slots.length; i < n; i++) {
-        let path = slots[i].path,
+        let path = paths[i],
             slot = slots[i];
 
         keys[i] = path.join('.');
@@ -556,12 +560,16 @@ function generateTemplateCode(ctx: CodegenContext, { html, slots }: ParseResult,
     return code.join('\n');
 }
 
-function getTemplateID(ctx: CodegenContext, html: string): string {
+function getTemplateID(ctx: CodegenContext, html: string, single: boolean): string {
     let id = ctx.templates.get(html);
 
     if (!id) {
         id = uid('template');
         ctx.templates.set(html, id);
+
+        if (single) {
+            ctx.singles.add(html);
+        }
     }
 
     return id;
@@ -752,6 +760,7 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
             constants,
             hoisted: new Map(),
             parseCache: new Map(),
+            singles: new Set(),
             sites,
             sourceFile,
             templates: new Map()
@@ -797,7 +806,7 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
     }
 
     for (let [html, id] of ctx.templates) {
-        prepend.push(`const ${id} = ${NAMESPACE}.template(${literal(html)});`);
+        prepend.push(`const ${id} = ${NAMESPACE}.template(${literal(html)}${ctx.singles.has(html) ? ', true' : ''});`);
     }
 
     for (let [code, id] of ctx.hoisted!) {

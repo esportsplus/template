@@ -312,6 +312,25 @@ describe('compiler/parser', () => {
         });
     });
 
+    describe('parse - single root', () => {
+        it.each([
+            [['<div>x</div>'], true],
+            [['<div class="a"><span>', '</span><p>y</p></div>'], true],
+            [['<input type="text" />'], true],
+            [['<tr><td>', '</td></tr>'], true],
+            [['<svg viewBox="0 0 1 1"><path d="M0"/></svg>'], true],
+            [['<div></div><p></p>'], false],
+            [['<div>', '</div>', ''], false],
+            [['', '<div></div>'], false],
+            [['text'], false],
+            [['<div></div> tail'], false],
+            [['<!-- c --><div></div>'], false],
+            [['<br><br>'], false]
+        ])('%j is one root element: %s', (literals, expected) => {
+            expect(parser.parse(literals as string[]).single).toBe(expected);
+        });
+    });
+
     describe('parse - static class/style tokens', () => {
         it('moves a bound class list\'s static tokens from the html to slot metadata', () => {
             let result = parser.parse(['<div class="static ', '">x</div>']),

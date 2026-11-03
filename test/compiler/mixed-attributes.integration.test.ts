@@ -102,7 +102,8 @@ describe('mixed attributes through compiler plugins', () => {
                     dispose = stop;
                     return component();
                 }),
-                element = fragment.firstChild as HTMLButtonElement,
+                // A single-root template is its element
+                element = (fragment.nodeType === 11 ? fragment.firstChild : fragment) as HTMLButtonElement,
                 base = type === 'radio' ? 'checkbox checkbox--radio' : type;
             document.body.append(fragment);
             expect(element.className.trim()).toBe(base);

@@ -46,6 +46,8 @@ const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{
 
 const REGEX_TAG = /<[\w!/?-]+(?:"[^"]*"|'[^']*'|[^'">])*>/g;
 
+const REGEX_TAG_NAME = /^<([\w-]+)/;
+
 const REGEX_TAG_TRAILING_WHITESPACE = /\s+>$/;
 
 // Only unquote values in the HTML unquoted-attribute-safe subset AND followed by a proper
@@ -287,6 +289,62 @@ function minify(html: string) {
 }
 
 
+// Whether the emitted html is one element and nothing else at its top level: its clone is that element, with no
+// fragment around it. Text, comments and slot markers beside it are roots of their own.
+function single(html: string) {
+    if (html[0] !== '<' || html[1] === '!' || html[1] === '/') {
+        return false;
+    }
+
+    let depth = 0,
+        index = 0,
+        roots = 0;
+
+    for (let match of html.matchAll(REGEX_TAG)) {
+        let tag = match[0],
+            start = match.index ?? 0;
+
+        if (start > index && depth === 0) {
+            roots++;
+        }
+
+        index = start + tag.length;
+
+        if (tag[1] === '/') {
+            if (NODE_WHITELIST[tag.slice(2, -1).trim().toLowerCase()] !== NODE_VOID) {
+                depth--;
+            }
+
+            continue;
+        }
+
+        if (depth === 0) {
+            roots++;
+        }
+
+        if (roots > 1) {
+            return false;
+        }
+
+        if (tag[1] === '!' || tag.at(-2) === '/') {
+            continue;
+        }
+
+        let name = REGEX_TAG_NAME.exec(tag);
+
+        if (name === null) {
+            return false;
+        }
+
+        if (NODE_WHITELIST[name[1].toLowerCase()] !== NODE_VOID) {
+            depth++;
+        }
+    }
+
+    return roots === 1 && (index === html.length || depth > 0);
+}
+
+
 const parse = (literals: string[]) => {
     let html = outsideAttributeValues(literals.join(SLOT_MARKER), value => value
             .replace(REGEX_EMPTY_TEXT_NODES, '$1$2')
@@ -295,7 +353,9 @@ const parse = (literals: string[]) => {
         n = literals.length - 1;
 
     if (n === 0) {
-        return { html: minify(html), slots: null };
+        html = minify(html);
+
+        return { html, single: single(html), slots: null };
     }
 
     let cache: Record<string, AttributeMetadata> = {},
@@ -433,8 +493,11 @@ const parse = (literals: string[]) => {
         .replace(REGEX_EMPTY_ATTRIBUTE, '')
         .replace(REGEX_CLEANUP_WHITESPACE, ' '));
 
+    buffer = minify(buffer);
+
     return {
-        html: minify(buffer),
+        html: buffer,
+        single: single(buffer),
         slots: slots.length ? slots : null
     };
 };

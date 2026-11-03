@@ -39,7 +39,8 @@ describe('compiler/codegen', () => {
 
             expect(result.templates.size).toBe(1);
             expect(result.prepend).toHaveLength(1);
-            expect(result.prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello\`)`);
+            // One root element: the factory clones the element itself
+            expect(result.prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello\`, true)`);
             expect(result.replacements).toHaveLength(1);
 
             let code = result.replacements[0].generate(EMPTY);
@@ -184,7 +185,7 @@ describe('compiler/codegen', () => {
 
             // Only the first declaration walks from the root; every other starts at a declared element
             expect(declarations.filter(line => line.includes(root))).toHaveLength(1);
-            expect(code.split(`${root}.firstChild`)).toHaveLength(2);
+            expect(code.split(`${root}.first`)).toHaveLength(2);
             expect(declarations).toHaveLength(6);
         });
 
@@ -490,6 +491,7 @@ describe('compiler/codegen', () => {
 
             let ctx = {
                 sites,
+                singles: new Set<string>(),
                 sourceFile,
                 templates: new Map<string, string>()
             };
@@ -507,6 +509,7 @@ describe('compiler/codegen', () => {
 
             let ctx = {
                 sites,
+                singles: new Set<string>(),
                 sourceFile,
                 templates: new Map<string, string>()
             };

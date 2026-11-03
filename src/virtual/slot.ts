@@ -78,7 +78,7 @@ class VirtualSlot<T> implements Slot {
     readonly fragment: DocumentFragment;
 
 
-    constructor(array: Reactive<T[]>, template: (value: T) => DocumentFragment | Text, options: VirtualOptions = {}) {
+    constructor(array: Reactive<T[]>, template: (value: T) => DocumentFragment | Element | Text, options: VirtualOptions = {}) {
         this.anchored = options.anchor === 'end';
         this.array = array;
         this.parent = context();
@@ -100,7 +100,7 @@ class VirtualSlot<T> implements Slot {
         try {
             this.arraySlot = new ArraySlot(this.windowed, (value) => {
                 let frag = template(value),
-                    head = frag.firstChild as unknown as Element;
+                    head = (frag.nodeType === 11 ? frag.firstChild : frag) as unknown as Element;
 
                 if (head) {
                     (head as any)[SLOT] = this;

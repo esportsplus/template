@@ -690,21 +690,19 @@ const greeting = (name: string) => html`<div class="hello">${name}</div>`;
 
 **Output (simplified):**
 ```typescript
-const $template = (() => {
-    let cached;
-    return () => {
-        if (!cached) cached = template('<div class="hello"><!--$--></div>');
-        return clone(cached);
-    };
-})();
+// One root element: the factory clones the element itself
+const $template = template('<div class=hello>', true);
 
 const greeting = (name: string) => {
-    const fragment = $template();
-    const $0 = firstChild(fragment);
-    slot($0.firstChild, name);
-    return fragment;
+    const root = $template();
+    slot(root, name, ANCHOR_SOLE);
+    return root;
 };
 ```
+
+A template with exactly one root element evaluates to that `Element`; text alone evaluates to a `Text` node, and
+anything else to a `DocumentFragment`. All three render the same through `render()`, slots and `html.reactive`; code
+that reaches into a result (`.firstChild` to take the row) must handle the element case.
 
 Key optimizations:
 - Template HTML is parsed once and cached

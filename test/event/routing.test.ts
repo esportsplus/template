@@ -15,6 +15,9 @@ type Path = 'attribute' | 'runtime' | 'spread';
 
 let callbacks: VoidFunction[] = [];
 
+// A compiled template's root element: the result itself for a single-root template, else its fragment's first child
+const top = (node: any) => node.nodeType === 11 ? node.firstChild : node;
+
 vi.mock('../../src/utilities', async (importOriginal) => {
     let original = await importOriginal<typeof import('../../src/utilities')>();
 
@@ -86,7 +89,7 @@ function bind(path: Path, key: string, listener: Function): Element {
             { listener }
         ).value as DocumentFragment;
 
-    return fragment.firstChild as unknown as Element;
+    return top(fragment) as unknown as Element;
 }
 
 function compile(source: string, args: Record<string, unknown> = {}) {

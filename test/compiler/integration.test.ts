@@ -58,7 +58,7 @@ describe('compiler/integration', () => {
 
             expect(imports).toContain('html');
             expect(prepend.length).toBe(1);
-            expect(prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello\`)`);
+            expect(prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello\`, true)`);
             expect(output).not.toContain('html`');
             expect(output).toContain(`${NAMESPACE}.template(`);
         });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { stripTypeScriptTypes } from 'node:module';
 import { languageService } from '@esportsplus/typescript/compiler';
-import { read, signal, write } from '@esportsplus/reactivity';
+import { reactive, read, signal, write } from '@esportsplus/reactivity';
 import * as runtime from '../../src';
 import { generateCode } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
@@ -74,7 +74,7 @@ describe('compiler emission', () => {
             ['a line break', '`<p title="a\nb">x</p>`', '<p title="a\nb">x']
         ])('emits template text holding %s as a literal that reads back unchanged', (_label, template, html) => {
             let { result } = compile('let value = html' + template + ';'),
-                literal = /\.template\((.*)\);$/s.exec(result.prepend[0])![1];
+                literal = /\.template\((`.*`)(?:, true)?\);$/s.exec(result.prepend[0])![1];
 
             expect(new Function('return ' + literal)()).toBe(html);
         });
@@ -242,6 +242,40 @@ describe('compiler emission', () => {
             ].join('\n'));
 
             expect(value.map((node: Node) => mount(node).textContent)).toEqual(['x', 'y']);
+        });
+    });
+
+    describe('single-root templates', () => {
+        it('evaluates to the root element, its bindings on the element itself', () => {
+            let { value } = compile('let value = html`<p class="a ${() => "b"}" title=${t}>${label}</p>`;', { label: 'x', t: 'tip' });
+
+            expect(value.nodeType).toBe(1);
+            expect(value.className).toBe('a b');
+            expect(value.title).toBe('tip');
+            expect(value.textContent).toBe('x');
+        });
+
+        it('keeps a fragment for several roots', () => {
+            let { value } = compile('let value = html`<p>${label}</p><b>y</b>`;', { label: 'x' });
+
+            expect(value.nodeType).toBe(11);
+            expect(mount(value).innerHTML).toBe('<p>x</p><b>y</b>');
+        });
+
+        it('renders array rows that are their own element', async () => {
+            let items = reactive(['a', 'b']),
+                { value } = compile('let value = html`<ul>${html.reactive(items, (item) => html`<li class="row">${item}</li>`)}</ul>`;', { items });
+
+            let host = mount(value);
+
+            expect([...host.querySelectorAll('li.row')].map((li) => li.textContent)).toEqual(['a', 'b']);
+            expect(host.querySelector('ul')!.children).toHaveLength(2);
+
+            items.push('c');
+            items.shift();
+            await Promise.resolve();
+
+            expect([...host.querySelectorAll('li')].map((li) => li.textContent)).toEqual(['b', 'c']);
         });
     });
 

@@ -113,7 +113,7 @@ class ArraySlot<T> implements Slot {
 
 
     // 'managed': the slot's owner (a VirtualSlot) disposes it, so it registers nothing on the running owner
-    constructor(private array: Reactive<T[]>, template: (value: T) => DocumentFragment | Text, soleChild: boolean = false, managed: boolean = false) {
+    constructor(private array: Reactive<T[]>, template: (value: T) => DocumentFragment | Element | Text, soleChild: boolean = false, managed: boolean = false) {
         let fragment = this.fragment = clone(EMPTY_FRAGMENT),
             slot = this;
 
@@ -146,8 +146,15 @@ class ArraySlot<T> implements Slot {
                     }
                 });
 
-            item.anchor = item.head = frag.firstChild as unknown as Element;
-            item.tail = frag.lastChild as unknown as Element;
+            // A single-root row is its element, with no fragment around it
+            if (frag.nodeType === 11) {
+                item.anchor = item.head = frag.firstChild as unknown as Element;
+                item.tail = frag.lastChild as unknown as Element;
+            }
+            else {
+                item.anchor = item.head = item.tail = frag as unknown as Element;
+            }
+
             fragment.append(frag);
 
             return item;

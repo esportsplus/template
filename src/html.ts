@@ -11,18 +11,17 @@ type Values<T> = ArraySlot<T extends unknown[] ? T : never> | Attribute | Attrib
 // Built without module-level side effects (a pure call, not property assignments) so a bundle
 // drops the runtime whenever nothing calls it: compiled code never does, which is what lets the
 // build reject any chunk that still contains it
+// A compiled template is its one root element when it has exactly one, a Text node when it is text alone, and a
+// fragment otherwise
 const html = /* @__PURE__ */ Object.assign(
-    <T>(_literals: TemplateStringsArray, ..._values: (Values<T> | Values<T>[])[]): DocumentFragment => {
+    <T>(_literals: TemplateStringsArray, ..._values: (Values<T> | Values<T>[])[]): DocumentFragment | Element | Text => {
         throw new Error(`html\`\` templates ${UNCOMPILED}`);
     },
     {
-        // The callback body is authored as html`` templates, which the compiler rewrites into
-        // template() calls returning DocumentFragment | Text (a single text child emits a Text node),
-        // so the callback's post-compile return type is DocumentFragment | Text — not DocumentFragment.
-        reactive: <T>(_arr: Reactive<T[]>, _template: (value: T) => DocumentFragment | Text): ArraySlot<T[]> => {
+        reactive: <T>(_arr: Reactive<T[]>, _template: (value: T) => DocumentFragment | Element | Text): ArraySlot<T[]> => {
             throw new Error(`html.reactive() ${UNCOMPILED}`);
         },
-        virtual: <T>(_array: Reactive<T[]>, _template: (value: T) => DocumentFragment | Text, _options?: VirtualOptions): VirtualSlot<T> => {
+        virtual: <T>(_array: Reactive<T[]>, _template: (value: T) => DocumentFragment | Element | Text, _options?: VirtualOptions): VirtualSlot<T> => {
             throw new Error(`html.virtual() ${UNCOMPILED}`);
         }
     }

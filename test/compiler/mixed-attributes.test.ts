@@ -11,6 +11,9 @@ import parser from '../../src/compiler/parser';
 
 const tick = () => Promise.resolve();
 
+// A compiled template's root element: the result itself for a single-root template, else its fragment's first child
+const top = (node: any) => node.nodeType === 11 ? node.firstChild : node;
+
 function compile(source: string, args: Record<string, unknown> = {}, checked = true) {
     let parsed = checked
             ? languageService.scratch(process.cwd() + '/mixed-fixture.ts', source)
@@ -48,7 +51,7 @@ describe('compiled regressions', () => {
         );
 
         expect(output).not.toContain('html.reactive');
-        expect(value.firstChild.textContent).toBe('abc');
+        expect(top(value).textContent).toBe('abc');
     });
 
     it('lowers top-level nested html.reactive calls without overlapping replacements', () => {
@@ -77,14 +80,14 @@ describe('compiled regressions', () => {
         );
 
         expect(output).not.toMatch(/ArraySlot\(flag/);
-        expect(value.firstChild.textContent).toBe('xy');
+        expect(top(value).textContent).toBe('xy');
     });
 
     it('does not bake false into a static attribute', () => {
         let { result, value } = compile('let value = html`<input disabled=${false}>`;');
 
         expect([...result.templates.keys()].join('')).not.toContain('disabled');
-        expect(value.firstChild.disabled).toBe(false);
+        expect(top(value).disabled).toBe(false);
     });
 
     it('keeps nested arrow templates as block bodies inside a specialized template', () => {
@@ -93,8 +96,8 @@ describe('compiled regressions', () => {
         );
 
         expect(output).toContain('xs.map((x) => {');
-        expect(value.firstChild.className).toBe('a');
-        expect(value.firstChild.textContent).toBe('12');
+        expect(top(value).className).toBe('a');
+        expect(top(value).textContent).toBe('12');
     });
 
     it('specializes a parameter whose name is also a property name', () => {
@@ -105,7 +108,7 @@ describe('compiled regressions', () => {
         expect(output).toContain(`${NAMESPACE}.setClass(`);
         expect(output).toContain('["a", o.kind]');
         expect(output).toContain('["b", o.kind]');
-        expect([...value.firstChild.classList].sort()).toEqual(['b', 'x']);
+        expect([...top(value).classList].sort()).toEqual(['b', 'x']);
     });
 
     it('keeps falsy folds out of whole attribute values', () => {
@@ -116,9 +119,9 @@ describe('compiled regressions', () => {
         expect(html).not.toContain('title');
         expect(html).not.toContain('data-a');
         expect(html).toContain('>0');
-        expect(value.firstChild.hidden).toBe(false);
-        expect(value.firstChild.hasAttribute('data-a')).toBe(false);
-        expect(value.firstChild.textContent).toBe('0');
+        expect(top(value).hidden).toBe(false);
+        expect(top(value).hasAttribute('data-a')).toBe(false);
+        expect(top(value).textContent).toBe('0');
     });
 
     it('still folds falsy values into partial attribute values', () => {
@@ -139,7 +142,7 @@ describe('compiled mixed attribute values', () => {
             { value: node } = compile('let value = html`<div class="${base} ${() => active() && "--active"}"></div>`;', {
                 base: 'checkbox checkbox--radio', active: () => read(active)
             });
-        let element = node.firstChild as HTMLElement;
+        let element = top(node) as HTMLElement;
         document.body.append(node);
         expect(element.className.trim()).toBe('checkbox checkbox--radio');
         write(active, true); await tick();
@@ -151,14 +154,14 @@ describe('compiled mixed attribute values', () => {
 
     it('preserves quoted spaces and concatenates numeric values as text', () => {
         let { value } = compile('let value = html`<div title="${first}  ${last}" data-pair="${first}${last}"></div>`;', { first: 1, last: 2 });
-        expect(value.firstChild.title).toBe('1  2');
-        expect(value.firstChild.getAttribute('data-pair')).toBe('12');
+        expect(top(value).title).toBe('1  2');
+        expect(top(value).getAttribute('data-pair')).toBe('12');
     });
 
     it('resolves callback identifiers in prefixed classes and styles reactively', async () => {
         let size = signal(12),
             { value } = compile('let value = html`<div class="item-${getter}" style="width: ${getter}px" title="size ${getter}"></div>`;', { getter: () => read(size) });
-        let element = value.firstChild as HTMLElement;
+        let element = top(value) as HTMLElement;
         expect(element.className).toBe('item-12');
         expect(element.style.width).toBe('12px');
         write(size, 24); await tick();
@@ -169,8 +172,8 @@ describe('compiled mixed attribute values', () => {
 
     it('preserves whitespace in static quoted attributes', () => {
         let { value } = compile('let value = html`<div title="first  last" data-value="a\tb"></div>`;');
-        expect(value.firstChild.title).toBe('first  last');
-        expect(value.firstChild.getAttribute('data-value')).toBe('a\tb');
+        expect(top(value).title).toBe('first  last');
+        expect(top(value).getAttribute('data-value')).toBe('a\tb');
     });
 
     it.each([' ', '\t', '\n'])('separates class marker groups on %j', whitespace => {
@@ -194,7 +197,7 @@ describe('compiled mixed attribute values', () => {
         for (let name of ['checkbox', 'checkbox checkbox--radio', 'switch']) {
             expect(output).toContain(`["${name}", `);
         }
-        let elements = value.map((fragment: DocumentFragment) => fragment.firstChild as HTMLElement);
+        let elements = value.map((fragment: DocumentFragment) => top(fragment) as HTMLElement);
         expect(elements.map((el: HTMLElement) => el.className.trim())).toEqual(['checkbox', 'checkbox checkbox--radio', 'switch']);
         write(active, true); await tick();
         for (let element of elements) expect(element.classList.contains('--active')).toBe(true);
@@ -209,14 +212,14 @@ describe('compiled mixed attribute values', () => {
             two: () => { secondRuns++; return read(second) && 'two'; }
         }, checked);
         write(first, true); await tick();
-        expect(value.firstChild.className).toBe('fixed one');
+        expect(top(value).className).toBe('fixed one');
         // The first change of an element's class runs every part once more, then each part runs on its own
         expect(firstRuns).toBe(2); expect(secondRuns).toBe(2);
         write(second, true); await tick();
-        expect(value.firstChild.classList.contains('two')).toBe(true);
+        expect(top(value).classList.contains('two')).toBe(true);
         expect(firstRuns).toBe(2); expect(secondRuns).toBe(3);
         write(first, false); await tick();
-        expect(value.firstChild.className).toBe('fixed two');
+        expect(top(value).className).toBe('fixed two');
     });
 
     it('captures factories once, passes the element, and disposes composed effects', async () => {
@@ -229,7 +232,7 @@ describe('compiled mixed attribute values', () => {
             });
         });
         expect(calls).toEqual(['make', 'suffix', 'read']);
-        expect(element).toBe(value.firstChild);
+        expect(element).toBe(top(value));
         write(state, 'b'); await tick();
         expect(element!.title).toBe('before b after !');
         expect(calls).toEqual(['make', 'suffix', 'read', 'read']);
@@ -242,11 +245,11 @@ describe('compiled mixed attribute values', () => {
             { value } = compile('let value = html`<div title="[${getter}]" class="base ${classes}"></div>`;', {
                 getter: () => read(state), classes: ['one', () => 'two']
             });
-        expect(value.firstChild.title).toBe('[]');
-        expect(value.firstChild.className).toBe('base one two');
+        expect(top(value).title).toBe('[]');
+        expect(top(value).className).toBe('base one two');
         for (let next of [null, undefined, 0]) {
             write(state, next); await tick();
-            expect(value.firstChild.title).toBe(next === 0 ? '[0]' : '[]');
+            expect(top(value).title).toBe(next === 0 ? '[0]' : '[]');
         }
     });
 
@@ -265,12 +268,12 @@ describe('compiled mixed attribute values', () => {
         let { value, output } = compile('const base = "static"; let value = html`<div class="${base} ${() => "dynamic"}"></div>`;');
         expect(output).toContain('["static", () => "dynamic"]');
         expect(output).toContain('() => "dynamic"');
-        expect(value.firstChild.className).toBe('static dynamic');
+        expect(top(value).className).toBe('static dynamic');
     });
 
     it('retains generic behavior for unexpected runtime factory values', () => {
         let { value } = compile('const factory = (type: "checkbox" | "radio") => () => html`<div class="${type} ${() => "ready"}"></div>`; let value = factory(actual)();', { actual: 'other' });
-        expect(value.firstChild.className).toBe('other ready');
+        expect(top(value).className).toBe('other ready');
     });
 
     it.each([
@@ -281,25 +284,25 @@ describe('compiled mixed attribute values', () => {
     ])('does not specialize a mutated parameter: %s', mutation => {
         let { value, result } = compile('const factory = (type: "checkbox" | "radio") => { ' + mutation + ' return () => html`<div class="${type} ${() => "ready"}"></div>`; }; let value = factory("checkbox")();');
         expect(result.templates.size).toBe(1);
-        expect(value.firstChild.className).toBe('radio ready');
+        expect(top(value).className).toBe('radio ready');
     });
 
     it('caps finite variant expansion', () => {
         let types = Array.from({ length: 17 }, (_, index) => JSON.stringify('t' + index)).join(' | ');
         let { value, result } = compile('const factory = (type: ' + types + ') => () => html`<div class="${type} ${() => "ready"}"></div>`; let value = factory("t0")();');
         expect(result.templates.size).toBe(1);
-        expect(value.firstChild.className).toBe('t0 ready');
+        expect(top(value).className).toBe('t0 ready');
     });
 
     it('does not eliminate getter reads because their return type is a literal', () => {
         let { value } = compile('let calls = 0; const data = { get value(): "a" { calls++; return "a"; } }; let node = html`<div title="${data.value}"></div>`; let value = { node, calls };');
         expect(value.calls).toBe(1);
-        expect(value.node.firstChild.title).toBe('a');
+        expect(top(value.node).title).toBe('a');
     });
 
     it('does not freeze mutable literal-typed values', () => {
         let { value } = compile('let type = "a" as "a" | "b"; const render = () => html`<div class="${type} ${() => "ready"}"></div>`; type = "b"; let value = render();');
-        expect(value.firstChild.className).toBe('b ready');
+        expect(top(value).className).toBe('b ready');
     });
 
     it('keeps specialization caches isolated across nested factory templates', () => {
@@ -311,26 +314,26 @@ describe('compiled mixed attribute values', () => {
 
     it('specializes multiple immutable parameters without sharing the wrong clone', () => {
         let { output, value } = compile('const factory = (type: "a" | "b", size: 1 | 2) => () => html`<div class="${type + size} ${() => "ready"}"></div>`; let value = [factory("a", 1)(), factory("b", 2)()];');
-        expect(value.map((fragment: DocumentFragment) => fragment.firstElementChild!.className)).toEqual(['a1 ready', 'b2 ready']);
+        expect(value.map((fragment: DocumentFragment) => top(fragment).className)).toEqual(['a1 ready', 'b2 ready']);
         for (let name of ['a1', 'a2', 'b1', 'b2']) expect(output).toContain(`["${name}", `);
     });
 
     it('retains runtime calls even when their declared result is a literal', () => {
         let { value } = compile('let calls = 0; const get = (): "a" => { calls++; return actual; }; const type = get(); let node = html`<div class="${type} ${() => "ready"}"></div>`; let value = { node, calls };', { actual: 'runtime' });
         expect(value.calls).toBe(1);
-        expect(value.node.firstChild.className).toBe('runtime ready');
+        expect(top(value.node).className).toBe('runtime ready');
     });
 
     it('does not eliminate object-producing calls when reading literal-typed properties', () => {
         let { value } = compile('let calls = 0; const get = () => { calls++; return { type: "a" as const }; }; let node = html`<div title="${get().type}"></div>`; let value = { node, calls };');
         expect(value.calls).toBe(1);
-        expect(value.node.firstChild.title).toBe('a');
+        expect(top(value.node).title).toBe('a');
     });
 
     it('folds pure constant conditionals without folding the following callback', () => {
         let { output, value } = compile('const type = "radio"; let value = html`<div class="${type === "radio" ? "checkbox checkbox--radio" : type} ${() => "ready"}"></div>`;');
         expect(output).toContain('["checkbox checkbox--radio", () => "ready"]');
-        expect(value.firstChild.className).toBe('checkbox checkbox--radio ready');
+        expect(top(value).className).toBe('checkbox checkbox--radio ready');
     });
 });
 
@@ -352,7 +355,7 @@ describe('compiled host bindings and unquoted attributes', () => {
                     { handler, label: 'Search', properties: { ondocumentkeydown: handler } }
                 );
             }),
-            element = value.firstChild as runtime.Element;
+            element = top(value) as runtime.Element;
 
         document.body.append(value);
 
@@ -410,7 +413,7 @@ describe('compiled host bindings and unquoted attributes', () => {
                     { click: () => { clicks++; }, resize: function (this: unknown) { resizes++; self = this; } }
                 );
             }),
-            element = value.firstChild as HTMLElement;
+            element = top(value) as HTMLElement;
 
         document.body.append(value);
         element.click();
@@ -439,7 +442,7 @@ describe('compiled host bindings and unquoted attributes', () => {
                     { state: () => read(state) }
                 );
             }),
-            element = value.firstChild as HTMLElement;
+            element = top(value) as HTMLElement;
 
         expect(element.getAttribute('aria-label')).toBe('first');
         expect(element.getAttribute('type')).toBe('button');
