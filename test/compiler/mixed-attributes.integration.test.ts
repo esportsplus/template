@@ -96,7 +96,8 @@ describe('mixed attributes through compiler plugins', () => {
         let factoryModule = execute(outputs.factory, { '@esportsplus/template': runtime, '@esportsplus/reactivity': reactivity }, true);
 
         for (let type of ['checkbox', 'radio', 'switch']) {
-            let component = execute(outputs[type], { './factory': factoryModule }),
+            // tsc emits the relative specifier with its extension
+            let component = execute(outputs[type], { './factory': factoryModule, './factory.js': factoryModule }),
                 dispose = () => {},
                 fragment = reactiveRoot(stop => {
                     dispose = stop;

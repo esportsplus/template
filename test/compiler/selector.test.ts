@@ -5,6 +5,7 @@ import type { TransformContext } from '@esportsplus/typescript/compiler';
 import { selectorComparison } from '../../src/compiler/ts-analyzer';
 
 import transform from '../../src/compiler';
+import { written } from './written';
 
 
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
@@ -46,7 +47,7 @@ function findBinary(node: ts.Node): ts.BinaryExpression | undefined {
 function generatedCode(source: string): string {
     let result = transform.transform(createContext(source));
 
-    return (result.replacements || []).map((r) => r.generate(EMPTY)).join('\n');
+    return (result.replacements || []).map((r) => r.generate(EMPTY, written)).join('\n');
 }
 
 function signalIntent(source: string) {

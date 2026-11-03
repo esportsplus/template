@@ -4,6 +4,7 @@ import { languageService } from '@esportsplus/typescript/compiler';
 import { root } from '@esportsplus/reactivity';
 import { DIRECT_ATTACH_EVENTS, PASSIVE_EVENTS } from '../../src/constants';
 import type { Element } from '../../src/types';
+import { written } from '../compiler/written';
 
 
 type Host = 'document' | 'element' | 'window';
@@ -98,7 +99,7 @@ function compile(source: string, args: Record<string, unknown> = {}) {
         output = source;
 
     for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
-        output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile) + output.slice(replacement.node.end);
+        output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile, written) + output.slice(replacement.node.end);
     }
 
     output = result.prepend.join('\n') + '\n' + output;

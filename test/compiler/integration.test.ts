@@ -3,6 +3,7 @@ import { languageService } from '@esportsplus/typescript/compiler';
 import { generateCode } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
+import { written } from './written';
 
 
 type TransformResult = {
@@ -25,7 +26,7 @@ function pipeline(source: string): TransformResult {
         let r = result.replacements[i];
 
         replacements.push({
-            code: r.generate(sourceFile),
+            code: r.generate(sourceFile, written),
             end: r.node.end,
             start: r.node.getStart(sourceFile)
         });

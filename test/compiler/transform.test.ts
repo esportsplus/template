@@ -4,6 +4,7 @@ import type { TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, NAMESPACE } from '../../src/compiler/constants';
 
 import transform from '../../src/compiler';
+import { written } from './written';
 
 
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
@@ -75,7 +76,7 @@ describe('compiler/transform', () => {
         it('replacement generates code for template', () => {
             let result = transform.transform(createContext("let x = html`<div>hello</div>`;"));
             let sourceFile = EMPTY;
-            let code = result.replacements![0].generate(sourceFile);
+            let code = result.replacements![0].generate(sourceFile, written);
 
             expect(code).toBeTruthy();
         });
@@ -83,7 +84,7 @@ describe('compiler/transform', () => {
         it('handles template with expression slot', () => {
             let result = transform.transform(createContext("let x = html`<div>${value}</div>`;"));
             let sourceFile = EMPTY;
-            let code = result.replacements![0].generate(sourceFile);
+            let code = result.replacements![0].generate(sourceFile, written);
 
             expect(code).toContain(NAMESPACE + '.slot(');
             expect(code).toContain('value');
@@ -126,7 +127,7 @@ describe('compiler/transform', () => {
                 "let x = html.reactive(items, (item) => html`<li>${item}</li>`);"
             ));
             let sourceFile = EMPTY;
-            let code = result.replacements![0].generate(sourceFile);
+            let code = result.replacements![0].generate(sourceFile, written);
 
             expect(code).toContain(NAMESPACE + '.ArraySlot');
         });

@@ -125,7 +125,7 @@ try {
                     [reactivity, template],
                     sourceFile.getFullText(),
                     sourceFile,
-                    { checker, configPath: config, program },
+                    { checker, program },
                     workspace,
                     new Map()
                 ),

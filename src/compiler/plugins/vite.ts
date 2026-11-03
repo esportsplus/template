@@ -163,7 +163,7 @@ export default ({ root }: { root?: string } = {}) => {
                 removals = [];
 
                 let context = this as Context,
-                    result = vitePlugin.transform(code, path);
+                    result = vitePlugin.transform.handler(code, path);
 
                 if (typeof context?.warn === 'function') {
                     for (let i = 0, n = removals.length; i < n; i++) {

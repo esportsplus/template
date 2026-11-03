@@ -7,6 +7,7 @@ import { generateCode } from '../../src/compiler/codegen';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 import { NAMESPACE } from '../../src/compiler/constants';
 import parser from '../../src/compiler/parser';
+import { written } from './written';
 
 
 const tick = () => Promise.resolve();
@@ -23,7 +24,7 @@ function compile(source: string, args: Record<string, unknown> = {}, checked = t
         output = source;
 
     for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
-        output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile) + output.slice(replacement.node.end);
+        output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile, written) + output.slice(replacement.node.end);
     }
 
     output = result.prepend.join('\n') + '\n' + output;

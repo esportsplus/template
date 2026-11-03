@@ -94,7 +94,7 @@ async function compile(pkg, workspace) {
                 [reactivity, template],
                 sourceFile.getFullText(),
                 sourceFile,
-                { checker: opened.project.checker, configPath: config, program: opened.project.program },
+                { checker: opened.project.checker, program: opened.project.program },
                 workspace,
                 new Map()
             );

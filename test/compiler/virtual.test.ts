@@ -8,6 +8,7 @@ import { generateCode } from '../../src/compiler/codegen';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 import transform from '../../src/compiler';
 import vite from '../../src/compiler/plugins/vite';
+import { written } from './written';
 
 
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
@@ -27,7 +28,7 @@ describe('compiler/virtual', () => {
                     `import { html } from '@esportsplus/template';\nlet el = html.virtual(list, (item) => html\`<li>\${() => item.name}</li>\`);`
                 ),
                 result = transform.transform(context),
-                code = result.replacements![0].generate(context.sourceFile);
+                code = result.replacements![0].generate(context.sourceFile, written);
 
             expect(code).toContain(`${NAMESPACE}.VirtualSlot`);
             expect(code).toContain('list');
@@ -54,7 +55,7 @@ describe('compiler/virtual', () => {
                     `import { html } from '@esportsplus/template';\nlet el = html.virtual(list, (item) => html\`<li>\${item}</li>\`, { anchor: 'end' });`
                 ),
                 result = transform.transform(context),
-                code = result.replacements![0].generate(context.sourceFile);
+                code = result.replacements![0].generate(context.sourceFile, written);
 
             expect(code).toContain(`${NAMESPACE}.VirtualSlot`);
             expect(code).toContain(`{ anchor: 'end' }`);
@@ -65,7 +66,7 @@ describe('compiler/virtual', () => {
                     `let x = html\`<div>\${html.virtual(items, (item) => html\`<span>\${item}</span>\`, { anchor: 'end' })}</div>\`;`
                 ),
                 result = generateCode(findTemplateArtifacts(sourceFile), sourceFile),
-                code = result.replacements[0].generate(EMPTY);
+                code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.VirtualSlot`);
             expect(code).toContain(`{ anchor: 'end' }`);
@@ -78,7 +79,7 @@ describe('compiler/virtual', () => {
                     `let x = html\`<div>\${html.virtual(items, (item) => html\`<span>\${item}</span>\`)}</div>\`;`
                 ),
                 result = generateCode(findTemplateArtifacts(sourceFile), sourceFile),
-                code = result.replacements[0].generate(EMPTY);
+                code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.VirtualSlot`);
             expect(code).not.toContain(`${NAMESPACE}.ArraySlot`);
@@ -90,7 +91,7 @@ describe('compiler/virtual', () => {
             let result = transform.transform(createContext(
                     `import { html } from '@esportsplus/template';\nlet el = html.reactive(items, (item) => html\`<li>\${item}</li>\`);`
                 )),
-                code = result.replacements![0].generate(EMPTY);
+                code = result.replacements![0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.ArraySlot`);
             expect(code).not.toContain(`${NAMESPACE}.VirtualSlot`);

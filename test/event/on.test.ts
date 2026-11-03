@@ -7,6 +7,7 @@ import { generateCode } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 import type { Element, EventOptions, On } from '../../src/types';
+import { written } from '../compiler/written';
 
 
 let callbacks: VoidFunction[] = [];
@@ -46,7 +47,7 @@ function compile(source: string, args: Record<string, unknown>) {
         output = source;
 
     for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
-        output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile) + output.slice(replacement.node.end);
+        output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile, written) + output.slice(replacement.node.end);
     }
 
     return new Function(NAMESPACE, ...Object.keys(args), stripTypeScriptTypes(result.prepend.join('\n') + '\n' + output) + '\nreturn value;')(namespace, ...Object.values(args));

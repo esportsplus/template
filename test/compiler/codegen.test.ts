@@ -3,6 +3,7 @@ import { languageService } from '@esportsplus/typescript/compiler';
 import { generateCode, rewriteExpression } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
+import { written } from './written';
 
 
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
@@ -43,14 +44,14 @@ describe('compiler/codegen', () => {
             expect(result.prepend[0]).toContain(`${NAMESPACE}.template(\`<div>hello\`, true)`);
             expect(result.replacements).toHaveLength(1);
 
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain('()');
         });
 
         it('generates walker for static template with no slots', () => {
             let { result } = codegen(`let x = html\`<div>hello</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(/^[a-zA-Z_$][\w$]*\(\)$/);
         });
@@ -59,7 +60,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - primitive node bindings', () => {
         it('generates text for template literals', () => {
             let result = codegenWithProgram("let a = 'a', b = 'b'; let x = html`<div>${`${a}-${b}`}</div>`;"),
-                code = result.replacements[0].generate(EMPTY);
+                code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.text(`);
             expect(code).not.toContain(`${NAMESPACE}.slot(`);
@@ -72,7 +73,7 @@ describe('compiler/codegen', () => {
 
             expect(result.replacements).toHaveLength(1);
 
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.slot(`);
             expect(code).toContain('value');
@@ -81,14 +82,14 @@ describe('compiler/codegen', () => {
 
         it('generates EffectSlot for arrow function expression', () => {
             let { result } = codegen(`let x = html\`<div>\${() => count}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.EffectSlot`);
         });
 
         it('inlines a string literal node into the template (no runtime text call)', () => {
             let { result } = codegen(`let x = html\`<div>\${"hello"}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).not.toContain(`${NAMESPACE}.text(`);
             expect(result.prepend[0]).toContain('hello');
@@ -97,7 +98,7 @@ describe('compiler/codegen', () => {
 
         it('generates appendChild for nested html template in sole-child slot', () => {
             let { result } = codegen(`let x = html\`<div>\${html\`<span>nested</span>\`}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain('appendChild');
             expect(code).not.toContain('insertBefore');
@@ -105,14 +106,14 @@ describe('compiler/codegen', () => {
 
         it('generates insertBefore for nested html template in mid-position slot', () => {
             let { result } = codegen(`let x = html\`<div>\${html\`<span>nested</span>\`} tail</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain('insertBefore');
         });
 
         it('generates multiple node bindings', () => {
             let { result } = codegen(`let x = html\`<div>\${a}</div><span>\${b}</span>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain('a');
             expect(code).toContain('b');
@@ -122,7 +123,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - attribute slots', () => {
         it('generates setProperty for attribute binding', () => {
             let { result } = codegen(`let x = html\`<div id=\${value}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperty(`);
             expect(code).toContain("'id'");
@@ -131,7 +132,7 @@ describe('compiler/codegen', () => {
 
         it('generates setClass for class binding', () => {
             let { result } = codegen(`let x = html\`<div class=\${cls}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setClass(`);
             expect(code).toContain('["", cls]');
@@ -139,7 +140,7 @@ describe('compiler/codegen', () => {
 
         it('generates setStyle for style binding', () => {
             let { result } = codegen(`let x = html\`<div style=\${sty}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setStyle(`);
             expect(code).toContain('["", sty]');
@@ -147,7 +148,7 @@ describe('compiler/codegen', () => {
 
         it('merges every class part of an element into one call with its static tokens first', () => {
             let { result } = codegen(`let x = html\`<div class="a b \${one} c-\${two} \${() => three}" style="color: red; \${sty}">text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code.match(/setClass\(/g)).toHaveLength(1);
             expect(code.match(/setStyle\(/g)).toHaveLength(1);
@@ -159,7 +160,7 @@ describe('compiler/codegen', () => {
 
         it('keeps a static class in the clone when nothing else writes the list', () => {
             let { result } = codegen(`let x = html\`<div class="a b" id=\${id}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).not.toContain('setClass(');
             expect(result.prepend[0]).toContain('class="a b"');
@@ -167,7 +168,7 @@ describe('compiler/codegen', () => {
 
         it('moves a static class into the class call when a spread may write the list', () => {
             let { result } = codegen(`let x = html\`<div class="a b" \${attrs}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperties(`);
             expect(code).toContain(`${NAMESPACE}.setClass(`);
@@ -179,7 +180,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - element paths', () => {
         it('declares an ancestor two slot paths part at once, and walks from it', () => {
             let { result } = codegen('let x = html`<div><section><ul><li><a>${a}</a><b>${b}</b><i class=${c}></i></li></ul></section><p>${d}</p><p>${e}</p></div>`;');
-            let code = result.replacements[0].generate(EMPTY),
+            let code = result.replacements[0].generate(EMPTY, written),
                 root = /let (\w+) =/.exec(code)![1],
                 declarations = code.slice(code.indexOf('let '), code.indexOf(';')).split(',\n').slice(1);
 
@@ -191,7 +192,7 @@ describe('compiler/codegen', () => {
 
         it('declares no ancestor a single path walks through alone', () => {
             let { result } = codegen('let x = html`<div><section><ul><li>${a}</li></ul></section></div>`;');
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code.slice(code.indexOf('let '), code.indexOf(';')).split(',\n')).toHaveLength(2);
         });
@@ -200,7 +201,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - event attributes', () => {
         it('routes plain events at build time with no options argument', () => {
             let { result } = codegen(`let x = html\`<div onclick=\${handler} onfocus=\${focus}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(new RegExp(`${NAMESPACE}\\.delegate\\(\\w+, 'click', handler\\);`));
             expect(code).toMatch(new RegExp(`${NAMESPACE}\\.direct\\(\\w+, 'focus', focus\\);`));
@@ -231,7 +232,7 @@ describe('compiler/codegen', () => {
         ])('emits %s as %s(element, %s, handler) in a template and an expanded spread', (key, route, event) => {
             for (let source of [`<div ${key}=\${handler}>text</div>`, `<div \${{ ${key}: handler }}>text</div>`]) {
                 let { result } = codegen(`let x = html\`${source}\`;`),
-                    code = result.replacements[0].generate(EMPTY);
+                    code = result.replacements[0].generate(EMPTY, written);
 
                 expect(code).toMatch(new RegExp(`${NAMESPACE}\\.${route}\\(\\w+, '${event}', handler\\);`));
                 expect(result.prepend).toHaveLength(1);
@@ -240,7 +241,7 @@ describe('compiler/codegen', () => {
 
         it('hoists one { once: true } constant shared by every once binding', () => {
             let { result } = codegen(`let x = html\`<div onceclick=\${a} oncefocus=\${b} oncedocumentkeydown=\${c} oncewindowresize=\${d}>text</div><p \${{ onceClick: e }}></p>\`;`);
-            let code = result.replacements[0].generate(EMPTY),
+            let code = result.replacements[0].generate(EMPTY, written),
                 hoisted = result.prepend.filter(line => line.endsWith('= { once: true };'));
 
             expect(hoisted).toHaveLength(1);
@@ -264,7 +265,7 @@ describe('compiler/codegen', () => {
 
         it('binds document and window keys on their host, tied to the element', () => {
             let { result } = codegen(`let x = html\`<div ondocumentkeydown=\${a} onwindowresize=\${b}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(new RegExp(`${NAMESPACE}\\.ondocument\\(\\w+, 'keydown', a\\);`));
             expect(code).toMatch(new RegExp(`${NAMESPACE}\\.onwindow\\(\\w+, 'resize', b\\);`));
@@ -274,7 +275,7 @@ describe('compiler/codegen', () => {
 
         it('emits only routed event calls, never a runtime-routed one', () => {
             let { result } = codegen(`let x = html\`<div onclick=\${a} onfocus=\${b} ondocumentkeydown=\${c} onwindowresize=\${d} \${{ onceinput: e }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).not.toContain(`${NAMESPACE}.runtime(`);
             expect(code.match(new RegExp(`${NAMESPACE}\\.(delegate|direct|ondocument|onwindow)\\(`, 'g'))).toHaveLength(5);
@@ -295,27 +296,27 @@ describe('compiler/codegen', () => {
             for (let source of [`<div ${key}=\${handler}>text</div>`, `<div \${{ ${key}: handler }}>text</div>`]) {
                 let { result } = codegen(`let x = html\`${source}\`;`);
 
-                expect(result.replacements[0].generate(EMPTY)).toMatch(new RegExp(`${NAMESPACE}\\.${hook}\\(\\w+, handler\\);`));
+                expect(result.replacements[0].generate(EMPTY, written)).toMatch(new RegExp(`${NAMESPACE}\\.${hook}\\(\\w+, handler\\);`));
             }
         });
 
         it('leaves a non-function spread to setProperties, whose runtime() routes its keys', () => {
             let { result } = codegen(`let x = html\`<div \${attributes}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(new RegExp(`${NAMESPACE}\\.setProperties\\(\\w+, attributes\\);`));
         });
 
         it('generates lifecycle call for onconnect', () => {
             let { result } = codegen(`let x = html\`<div onconnect=\${handler}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.onconnect(`);
         });
 
         it('generates lifecycle call for onfirstpaint', () => {
             let { result } = codegen(`let x = html\`<div onfirstpaint=\${handler}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.onfirstpaint(`);
         });
@@ -327,7 +328,7 @@ describe('compiler/codegen', () => {
 
         it('registers lifecycle hooks of nested templates and descendants before their ancestors', () => {
             let { result } = codegen(`let x = html\`<div onconnect=\${outer}><span onconnect=\${inner}></span>\${html\`<em onconnect=\${nested}></em>\`}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code.indexOf(', nested)')).toBeGreaterThan(-1);
             expect(code.indexOf(', nested)')).toBeLessThan(code.indexOf(', inner)'));
@@ -339,7 +340,7 @@ describe('compiler/codegen', () => {
             // the parser as two abutting markers. The spread must emit setProperties — it must not
             // inherit the preceding event name and compile to a second delegate('animationend', rest).
             let { result } = codegen(`let x = html\`<div onanimationend=\${handler} \${rest}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
             let delegates = code.match(new RegExp(`${NAMESPACE}\\.delegate\\(`, 'g')) || [];
 
             expect(delegates).toHaveLength(1);
@@ -351,7 +352,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - delegated handlers', () => {
         it('passes an array expression through untouched', () => {
             let { result } = codegen(`let x = html\`<div onclick=\${[fn, data]}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.delegate(`);
             expect(code).toContain("'click', [fn, data])");
@@ -359,7 +360,7 @@ describe('compiler/codegen', () => {
 
         it('emits 3-argument delegate for plain function handler', () => {
             let { result } = codegen(`let x = html\`<div onclick=\${handler}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain("'click', handler)");
         });
@@ -384,7 +385,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - html.reactive()', () => {
         it('generates ArraySlot for reactive call in node slot', () => {
             let { result } = codegen(`let x = html\`<div>\${html.reactive(items, (item) => html\`<span>\${item}</span>\`)}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.ArraySlot`);
         });
@@ -393,7 +394,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - sole-child ArraySlot', () => {
         it('emits the flagged construction for a sole-child reactive binding', () => {
             let { result } = codegen(`let x = html\`<table><tbody>\${html.reactive(items, (i) => html\`<tr>\${i}</tr>\`)}</tbody></table>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.ArraySlot`);
             expect(code).toContain(', true).fragment');
@@ -401,7 +402,7 @@ describe('compiler/codegen', () => {
 
         it('emits today\'s unflagged form when a text sibling precedes the binding', () => {
             let { result } = codegen(`let x = html\`<div>x\${html.reactive(items, (i) => html\`<span>\${i}</span>\`)}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.ArraySlot`);
             expect(code).not.toContain(', true)');
@@ -409,7 +410,7 @@ describe('compiler/codegen', () => {
 
         it('emits today\'s unflagged form when a sibling element precedes the binding', () => {
             let { result } = codegen(`let x = html\`<div><br>\${html.reactive(items, (i) => html\`<span>\${i}</span>\`)}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.ArraySlot`);
             expect(code).not.toContain(', true)');
@@ -417,7 +418,7 @@ describe('compiler/codegen', () => {
 
         it('emits today\'s unflagged form when a sibling element follows the binding', () => {
             let { result } = codegen(`let x = html\`<div>\${html.reactive(items, (i) => html\`<span>\${i}</span>\`)}<br></div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.ArraySlot`);
             expect(code).not.toContain(', true)');
@@ -427,7 +428,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - mixed slots', () => {
         it('handles attribute + node slots on same element', () => {
             let { result } = codegen(`let x = html\`<div class=\${cls}>\${content}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setClass(`);
             expect(code).toContain(`${NAMESPACE}.slot(`);
@@ -435,7 +436,7 @@ describe('compiler/codegen', () => {
 
         it('handles multiple attribute slots on same element', () => {
             let { result } = codegen(`let x = html\`<div id=\${id} class=\${cls}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperty(`);
             expect(code).toContain(`${NAMESPACE}.setClass(`);
@@ -462,21 +463,21 @@ describe('compiler/codegen', () => {
     describe('generateCode - expression type detection', () => {
         it('generates EffectSlot for function expression node', () => {
             let { result } = codegen(`let x = html\`<div>\${function() { return 1; }}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.EffectSlot`);
         });
 
         it('generates slot() for unknown identifier', () => {
             let { result } = codegen(`let x = html\`<div>\${someVar}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.slot(`);
         });
 
         it('inlines a numeric literal node into the template (no runtime text call)', () => {
             let { result } = codegen(`let x = html\`<div>\${42}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).not.toContain(`${NAMESPACE}.text(`);
             expect(result.prepend[0]).toContain('42');
@@ -524,7 +525,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - spread attribute slots (object literal expansion)', () => {
         it('expands plain object literal into individual bindings', () => {
             let { result } = codegen(`let x = html\`<div \${{ id: 'test', class: 'foo' }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperty(`);
             expect(code).toContain("'id'");
@@ -534,14 +535,14 @@ describe('compiler/codegen', () => {
 
         it('falls back to setProperties for object with spread assignment', () => {
             let { result } = codegen(`let x = html\`<div \${{ ...base, id: 'test' }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperties(`);
         });
 
         it('expands shorthand property assignment', () => {
             let { result } = codegen(`let x = html\`<div \${{ className }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperty(`);
             expect(code).toContain("'className'");
@@ -550,14 +551,14 @@ describe('compiler/codegen', () => {
 
         it('falls back to setProperties for non-object expression', () => {
             let { result } = codegen(`let x = html\`<div \${props}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperties(`);
         });
 
         it('expands object with string literal property name', () => {
             let { result } = codegen(`let x = html\`<div \${{ 'data-value': val }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperty(`);
             expect(code).toContain("'data-value'");
@@ -565,7 +566,7 @@ describe('compiler/codegen', () => {
 
         it('expands object with style property into setStyle', () => {
             let { result } = codegen(`let x = html\`<div \${{ style: sty }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setStyle(`);
             expect(code).toContain('["", sty]');
@@ -573,7 +574,7 @@ describe('compiler/codegen', () => {
 
         it('expands object with event handler into delegate', () => {
             let { result } = codegen(`let x = html\`<div \${{ onclick: handler }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.delegate(`);
             expect(code).toContain("'click', handler);");
@@ -581,14 +582,14 @@ describe('compiler/codegen', () => {
 
         it('falls back to setProperties for computed property name', () => {
             let { result } = codegen(`let x = html\`<div \${{ [key]: val }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperties(`);
         });
 
         it('falls back to setProperties for accessors and numeric keys instead of dropping them', () => {
             let { result } = codegen(`let x = html\`<div \${{ get title() { return v; }, id: v, 1: v }}>text</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setProperties(`);
             expect(code).toContain('get title()');
@@ -606,7 +607,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - marker elision (sole/last-child slots)', () => {
         it('emits 3-arg EffectSlot (sole flag) for sole-child function slot', () => {
             let { result } = codegen(`let x = html\`<div>\${() => count}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.EffectSlot`);
             expect(code).toMatch(/,\s*1\)/);
@@ -614,7 +615,7 @@ describe('compiler/codegen', () => {
 
         it('emits 3-arg slot() (sole flag) for sole-child unknown slot', () => {
             let { result } = codegen(`let x = html\`<div>\${value}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.slot(`);
             expect(code).toMatch(/,\s*1\)/);
@@ -622,7 +623,7 @@ describe('compiler/codegen', () => {
 
         it('emits appendChild for sole-child ArraySlot slot', () => {
             let { result } = codegen(`let x = html\`<div>\${html.reactive(items, (item) => html\`<span>\${item}</span>\`)}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain('appendChild');
             expect(code).toContain(`${NAMESPACE}.ArraySlot`);
@@ -631,7 +632,7 @@ describe('compiler/codegen', () => {
 
         it('inlines a sole-child string literal into the template (no slot, no text call)', () => {
             let { result } = codegen(`let x = html\`<div>\${"hello"}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).not.toContain('appendChild');
             expect(code).not.toContain(`${NAMESPACE}.text(`);
@@ -640,7 +641,7 @@ describe('compiler/codegen', () => {
 
         it('emits 3-arg EffectSlot (last flag) for last-child slot after text', () => {
             let { result } = codegen(`let x = html\`<div>label \${() => count}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.EffectSlot`);
             expect(code).toMatch(/,\s*2\)/);
@@ -648,7 +649,7 @@ describe('compiler/codegen', () => {
 
         it('leaves mid-position slot in marker mode (2-arg, no flag)', () => {
             let { result } = codegen(`let x = html\`<div>\${value} tail</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.slot(`);
             expect(code).not.toContain('appendChild');
@@ -659,14 +660,14 @@ describe('compiler/codegen', () => {
     describe('generateCode - arrow function body optimization', () => {
         it('generates a template call for parameterless arrow with static body', () => {
             let { result } = codegen(`let fn = () => html\`<div>static</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(/^\w+\(\)$/);
         });
 
         it('generates IIFE for arrow with slots', () => {
             let { result } = codegen(`let fn = () => html\`<div>\${value}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain('{');
             expect(code).toContain('return');
@@ -676,7 +677,7 @@ describe('compiler/codegen', () => {
     describe('generateCode - literal text abutting an attribute slot', () => {
         it('binds a class token with its prefix', () => {
             let { result } = codegen(`let x = html\`<div class="button button--\${modifier}">x</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.setClass(`);
             expect(code).toMatch(/let (value_\w+): any = modifier;/);
@@ -685,7 +686,7 @@ describe('compiler/codegen', () => {
 
         it('binds a property attribute with its prefix and suffix', () => {
             let { result } = codegen(`let x = html\`<a href="/users/\${id}/edit">x</a>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(/let value_\w+: any = id;/);
             expect(code).toMatch(/=> "\/users\/" \+ part_\w+\([^;]+\) \+ "\/edit"\);/);
@@ -693,7 +694,7 @@ describe('compiler/codegen', () => {
 
         it('emits one binding for several markers in one value', () => {
             let { result } = codegen(`let x = html\`<a href="/users/\${id}/edit/\${tab}">x</a>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(/let value_\w+: any = id, value_\w+: any = tab;/);
             expect(code).toMatch(/=> "\/users\/" \+ part_\w+\([^;]+\) \+ "\/edit\/" \+ part_\w+\([^;]+\)\);/);
@@ -702,7 +703,7 @@ describe('compiler/codegen', () => {
 
         it('emits a binding per class token', () => {
             let { result } = codegen(`let x = html\`<div class="a-\${one} b-\${two}">x</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(/=> "a-" \+ part_/);
             expect(code).toMatch(/=> "b-" \+ part_/);
@@ -710,14 +711,14 @@ describe('compiler/codegen', () => {
 
         it('parenthesizes a concatenated expression so precedence holds', () => {
             let { result } = codegen(`let x = html\`<div class="tab-\${active ? "on" : "off"}">x</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toMatch(/let value_\w+: any = active \? "on" : "off";/);
         });
 
         it('leaves a slot owning the whole value unwrapped', () => {
             let { result } = codegen(`let x = html\`<div class="\${value}">x</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`["", value]`);
             expect(code).not.toContain(' + ');
@@ -725,7 +726,7 @@ describe('compiler/codegen', () => {
 
         it('never concatenates an event binding', () => {
             let { result } = codegen(`let x = html\`<button onclick="\${handler}">x</button>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).not.toContain(' + ');
             expect(code).toContain(`'click'`);
@@ -735,14 +736,14 @@ describe('compiler/codegen', () => {
     describe('generateCode - static inlining (fold)', () => {
         it('does not inline a literal containing an unsafe character', () => {
             let { result } = codegen(`let x = html\`<div>\${"a<b"}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.text(`);
         });
 
         it('folds a literal attribute value into a static attribute (no list call emitted)', () => {
             let { result } = codegen(`let x = html\`<div class="static \${"foo"}">x</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).not.toContain(`${NAMESPACE}.setClass(`);
             expect(result.prepend[0]).toContain('static foo');
@@ -750,7 +751,7 @@ describe('compiler/codegen', () => {
 
         it('inlines a const string identifier into the template (checker-resolved)', () => {
             let result = codegenWithProgram(`const greeting = "hello"; let x = html\`<div>\${greeting}</div>\`;`);
-            let code = result.replacements[0].generate(EMPTY);
+            let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).not.toContain(`${NAMESPACE}.text(`);
             expect(result.prepend[0]).toContain('hello');

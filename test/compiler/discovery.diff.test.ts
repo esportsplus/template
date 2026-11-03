@@ -63,7 +63,7 @@ function compare(root: string, tsconfig: string) {
             }
 
             staged = false;
-            coordinator.transform(plugins, sourceFile.getFullText(), sourceFile, { checker: project.checker, configPath: tsconfig, program: project.program }, root, shared);
+            coordinator.transform(plugins, sourceFile.getFullText(), sourceFile, { checker: project.checker, program: project.program }, root, shared);
         }
     }
     finally {

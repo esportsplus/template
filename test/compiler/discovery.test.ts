@@ -331,11 +331,10 @@ describe('compiler site discovery', () => {
             expect(plugin.transform.handler(files['direct.ts'], id(directory))).toBeNull();
         });
 
-        // The upstream @esportsplus/typescript Vite plugin only takes .[tj]sx? ids, so these stay untransformed until it does
-        it.each(['module.mts', 'common.cts'])('leaves %s to the upstream gate', (name) => {
+        it.each(['module.mts', 'common.cts'])('compiles %s', (name) => {
             let { directory, plugin } = project(files);
 
-            expect(plugin.transform.handler(files[name as keyof typeof files], `${directory}/${name}`)).toBeNull();
+            expect(plugin.transform.handler(files[name as keyof typeof files], `${directory}/${name}`)!.code).toContain('.template(');
         });
     });
 });
