@@ -5,7 +5,7 @@ import { ArraySlot } from './slot';
 import type { VirtualOptions, VirtualSlot } from './virtual';
 
 
-type Values<T> = ArraySlot<T extends unknown[] ? T : never> | Attribute | Attributes | Renderable<T>;
+type Values<T> = ArraySlot<T extends unknown[] ? T : never> | Attribute | Attributes | Renderable<T> | VirtualSlot<any>;
 
 
 // Built without module-level side effects (a pure call, not property assignments) so a bundle
