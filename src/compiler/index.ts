@@ -94,7 +94,6 @@ const compiler = (report: ((removals: Removal[]) => void) | null = null): Plugin
             });
         }
 
-        // `prepend` is returned as generated: generating the replacements completes it in place (see generateCode)
         return { dependencies: artifacts.dependencies, imports, prepend, replacements: [...replacements, ...nested] };
     }
 });

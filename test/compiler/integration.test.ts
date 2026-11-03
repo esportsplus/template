@@ -3,7 +3,7 @@ import { languageService } from '@esportsplus/typescript/compiler';
 import { generateCode } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
-import { written } from './written';
+import { prepended, written } from './written';
 
 
 type TransformResult = {
@@ -17,7 +17,7 @@ type TransformResult = {
 function pipeline(source: string): TransformResult {
     let sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
         artifacts = findTemplateArtifacts(sourceFile),
-        result = generateCode(artifacts, sourceFile),
+        result = prepended(generateCode(artifacts, sourceFile)),
         imports: string[] = artifacts.templates.length > 0 ? ['html'] : [],
         prepend = result.prepend,
         replacements: { code: string; end: number; start: number }[] = [];

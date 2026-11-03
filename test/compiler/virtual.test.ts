@@ -8,7 +8,7 @@ import { generateCode } from '../../src/compiler/codegen';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
 import transform from '../../src/compiler';
 import vite from '../../src/compiler/plugins/vite';
-import { written } from './written';
+import { prepended, written } from './written';
 
 
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
@@ -34,8 +34,8 @@ describe('compiler/virtual', () => {
             expect(code).toContain('list');
             expect(code).not.toContain(`${NAMESPACE}.ArraySlot`);
             expect(code).not.toContain('html.virtual');
-            expect(result.prepend!.some(p => p.includes('<li>'))).toBe(true);
-            expect(result.prepend!.some(p => p.includes(`${NAMESPACE}.template`))).toBe(true);
+            expect(prepended(result).prepend.some(p => p.includes('<li>'))).toBe(true);
+            expect(prepended(result).prepend.some(p => p.includes(`${NAMESPACE}.template`))).toBe(true);
         });
 
         it('records the virtual entrypoint during matching', () => {

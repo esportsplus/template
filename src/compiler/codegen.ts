@@ -1,6 +1,6 @@
 import { ts } from '@esportsplus/typescript';
 import { ast, checker as checkers, uid } from '@esportsplus/typescript/compiler';
-import type { ReplacementIntent } from '@esportsplus/typescript/compiler';
+import type { Prepend, ReplacementIntent, Text } from '@esportsplus/typescript/compiler';
 import { ANCHOR_LAST, ANCHOR_SOLE } from '../constants';
 import parse from '../event/parse';
 import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
@@ -41,7 +41,7 @@ type CodegenContext = {
 type CodegenResult = {
     // Intents of the rewrites nested in copied source, returned beside `replacements` for the coordinator to compose
     nested: ReplacementIntent[];
-    prepend: string[];
+    prepend: Prepend[];
     replacements: ReplacementIntent[];
     selectorFired: boolean;
     templates: Map<string, string>;
@@ -58,8 +58,6 @@ type ParseResult = ReturnType<typeof parser.parse>;
 type Prefolded = { expressions: ts.Expression[]; literals: string[] };
 
 type Range = { end: number; start: number };
-
-type Text = (node: ts.Node) => string;
 
 
 // Neither occurs in source text: a marker is what the coordinator's composed text holds where a nested rewrite goes,
@@ -1051,7 +1049,7 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
             templates: new Map()
         },
         inner: Range[] = [],
-        prepend: string[] = [],
+        prepend: Prepend[] = [],
         replacements: ReplacementIntent[] = [],
         templateRanges: Range[] = [];
 
@@ -1098,42 +1096,15 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
         prepend.push(`const ${id} = ${NAMESPACE}.template(${literal(html)}${ctx.singles.has(html) ? ', true' : ''});`);
     }
 
-    // A hoisted constant copying source is written with that source as it stands until the first replacement is
-    // generated, which composes it in place: the coordinator applies `prepend` after generating every replacement
-    let late: { at: number; code: string; id: string }[] = [],
-        source = written(ctx);
-
+    // A hoisted constant copying source is composed like a replacement, once the coordinator has composed them all
     for (let { code, id } of ctx.hoisted!.values()) {
-        REGEX_TOKEN.lastIndex = 0;
-
-        if (REGEX_TOKEN.test(code)) {
-            late.push({ at: prepend.length, code, id });
-        }
-
-        prepend.push(`const ${id} = ${resolve(ctx, code, source)};`);
+        prepend.push(code.includes(TOKEN) ? (text: Text) => `const ${id} = ${resolve(ctx, code, text)};` : `const ${id} = ${code};`);
     }
-
-    let settle = (text: Text) => {
-        for (let i = 0, n = late.length; i < n; i++) {
-            let { at, code, id } = late[i];
-
-            prepend[at] = `const ${id} = ${resolve(ctx, code, text)};`;
-        }
-
-        late = [];
-    };
 
     for (let i = 0, n = roots.length; i < n; i++) {
         let { code, node } = roots[i];
 
-        replacements.push({
-            generate: (_sourceFile, text) => {
-                settle(text);
-
-                return resolve(ctx, code, text);
-            },
-            node
-        });
+        replacements.push({ generate: (_sourceFile, text) => resolve(ctx, code, text), node });
     }
 
     return { nested: ctx.nested!, prepend, replacements, selectorFired: ctx.selectorFired === true, templates: ctx.templates };

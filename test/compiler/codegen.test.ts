@@ -3,7 +3,7 @@ import { languageService } from '@esportsplus/typescript/compiler';
 import { generateCode, resolve, rewriteExpression } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
-import { written } from './written';
+import { prepended, written } from './written';
 
 
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
@@ -13,7 +13,7 @@ function codegen(source: string) {
     let sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
         artifacts = findTemplateArtifacts(sourceFile);
 
-    return { result: generateCode(artifacts, sourceFile), sourceFile, templates: artifacts.templates };
+    return { result: prepended(generateCode(artifacts, sourceFile)), sourceFile, templates: artifacts.templates };
 }
 
 // Runs codegen with a real checker so fold() can resolve const identifiers to their literal types
@@ -21,7 +21,7 @@ function codegenWithProgram(source: string) {
     let { checker, sourceFile } = languageService.scratch(process.cwd() + '/test.ts', source),
         artifacts = findTemplateArtifacts(sourceFile);
 
-    return generateCode(artifacts, sourceFile, checker);
+    return prepended(generateCode(artifacts, sourceFile, checker));
 }
 
 

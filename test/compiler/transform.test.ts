@@ -4,7 +4,7 @@ import type { TransformContext } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, NAMESPACE } from '../../src/compiler/constants';
 
 import transform from '../../src/compiler';
-import { written } from './written';
+import { prepended, written } from './written';
 
 
 const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
@@ -68,7 +68,7 @@ describe('compiler/transform', () => {
 
         it('prepend contains template factory definition', () => {
             let result = transform.transform(createContext("let x = html`<div>hello</div>`;"));
-            let hasTemplate = result.prepend!.some(p => p.includes(NAMESPACE + '.template'));
+            let hasTemplate = prepended(result).prepend.some(p => p.includes(NAMESPACE + '.template'));
 
             expect(hasTemplate).toBe(true);
         });
@@ -117,7 +117,7 @@ describe('compiler/transform', () => {
 
             expect(result.prepend).toBeDefined();
 
-            let hasTemplate = result.prepend!.some(p => p.includes(NAMESPACE + '.template'));
+            let hasTemplate = prepended(result).prepend.some(p => p.includes(NAMESPACE + '.template'));
 
             expect(hasTemplate).toBe(true);
         });

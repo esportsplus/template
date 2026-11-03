@@ -6,13 +6,13 @@ import * as runtime from '../../src';
 import { generateCode } from '../../src/compiler/codegen';
 import { NAMESPACE } from '../../src/compiler/constants';
 import { findTemplateArtifacts } from '../../src/compiler/ts-parser';
-import { written } from './written';
+import { prepended, written } from './written';
 
 
 // Lowers 'source' with a checker for folding and specialization, then runs it; 'value' is what it returns
 function compile(source: string, args: Record<string, unknown> = {}) {
     let { checker, sourceFile } = languageService.scratch(process.cwd() + '/emission-fixture.ts', source),
-        result = generateCode(findTemplateArtifacts(sourceFile), sourceFile, checker),
+        result = prepended(generateCode(findTemplateArtifacts(sourceFile), sourceFile, checker)),
         output = source;
 
     for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
