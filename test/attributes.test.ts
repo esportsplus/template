@@ -615,7 +615,7 @@ describe('attributes', () => {
         function writes(target: HTMLElement, name: string) {
             let records: string[] = [],
                 observer = new MutationObserver((list) => {
-                    for (let record of list) {
+                    for (let i = 0, n = list.length; i < n; i++) {
                         records.push(target.getAttribute(name) ?? '');
                     }
                 });

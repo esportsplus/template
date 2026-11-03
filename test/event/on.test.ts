@@ -717,6 +717,7 @@ describe('event/on', () => {
 
             expect(() => runtime(node, 'on' as 'onconnect', () => {})).toThrow(`@esportsplus/template: 'on' is not an attribute`);
             expect(() => runtime(node, 'On' as 'onconnect', () => {})).toThrow(`'On' is not an attribute`);
+            // @ts-expect-error an on key is a type error; this pins the runtime rejection too
             expect(() => setProperties(node, { on: () => {} })).toThrow(`'on' is not an attribute`);
         });
     });

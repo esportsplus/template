@@ -217,7 +217,7 @@ const cases: Case[] = [
         iterations: 500000,
         name: 'composed value, per update: one call of the prebuilt join',
         setup: () => {
-            let fn = (() => { let n = 0; return () => n++; })();
+            let fn = (() => { let n = 0; return (_el: unknown) => n++; })();
 
             return {
                 compiled: (el: unknown) => 'width: ' + s(fn(el)) + 'px',
@@ -440,7 +440,7 @@ const cases: Case[] = [
         iterations: 2000,
         name: 'attribute effect update: 1000 effects on one signal, write + flush',
         setup: () => {
-            let el = element('<div></div>'),
+            let el = element('<div></div>') as HTMLElement,
                 sig = signal(0);
 
             return {
