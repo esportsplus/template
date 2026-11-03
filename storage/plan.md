@@ -1,7 +1,7 @@
 # Plan: faster attributes, compiler and runtime, keeping the merge model
 
-Status: consolidated from the attribute plan and the exploration notes. Nothing below is implemented in
-main (`0749658`, 0.57.0). Steps are in implementation order; each is its own commit unless it says
+Status: consolidated from the attribute plan and the exploration notes. Implemented in 0.58.0 except the
+items under Deferred at the end. Steps are in implementation order; each is its own commit unless it says
 otherwise.
 
 Goal: make compiled templates, the runtime and the compiler faster and smaller without losing a
@@ -475,3 +475,15 @@ commit is pushed to its branch for review.
 | 7 `G:/ui` worktree | 6 | UI build, docs typecheck, dev and production page dumps |
 
 Phases 2, 3 and 5 are independent of each other; 4 depends on the reactivity changes; 7 is last.
+
+
+## Deferred
+
+Not implemented in 0.58.0:
+
+- 2.4 one effect per list until its first change: reverted; it needs the paired bench to show the creation saving
+  outweighs the extra first-change run before it is worth keeping.
+- 4.3 adopted cleanups through `onCleanup`: it moves replaced content's cleanups before the new content is built, which
+  changes `ondisconnect` ordering and needs a decision first.
+- 5.3 fold slotless nested templates into the parent's markup: an optional compile-time fold, no correctness or API
+  change depends on it.
