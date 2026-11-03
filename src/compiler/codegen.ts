@@ -926,6 +926,48 @@ function parseCached(literals: string[]): ParseResult {
     return result;
 }
 
+// Every type codegen asks about, in one request: what analyze() and classify() type is a template expression,
+// unwrapped, and a conditional's branches; a function, literal, nested template or slot construction never is
+function prefetch(checker: ts.Checker, templates: Artifacts['templates'], sites: Set<ts.Node>): void {
+    let nodes: ts.Node[] = [];
+
+    let collect = (expr: ts.Expression): void => {
+        while (ts.isParenthesizedExpression(expr)) {
+            expr = expr.expression;
+        }
+
+        if (
+            ts.isArrowFunction(expr) ||
+            ts.isFunctionExpression(expr) ||
+            ts.isTemplateExpression(expr) ||
+            isLiteral(expr) ||
+            isHtmlTemplate(expr, sites) ||
+            entrypointOf(expr, sites) !== null
+        ) {
+            return;
+        }
+
+        nodes.push(expr);
+
+        if (ts.isConditionalExpression(expr)) {
+            collect(expr.whenTrue);
+            collect(expr.whenFalse);
+        }
+    };
+
+    for (let i = 0, n = templates.length; i < n; i++) {
+        let expressions = templates[i].expressions;
+
+        for (let j = 0, m = expressions.length; j < m; j++) {
+            collect(expressions[j]);
+        }
+    }
+
+    if (nodes.length > 0) {
+        checker.getTypeAtLocation(nodes);
+    }
+}
+
 // Merge every foldable expression into the surrounding literals BEFORE parse: the folded value
 // rides the template clone (as text or a static attribute token) instead of a runtime binding.
 // This is the only safe splice point — post-parse HTML rewriting would invalidate the
@@ -1009,6 +1051,10 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
         prepend: string[] = [],
         replacements: ReplacementIntent[] = [],
         templateRanges: Range[] = [];
+
+    if (ctx.checker) {
+        prefetch(ctx.checker, templates, sites);
+    }
 
     for (let i = 0, n = templates.length; i < n; i++) {
         let { end, expressions, start } = templates[i];

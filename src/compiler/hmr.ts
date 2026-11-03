@@ -16,6 +16,9 @@ import { findTemplateArtifacts } from './ts-parser';
 type HmrState = { id: string | null; plan: Site[] | null; templates: Set<string> };
 
 // One entry per export site, in source order; `apply` re-finds the sites in the lowered code
+// The DOM types a renderable value can be assigned to, resolved once per program
+type Renderables = { list: ts.Type | undefined; node: ts.Type | undefined };
+
 type Site =
     | { kind: 'assignment'; wrapper: 'eager' | 'factory' }
     | { kind: 'function' }
@@ -32,11 +35,14 @@ const REGEX_FUNCTION = /\b(async\s+)?function\b/;
 
 const REGEX_JSX = /\.[jt]sx$/;
 
+const RENDERABLES = new WeakMap<ts.Program, Renderables>();
+
 
 // Decides which exports to wrap, on the original source with the project's checker. Returns null
 // when any export or top-level statement makes the module unsafe to re-evaluate in place.
 function analyze(ctx: TransformContext): Site[] | null {
     let checker = ctx.checker,
+        dom = renderables(checker, ctx.program),
         sites: Site[] = [],
         statements = ctx.sourceFile.statements;
 
@@ -53,13 +59,13 @@ function analyze(ctx: TransformContext): Site[] | null {
                     type = checker.getTypeAtLocation(expression),
                     unwrapped = unwrap(expression);
 
-                if (type !== undefined && isFunctionType(type, checker) && producesRenderable(type, checker, 2)) {
+                if (type !== undefined && isFunctionType(type, checker) && producesRenderable(type, checker, dom, 2)) {
                     sites.push({ kind: 'assignment', wrapper: 'factory' });
                 }
                 else if (
                     type !== undefined &&
                     (ts.isCallExpression(unwrapped) || ts.isTaggedTemplateExpression(unwrapped)) &&
-                    isRenderableType(type, checker)
+                    isRenderableType(type, checker, dom)
                 ) {
                     sites.push({ kind: 'assignment', wrapper: 'eager' });
                 }
@@ -73,7 +79,7 @@ function analyze(ctx: TransformContext): Site[] | null {
             case 'function': {
                 let type = checker.getTypeAtLocation(statement);
 
-                if (type === undefined || !producesRenderable(type, checker, 2)) {
+                if (type === undefined || !producesRenderable(type, checker, dom, 2)) {
                     return null;
                 }
 
@@ -90,7 +96,7 @@ function analyze(ctx: TransformContext): Site[] | null {
                         local = elements[j].propertyName ?? elements[j].name,
                         type = checker.getTypeAtLocation(local);
 
-                    if (type === undefined || !isFunctionType(type, checker) || !producesRenderable(type, checker, 3)) {
+                    if (type === undefined || !isFunctionType(type, checker) || !producesRenderable(type, checker, dom, 3)) {
                         return null;
                     }
 
@@ -166,7 +172,7 @@ function hotBlock(moduleId: string): string {
     ].join('\n');
 }
 
-function isRenderableType(type: ts.Type, checker: ts.Checker): boolean {
+function isRenderableType(type: ts.Type, checker: ts.Checker, dom: Renderables): boolean {
     // Inspect the outer type, not its printed signature: Router<Renderable<T>>
     // and (element: Element) => number are not renderable values.
     if (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.Never)) {
@@ -180,18 +186,15 @@ function isRenderableType(type: ts.Type, checker: ts.Checker): boolean {
     if (type.isUnionType()) {
         let types = type.getTypes().filter((member) => !(member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)));
 
-        return types.length > 0 && types.every((member) => isRenderableType(member, checker));
+        return types.length > 0 && types.every((member) => isRenderableType(member, checker, dom));
     }
 
     if (type.isTypeReference() && type.getSymbol()?.name === 'Array') {
-        return checker.getTypeArguments(type).every((member) => isRenderableType(member, checker));
+        return checker.getTypeArguments(type).every((member) => isRenderableType(member, checker, dom));
     }
 
-    let node = checker.resolveName('Node', ts.SymbolFlags.Type),
-        list = checker.resolveName('NodeList', ts.SymbolFlags.Type);
-
-    return (node !== undefined && checker.isTypeAssignableTo(type, checker.getDeclaredTypeOfSymbol(node))) ||
-        (list !== undefined && checker.isTypeAssignableTo(type, checker.getDeclaredTypeOfSymbol(list)));
+    return (dom.node !== undefined && checker.isTypeAssignableTo(type, dom.node)) ||
+        (dom.list !== undefined && checker.isTypeAssignableTo(type, dom.list));
 }
 
 // What scan() finds, read by the parser instead: for JSX, whose text the scanner cannot tell from code
@@ -262,8 +265,8 @@ function pickName(code: string, base: string, taken: Set<string>): string {
 // Renderable — e.g. `(attributes) => html`` ` or `factory('checkbox')`. Route
 // registration factories like `(r) => r.get(...)` return a Router, not a
 // Renderable, so they must NOT be wrapped as HMR components.
-function producesRenderable(type: ts.Type, checker: ts.Checker, depth: number): boolean {
-    if (isRenderableType(type, checker)) {
+function producesRenderable(type: ts.Type, checker: ts.Checker, dom: Renderables, depth: number): boolean {
+    if (isRenderableType(type, checker, dom)) {
         return true;
     }
 
@@ -276,12 +279,29 @@ function producesRenderable(type: ts.Type, checker: ts.Checker, depth: number): 
     for (let i = 0, n = signatures.length; i < n; i++) {
         let returnType = checker.getReturnTypeOfSignature(signatures[i]);
 
-        if (returnType !== undefined && producesRenderable(returnType, checker, depth - 1)) {
+        if (returnType !== undefined && producesRenderable(returnType, checker, dom, depth - 1)) {
             return true;
         }
     }
 
     return false;
+}
+
+function renderables(checker: ts.Checker, program: ts.Program): Renderables {
+    let dom = RENDERABLES.get(program);
+
+    if (dom === undefined) {
+        let list = checker.resolveName('NodeList', ts.SymbolFlags.Type),
+            node = checker.resolveName('Node', ts.SymbolFlags.Type);
+
+        dom = {
+            list: list && checker.getDeclaredTypeOfSymbol(list),
+            node: node && checker.getDeclaredTypeOfSymbol(node)
+        };
+        RENDERABLES.set(program, dom);
+    }
+
+    return dom;
 }
 
 function siteKind(statement: ts.Statement): Site['kind'] | null {
