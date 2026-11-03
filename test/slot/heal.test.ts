@@ -900,6 +900,38 @@ describe('ownership', () => {
         parent.remove();
     });
 
+    it('keeps adopted content bound across runs that return it again, and releases it once replaced', () => {
+        let parent = host(),
+            calls: string[] = [],
+            content = element(),
+            other = element('b'),
+            s = signal('a'),
+            shown = signal(true);
+
+        hook(content, () => calls.push('hook'));
+        setProperty(content, 'title', () => read(s));
+
+        new EffectSlot(anchor(parent), () => {
+            read(s);
+            return read(shown) ? content : other;
+        });
+
+        // A rerun returning the node already shown must not release what the slot adopted from it
+        write(s, 'b');
+        flush();
+
+        expect(calls).toEqual([]);
+        expect(content.title).toBe('b');
+
+        write(shown, false);
+        flush();
+
+        expect(calls).toEqual(['hook']);
+        expect(parent.querySelector('b')).not.toBeNull();
+
+        parent.remove();
+    });
+
     it('adopts async content into the slot, and keeps what the run built before its first await until the run ends', async () => {
         let parent = host(),
             calls: string[] = [],
