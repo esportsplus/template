@@ -24,7 +24,13 @@ type ListState = {
 
 function apply(element: Element, name: string, value: unknown) {
     if (name === 'class') {
-        element.className = value as string;
+        // An SVG element's className is a read-only SVGAnimatedString
+        if (svg(element)) {
+            element.setAttribute('class', value as string);
+        }
+        else {
+            element.className = value as string;
+        }
     }
     else if (name === 'style') {
         element.style.cssText = value as string;
@@ -45,7 +51,7 @@ function apply(element: Element, name: string, value: unknown) {
 }
 
 function attribute(name: string, element: Element) {
-    return name.indexOf('-') !== -1 || element['ownerSVGElement'] != null || !(name in element);
+    return name.indexOf('-') !== -1 || svg(element) || !(name in element);
 }
 
 // Every part a class or style value names: a string split on the list's delimiter, an array entry by
@@ -227,6 +233,11 @@ function reactive(element: Element, name: string, value: unknown) {
     });
 
     unowned(element, stop);
+}
+
+// Every SVG element carries ownerSVGElement, null on an outermost <svg>; HTML elements have none
+function svg(element: Element) {
+    return element['ownerSVGElement'] !== undefined;
 }
 
 

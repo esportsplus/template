@@ -89,6 +89,27 @@ describe('attributes', () => {
 
             expect(rect.getAttribute('width')).toBe('100');
         });
+
+        it('writes class on SVG elements through setAttribute', async () => {
+            let circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle') as unknown as Element,
+                s = signal('on'),
+                svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as unknown as Element;
+
+            svg.appendChild(circle);
+            container.appendChild(svg);
+            setList(circle, 'class', () => read(s));
+            setList(svg, 'class', 'root');
+            setProperty(svg, 'viewBox', '0 0 10 10');
+
+            expect(circle.getAttribute('class')).toBe('on');
+            expect(svg.getAttribute('class')).toBe('root');
+            expect(svg.getAttribute('viewBox')).toBe('0 0 10 10');
+
+            write(s, 'off');
+            await Promise.resolve();
+
+            expect(circle.getAttribute('class')).toBe('off');
+        });
     });
 
     describe('setList', () => {
