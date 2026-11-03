@@ -2,8 +2,7 @@ import type { Reactive } from '@esportsplus/reactivity';
 import { SLOT_HTML } from './constants';
 
 
-let tmpl = document.createElement('template'),
-    txt = document.createTextNode('');
+let tmpl = document.createElement('template');
 
 
 // Firefox's importNode outperforms cloneNode in certain scenarios
@@ -54,15 +53,7 @@ const template = (html: string, single: boolean = false): (() => DocumentFragmen
 // subscribe whatever effect is rendering the slot to the array's length.
 const untracked = <T>(array: Reactive<T[]>): T[] => array;
 
-const text = (value: string) => {
-    let element = txt.cloneNode() as Text;
-
-    if (value !== '') {
-        element.nodeValue = value;
-    }
-
-    return element;
-};
+const text = (value: string) => document.createTextNode(value);
 
 
 export { clone, EMPTY_FRAGMENT, fragment, marker, raf, template, text, untracked };
