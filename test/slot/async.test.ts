@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { read, root, signal, write } from '@esportsplus/reactivity';
+import { parent } from '../../src/slot/cleanup';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
 import type { Element } from '../../src/types';
@@ -495,6 +496,38 @@ describe('slot/EffectSlot (async)', () => {
             await new Promise((resolve) => setTimeout(resolve));
 
             expect(container.textContent).toBe('user 2');
+        });
+    });
+
+    describe('ownership', () => {
+        it('is the parent of content built before the first await', async () => {
+            let inner: EffectSlot | undefined,
+                slot: EffectSlot | undefined;
+
+            new EffectSlot(anchor, () => {
+                let host = document.createElement('div'),
+                    outer = marker.cloneNode() as unknown as Element;
+
+                host.appendChild(outer as unknown as Node);
+                slot = new EffectSlot(outer, async () => {
+                    let nested = document.createElement('div'),
+                        position = marker.cloneNode() as unknown as Element;
+
+                    nested.appendChild(position as unknown as Node);
+                    inner = new EffectSlot(position, () => 'inner');
+                    await Promise.resolve();
+
+                    return nested;
+                });
+
+                return host;
+            });
+
+            await vi.waitFor(() => {
+                expect(container.textContent).toBe('inner');
+            });
+
+            expect(parent(inner!)).toBe(slot);
         });
     });
 });

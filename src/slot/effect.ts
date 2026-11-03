@@ -52,6 +52,10 @@ class EffectSlot implements Slot {
             // An async computed: it reruns when a signal read before its first await changes, keeps only the latest
             // result, and a rejection surfaces through read(). What fallback() is given shows while it is pending.
             this.disposer = root((dispose) => {
+                // The computed below runs the function on creation, before any effect run could own it; content built
+                // before its first await belongs to this slot
+                own(this);
+
                 let fallback = signal<unknown>(undefined),
                     value = computed(() => (fn as (fallback: (content: Renderable<any>) => void) => Promise<Renderable<any>>)(
                         (content) => write(fallback, content)
