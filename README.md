@@ -562,6 +562,14 @@ const circle = (fill: string) =>
     </svg>`;
 ```
 
+A sprite icon is a `<use>` of a symbol id; the compiler needs nothing for it, and the `href` may be an in-document `#id` (dev) or an external `/assets/sprite.hash.svg#id` (build):
+
+```typescript
+const icon = (href: string) => html`<svg><use href='${href}'/></svg>`;
+```
+
+A symbol in an external sprite comes from another document: inherited properties (`color`, custom properties) still flow in from the `<use>`, but the page's selectors cannot style the elements inside the symbol. An icon that needs document CSS inside the symbol must be authored as an inline `html\`<svg>…</svg>\`` template instead of a sprite import.
+
 ## API Reference
 
 ### Exports
