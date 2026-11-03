@@ -259,6 +259,27 @@ describe('compiler emission', () => {
             expect(output).toContain(`'click', () => log(id)`);
         });
 
+        it('keeps a handler whose shorthand property reads an instance local', () => {
+            let { output } = compile([
+                    'declare const emit: (value: unknown) => void;',
+                    'const row = (data: string) => html`<div onclick=${() => emit({ data })}>t</div>`;',
+                    "let value = row('x');"
+                ].join('\n'));
+
+            expect(output).not.toMatch(/const handler_\w+ =/);
+            expect(output).toContain(`'click', () => emit({ data })`);
+        });
+
+        it('hoists a handler passing only a literal', () => {
+            let { output } = compile([
+                    'declare const emit: (value: unknown) => void;',
+                    'const row = (data: string) => html`<div onclick=${() => emit(1)}>${data}</div>`;',
+                    "let value = row('x');"
+                ].join('\n'));
+
+            expect(output).toMatch(/const handler_\w+ = \(\) => emit\(1\);/);
+        });
+
         it('runs a hoisted handler for every instance, each disposing its own binding', () => {
             let calls: string[] = [],
                 { output, value } = compile([

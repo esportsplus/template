@@ -645,7 +645,11 @@ function isModuleScoped(checker: ts.Checker, expr: ts.Expression): boolean {
             !(ts.isPropertyAssignment(node.parent) && node.parent.name === node) &&
             !(ts.isQualifiedName(node.parent) && node.parent.right === node)
         ) {
-            let declaration = checker.getSymbolAtLocation(node)?.declarations?.[0]?.resolve();
+            // A shorthand property's own symbol is the property, declared inside the handler; the value it reads is not
+            let symbol = ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node
+                    ? checker.getShorthandAssignmentValueSymbol(node.parent)
+                    : checker.getSymbolAtLocation(node),
+                declaration = symbol?.declarations?.[0]?.resolve();
 
             if (!declaration) {
                 scoped = false;
