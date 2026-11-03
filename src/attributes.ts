@@ -13,11 +13,8 @@ type Batch = {
     open: boolean;
 };
 
+// What every writer of an element shares: its lists, and the last value of each plain attribute
 type Context = {
-    cold?: Record<number, Record<PropertyKey, true>>;
-    effect?: number,
-    element: Element;
-    raw?: unknown[];
     store?: Record<string, unknown>;
     values?: Record<string, unknown>;
 };
@@ -25,6 +22,12 @@ type Context = {
 type ListState = {
     dynamic: Set<string>;
     static: string;
+};
+
+// What one reactive list part alone reads: the value of its last run and the tokens it put in the list
+type Part = {
+    raw: unknown;
+    tokens: string[] | null;
 };
 
 
@@ -113,7 +116,7 @@ function collect(name: string, delimiter: string, value: unknown, into: string[]
 }
 
 function context(element: Element) {
-    return (element[STORE] ??= { element }) as Context;
+    return (element[STORE] ??= {}) as Context;
 }
 
 function empty(value: unknown) {
@@ -130,8 +133,8 @@ function join(state: ListState, delimiter: string) {
     return joined;
 }
 
-// Whether 'value' changes the element's list. A static value (id null) appends to the list's static part.
-function list(ctx: Context, element: Element, id: null | number, name: string, value: unknown) {
+// Whether 'value' changes the element's list. A static value (no part) appends to the list's static part.
+function list(ctx: Context, element: Element, part: Part | null, name: string, value: unknown) {
     if (empty(value)) {
         value = '';
     }
@@ -140,50 +143,46 @@ function list(ctx: Context, element: Element, id: null | number, name: string, v
         delimiter = ATTRIBUTE_DELIMITERS[name],
         listState = state(ctx, element, name);
 
-    if (id === null) {
-        let parts: string[] = [];
+    if (part === null) {
+        let tokens: string[] = [];
 
-        collect(name, delimiter, value, parts);
+        collect(name, delimiter, value, tokens);
 
-        for (let i = 0, n = parts.length; i < n; i++) {
+        for (let i = 0, n = tokens.length; i < n; i++) {
             changed = true;
-            listState.static += (listState.static ? delimiter : '') + parts[i];
+            listState.static += (listState.static ? delimiter : '') + tokens[i];
         }
     }
     // An array or object is diffed whole each run: it may be the same instance with new contents
-    else if (typeof value === 'object' || (ctx.raw ??= [])[id] !== value) {
+    else if (typeof value === 'object' || part.raw !== value) {
         let dynamic = listState.dynamic,
-            hot: Record<PropertyKey, true> = {},
-            parts: string[] = [];
+            previous = part.tokens,
+            tokens: string[] = [];
 
-        collect(name, delimiter, value, parts);
+        collect(name, delimiter, value, tokens);
 
-        for (let i = 0, n = parts.length; i < n; i++) {
-            let part = parts[i];
+        for (let i = 0, n = tokens.length; i < n; i++) {
+            let token = tokens[i];
 
-            if (!dynamic.has(part)) {
+            if (!dynamic.has(token)) {
                 changed = true;
-                dynamic.add(part);
+                dynamic.add(token);
             }
-
-            hot[part] = true;
         }
 
-        let cold = (ctx.cold ??= {})[id];
+        if (previous !== null) {
+            for (let i = 0, n = previous.length; i < n; i++) {
+                let token = previous[i];
 
-        if (cold !== undefined) {
-            for (let part in cold) {
-                if (hot[part] === true) {
-                    continue;
+                if (tokens.indexOf(token) === -1) {
+                    changed = true;
+                    dynamic.delete(token);
                 }
-
-                changed = true;
-                dynamic.delete(part);
             }
         }
 
-        (ctx.raw ??= [])[id] = value;
-        ctx.cold[id] = hot;
+        part.raw = value;
+        part.tokens = tokens;
     }
 
     return changed;
@@ -215,15 +214,14 @@ function merge(ctx: Context, element: Element, name: string, value: unknown, bat
     return list(ctx, element, null, name, value);
 }
 
-// The value to write once 'value' changes the binding, undefined while it stays as it is.
-function property(ctx: Context | null, element: Element, id: null | number, name: string, value: unknown) {
+// The value to write once 'value' changes the binding, undefined while it stays as it is. A static value
+// (no context) always writes.
+function property(ctx: Context | null, name: string, value: unknown) {
     if (empty(value)) {
         value = '';
     }
 
-    if (id !== null) {
-        ctx ??= context(element);
-
+    if (ctx !== null) {
         let values = ctx.values ??= {};
 
         if (values[name] === value) {
@@ -239,15 +237,11 @@ function property(ctx: Context | null, element: Element, id: null | number, name
 // Written as the effect runs: reactivity already defers reruns to a microtask, so the DOM lands in
 // the same task as the change, and its flush() makes it synchronous.
 function reactive(ctx: Context, element: Element, name: string, value: unknown, batch: Batch | null) {
-    let lists = name === 'class' || name === 'style',
-        mounted = false,
+    let mounted = false,
         parent = current(),
+        part: Part | null = name === 'class' || name === 'style' ? { raw: undefined, tokens: null } : null,
         slot: Slot | null = null,
         stop: VoidFunction;
-
-    ctx.effect ??= 0;
-
-    let id = ctx.effect++;
 
     stop = effect(() => {
         if (element.isConnected) {
@@ -262,8 +256,8 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
         let v = (value as Function)(element);
 
         // A class or style list takes a returned array or style object whole, as one diff and one write
-        if (lists) {
-            if (!list(ctx, element, id, name, v)) {
+        if (part !== null) {
+            if (!list(ctx, element, part, name, v)) {
                 return;
             }
 
@@ -282,7 +276,7 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
             return;
         }
 
-        let next = property(ctx, element, id, name, v);
+        let next = property(ctx, name, v);
 
         if (next !== undefined) {
             apply(element, name, next);
@@ -460,7 +454,7 @@ const setProperty = (element: Element, name: string, value: unknown) => {
         reactive(context(element), element, name, value, null);
     }
     else {
-        apply(element, name, property(null, element, null, name, value));
+        apply(element, name, property(null, name, value));
     }
 };
 
@@ -495,7 +489,7 @@ const setProperties = function (
                 }
             }
             else  {
-                apply(element, name, property(null, element, null, name, value));
+                apply(element, name, property(null, name, value));
             }
         }
     }
