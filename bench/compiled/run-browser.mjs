@@ -81,14 +81,15 @@ async function compile(pkg, workspace) {
     }));
 
     let template = (await import(pathToFileURL(join(target, 'build/compiler/index.js')).href)).default,
-        opened = languageService.open(config),
-        sourceFile = opened.project.program.getSourceFile(app);
-
-    if (!sourceFile) {
-        throw new Error(`Compiled: '${app}' is not in the program!`);
-    }
+        opened = languageService.open(config);
 
     try {
+        let sourceFile = opened.project.program.getSourceFile(app);
+
+        if (!sourceFile) {
+            throw new Error(`Compiled: '${app}' is not in the program!`);
+        }
+
         let result = coordinator.transform(
                 [reactivity, template],
                 sourceFile.getFullText(),
