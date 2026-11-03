@@ -1,4 +1,4 @@
-import { ReactiveArray, Signal, reactive, read, signal, write } from '@esportsplus/reactivity';
+import { reactive, ReactiveArray, read, Signal, signal, write } from '@esportsplus/reactivity';
 import { setList } from '../../src/attributes';
 import { ANCHOR_SOLE } from '../../src/constants';
 import { delegate } from '../../src/event';

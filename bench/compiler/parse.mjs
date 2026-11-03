@@ -1,6 +1,6 @@
 // Parser micro-bench: parse() over every template of the corpus, per package, interleaved rounds.
 // usage: node bench/compiler/parse.mjs <label=package dir>...
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 

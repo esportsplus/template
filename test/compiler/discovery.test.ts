@@ -119,7 +119,7 @@ async function render(code: string, label: string): Promise<string> {
             .replace(/export default /, 'return '),
         modules: Record<string, unknown> = {
             './app': { h: runtime.html },
-            './barrel': { ...runtime, T: runtime, alias: runtime.html, default: runtime.html, tag: runtime.html },
+            './barrel': { ...runtime, alias: runtime.html, default: runtime.html, T: runtime, tag: runtime.html },
             './deep': runtime,
             '@esportsplus/reactivity': reactivity,
             '@esportsplus/template': runtime,

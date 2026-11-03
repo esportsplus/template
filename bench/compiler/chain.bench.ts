@@ -1,5 +1,5 @@
 import { afterAll, test } from 'vitest';
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { coordinator, languageService } from '@esportsplus/typescript/compiler';
 

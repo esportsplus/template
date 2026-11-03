@@ -1,9 +1,7 @@
-// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
-import { owner, root, Reactive } from '@esportsplus/reactivity';
+import { owner, Reactive, root } from '@esportsplus/reactivity';
 import type { ArrayOp } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
-// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { clone, EMPTY_FRAGMENT, marker, untracked } from '../utilities';
 import { detach, ondisconnect, own, release, report, throws, track } from './cleanup';
 import type { Owner, Slot } from './cleanup';

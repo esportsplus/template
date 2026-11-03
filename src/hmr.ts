@@ -1,9 +1,7 @@
 import { onCleanup, owner, root } from '@esportsplus/reactivity';
-// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
-import { own, release, throws, track as watch, unowned } from './slot/cleanup';
+import { own, release, throws, unowned, track as watch } from './slot/cleanup';
 import type { Slot } from './slot/cleanup';
 import render from './slot/render';
-// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { clone, EMPTY_FRAGMENT } from './utilities';
 
 

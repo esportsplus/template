@@ -4,8 +4,7 @@ import { isAsyncFunction } from '@esportsplus/utilities';
 import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable, SlotGroup } from '../types';
 import { text } from '../utilities'
-// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
-import { claim, detach, ondisconnect, own, report, run, stale, track, MOUNTED } from './cleanup';
+import { claim, detach, MOUNTED, ondisconnect, own, report, run, stale, track } from './cleanup';
 import type { Owner, Slot } from './cleanup';
 import render from './render';
 

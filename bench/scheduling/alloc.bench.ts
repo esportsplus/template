@@ -1,6 +1,6 @@
 // Evaluated first so the raf/microtask stubs land before src modules capture the schedulers
 import { flush } from '../krausest/setup';
-import { Signal, read, signal, write } from '@esportsplus/reactivity';
+import { read, Signal, signal, write } from '@esportsplus/reactivity';
 import { test } from 'vitest';
 import { setProperty } from '../../src/attributes';
 import { ANCHOR_SOLE } from '../../src/constants';

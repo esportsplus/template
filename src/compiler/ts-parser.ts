@@ -1,6 +1,6 @@
 import { ts } from '@esportsplus/typescript';
 import { references } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT, PACKAGE_NAME, REMOVALS, isEntrypoint } from './constants';
+import { ENTRYPOINT, isEntrypoint, PACKAGE_NAME, REMOVALS } from './constants';
 import type { Entrypoint } from './constants';
 
 

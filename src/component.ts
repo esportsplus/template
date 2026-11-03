@@ -1,6 +1,5 @@
 import { Attributes, Renderable } from './types';
-// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
-import { isObject, EMPTY_OBJECT } from '@esportsplus/utilities';
+import { EMPTY_OBJECT, isObject } from '@esportsplus/utilities';
 
 
 type Factory<A, C, R, P = {}> = {

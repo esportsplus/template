@@ -170,6 +170,7 @@ const create = (container: HTMLElement, virtual: boolean) => {
 
             scroller.scrollTop = 0;
         },
+        scroller,
         scrollToEnd: () => {
             scroll(scroller.scrollHeight);
         },
@@ -191,7 +192,6 @@ const create = (container: HTMLElement, virtual: boolean) => {
 
             scroll(offset);
         },
-        scroller,
         spliceAboveViewport: () => {
             seed = SPLICE_SEED;
 
