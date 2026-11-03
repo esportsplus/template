@@ -137,7 +137,7 @@ try {
     }
 }
 finally {
-    languageService.dispose();
+    opened.dispose();
 }
 
 let pad = Math.max(...files.map((f) => f.length));

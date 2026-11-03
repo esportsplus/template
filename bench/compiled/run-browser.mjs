@@ -106,7 +106,7 @@ async function compile(pkg, workspace) {
         writeFileSync(app, result.code);
     }
     finally {
-        languageService.dispose();
+        opened.dispose();
     }
 
     return app;
