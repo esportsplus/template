@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# File snapshots are compared byte for byte
+test/compiler/chain/output/*.txt text eol=lf
