@@ -21,7 +21,6 @@ type CodegenContext = {
     hoisted?: Map<string, string>;
     // Whether each parameter is never reassigned, by its symbol; see specialize()
     immutables?: Map<ts.Symbol, boolean>;
-    parseCache?: Map<string, ParseResult>;
     prefoldCache?: WeakMap<ts.Node, Prefolded>;
     selectorFired?: boolean;
     // Template html whose clone is its one root element (see parser's single())
@@ -46,6 +45,10 @@ type Prefolded = { expressions: ts.Expression[]; literals: string[] };
 
 type Range = { end: number; start: number };
 
+
+const PARSED = new Map<string, ParseResult>();
+
+const PARSED_LIMIT = 2000;
 
 const PART_FUNCTION = 0;
 
@@ -284,8 +287,6 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
         if (variants.length) {
             let code = '(';
 
-            ctx.parseCache ??= new Map();
-
             for (let i = 0, n = variants.length; i <= n; i++) {
                 let variant = {
                         ...ctx,
@@ -305,7 +306,7 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
 
     let { expressions, literals } = prefoldCached(ctx, node, parts.literals, parts.expressions);
 
-    return generateTemplateCode(ctx, parseCached(ctx, literals), expressions, node);
+    return generateTemplateCode(ctx, parseCached(literals), expressions, node);
 }
 
 function generateNodeBinding(ctx: CodegenContext, anchor: string, expr: ts.Expression | undefined, text: () => string, mode: 'last' | 'sole' | undefined): string {
@@ -679,22 +680,31 @@ function isWholeAttributeValue(before: string, after: string): boolean {
     return open[1] ? after.startsWith(open[1]) : REGEX_UNQUOTED_VALUE_CLOSE.test(after);
 }
 
-// Each distinct template is parsed once per transform. The key joins the (post-prefold)
-// literals on NUL, which source template text cannot contain.
 // Template text is cooked: a template literal must escape what it would otherwise read as syntax, and a raw carriage
 // return, which it would normalize to a line feed
 function literal(text: string): string {
     return '`' + text.replace(REGEX_TEMPLATE_SYNTAX, match => match === '\r' ? '\\r' : '\\' + match) + '`';
 }
 
-function parseCached(ctx: CodegenContext, literals: string[]): ParseResult {
-    let cache = ctx.parseCache ??= new Map<string, ParseResult>(),
-        key = literals.join('\0'),
-        result = cache.get(key);
+// parse() is pure in its literals, so each distinct template is parsed once across transforms: a dev server's HMR
+// transform re-parses only what changed. The key joins the (post-prefold) literals on NUL; text holding a NUL of its
+// own could collide, so it skips the cache.
+function parseCached(literals: string[]): ParseResult {
+    let key = literals.join('\0'),
+        result = PARSED.get(key);
 
-    if (result === undefined) {
-        result = parser.parse(literals) as ParseResult;
-        cache.set(key, result);
+    if (result !== undefined) {
+        return result;
+    }
+
+    result = parser.parse(literals) as ParseResult;
+
+    if (key.split('\0').length === literals.length) {
+        if (PARSED.size >= PARSED_LIMIT) {
+            PARSED.clear();
+        }
+
+        PARSED.set(key, result);
     }
 
     return result;
@@ -759,7 +769,6 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
             checker: checker && cached(checker),
             constants,
             hoisted: new Map(),
-            parseCache: new Map(),
             singles: new Set(),
             sites,
             sourceFile,
