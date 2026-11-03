@@ -1,0 +1,42 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0z3ufx71 = template_u1.template(`<ul class=todos>`, true);
+const template_0z3ufx73 = template_u1.template(`<li>`, true);
+const template_0z3ufx75 = template_u1.template(`<table><tbody>`, true);
+const template_0z3ufx78 = template_u1.template(`<tr><td></td><td>`, true);
+
+
+
+type Todo = { done: boolean; title: string };
+
+
+let todos =  new reactivity_u0.ReactiveArray<Todo>();
+
+
+const list = () => {
+let root_0z3ufx70 = template_0z3ufx71() as template_u1.Element;
+root_0z3ufx70.appendChild(new template_u1.ArraySlot(todos, (todo) => {
+let root_0z3ufx72 = template_0z3ufx73() as template_u1.Element;
+template_u1.slot(root_0z3ufx72, todo.title, 1);
+template_u1.setClass(root_0z3ufx72, ["", () => todo.done && 'done']);
+return root_0z3ufx72;
+}, true).fragment);
+return root_0z3ufx70;
+};
+
+const table = () => {
+let root_0z3ufx74 = template_0z3ufx75() as template_u1.Element,
+element_0z3ufx76 = root_0z3ufx74.firstElementChild as template_u1.Element;
+element_0z3ufx76.appendChild(new template_u1.ArraySlot(todos, (todo) => {
+let root_0z3ufx77 = template_0z3ufx78() as template_u1.Element,
+element_0z3ufx79 = root_0z3ufx77.firstElementChild as template_u1.Element,
+element_0z3ufx7a = element_0z3ufx79.nextElementSibling as template_u1.Element;
+template_u1.slot(element_0z3ufx79, todo.title, 1);
+new template_u1.EffectSlot(element_0z3ufx7a, () => todo.done, 1);
+return root_0z3ufx77;
+}, true).fragment);
+return root_0z3ufx74;
+};
+
+
+export { list, table };

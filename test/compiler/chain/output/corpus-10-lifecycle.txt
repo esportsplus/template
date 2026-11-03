@@ -1,0 +1,18 @@
+import * as template_u1 from '@esportsplus/template';
+const template_1c7lhof1 = template_u1.template(`<div><span>`, true);
+const handler_1c7lhof3 = (dispose: VoidFunction) => dispose();
+
+
+
+const mounted = (log: (s: string) => void) => {
+let root_1c7lhof0 = template_1c7lhof1() as template_u1.Element,
+element_1c7lhof2 = root_1c7lhof0.firstElementChild as template_u1.Element;
+template_u1.onfirstpaint(element_1c7lhof2, () => log('paint'));
+template_u1.ontick(element_1c7lhof2, handler_1c7lhof3);
+template_u1.onconnect(root_1c7lhof0, (element: HTMLElement) => log(element.tagName));
+template_u1.ondisconnect(root_1c7lhof0, () => log('gone'));
+return root_1c7lhof0;
+};
+
+
+export { mounted };

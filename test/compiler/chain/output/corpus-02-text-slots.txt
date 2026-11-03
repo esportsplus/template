@@ -1,0 +1,33 @@
+import * as template_u1 from '@esportsplus/template';
+const template_0aradht1 = template_u1.template(`<p>Hello <!--$-->, you have <!--$--> messages`, true);
+const template_0aradht5 = template_u1.template(`<span>`, true);
+const template_0aradht7 = template_u1.template(`<dl><dt></dt><dd>`, true);
+
+
+
+const greeting = (name: string, count: number) => {
+let root_0aradht0 = template_0aradht1() as template_u1.Element,
+element_0aradht2 = (root_0aradht0.firstChild! as template_u1.Element).nextSibling as template_u1.Element,
+element_0aradht3 = (element_0aradht2.nextSibling! as template_u1.Element).nextSibling as template_u1.Element;
+template_u1.slot(element_0aradht2, name);
+template_u1.slot(element_0aradht3, count);
+return root_0aradht0;
+};
+
+const label = (value: string | null) => {
+let root_0aradht4 = template_0aradht5() as template_u1.Element;
+template_u1.slot(root_0aradht4, value, 1);
+return root_0aradht4;
+};
+
+const pair = (a: string, b: number) => {
+let root_0aradht6 = template_0aradht7() as template_u1.Element,
+element_0aradht8 = root_0aradht6.firstElementChild as template_u1.Element,
+element_0aradht9 = element_0aradht8.nextElementSibling as template_u1.Element;
+template_u1.slot(element_0aradht8, a, 1);
+template_u1.slot(element_0aradht9, b, 1);
+return root_0aradht6;
+};
+
+
+export { greeting, label, pair };

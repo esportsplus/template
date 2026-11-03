@@ -1,0 +1,69 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+import { type Attributes } from '@esportsplus/template';
+const template_13cnpxi2 = template_u1.template(`<div><h2 class=toolbar__title></h2><button class=btn>+</button><output>`, true);
+const handler_13cnpxi6 = () => ui.count++;
+const part_13cnpxi8 = (value: unknown) => value == null || value === false ? '' : value;
+
+
+        class ReactiveObject_13cnpxi0 extends reactivity_u0.ReactiveObject<any> {
+            #compact = this[reactivity_u0.SIGNAL](false);
+#count = this[reactivity_u0.SIGNAL](0);
+#theme = this[reactivity_u0.SIGNAL]('dark');
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get compact() {
+                        return reactivity_u0.read(this.#compact);
+                    }
+                    set compact(_v0) {
+                        reactivity_u0.write(this.#compact, _v0);
+                    }
+                
+
+                    get count() {
+                        return reactivity_u0.read(this.#count);
+                    }
+                    set count(_v1) {
+                        reactivity_u0.write(this.#count, _v1);
+                    }
+                
+
+                    get theme() {
+                        return reactivity_u0.read(this.#theme);
+                    }
+                    set theme(_v2) {
+                        reactivity_u0.write(this.#theme, _v2);
+                    }
+                
+        }
+    
+
+
+
+let ui =  new ReactiveObject_13cnpxi0();
+
+
+const toolbar = (attributes: Attributes, title: string) => {
+let root_13cnpxi1 = template_13cnpxi2() as template_u1.Element,
+element_13cnpxi3 = root_13cnpxi1.firstElementChild as template_u1.Element,
+element_13cnpxi4 = element_13cnpxi3.nextElementSibling as template_u1.Element,
+element_13cnpxi5 = element_13cnpxi4.nextElementSibling as template_u1.Element;
+template_u1.slot(element_13cnpxi3, title, 1);
+new template_u1.EffectSlot(element_13cnpxi5, () => ui.count, 1);
+template_u1.delegate(element_13cnpxi4, 'click', handler_13cnpxi6);
+template_u1.setProperty(root_13cnpxi1, 'data-theme', () => ui.theme);
+let value_13cnpxi9: Function = () => ui.count;
+let attributes_13cnpxia = attributes;
+template_u1.setProperties(root_13cnpxi1, attributes_13cnpxia, true);
+template_u1.setClass(root_13cnpxi1, ["toolbar", () => ui.compact && 'toolbar--compact', attributes_13cnpxia?.class]);
+template_u1.setStyle(root_13cnpxi1, ["", (element_13cnpxi7: template_u1.Element) => "--count: " + part_13cnpxi8(value_13cnpxi9(element_13cnpxi7)), attributes_13cnpxia?.style]);
+return root_13cnpxi1;
+};
+
+
+export { toolbar };

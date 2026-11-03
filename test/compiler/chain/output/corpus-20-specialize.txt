@@ -1,0 +1,22 @@
+import * as template_u1 from '@esportsplus/template';
+const template_0ep5brp1 = template_u1.template(`<button>`, true);
+const template_0ep5brp3 = template_u1.template(`<div>`, true);
+
+
+
+const button = (primary: boolean, label: string) => {
+let root_0ep5brp0 = template_0ep5brp1() as template_u1.Element;
+template_u1.slot(root_0ep5brp0, label, 1);
+template_u1.setClass(root_0ep5brp0, ["btn", primary ? 'btn--primary' : 'btn--ghost']);
+return root_0ep5brp0;
+};
+
+const size = (large: boolean) => {
+let root_0ep5brp2 = template_0ep5brp3() as template_u1.Element;
+template_u1.setProperty(root_0ep5brp2, 'data-size', large ? 'large' : 'small');
+template_u1.setClass(root_0ep5brp2, ["", large ? 'lg' : 'sm']);
+return root_0ep5brp2;
+};
+
+
+export { button, size };

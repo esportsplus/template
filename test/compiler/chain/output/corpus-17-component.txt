@@ -1,0 +1,35 @@
+import * as template_u1 from '@esportsplus/template';
+import { type Attributes } from '@esportsplus/template';
+const template_177oioh1 = template_u1.template(`<span>`, true);
+const template_177oioh4 = template_u1.template(`<label class=field><span></span><input />`, true);
+
+
+
+function chip(attributes: Attributes, tone: string) {
+    {
+let root_177oioh0 = template_177oioh1() as template_u1.Element;
+template_u1.slot(root_177oioh0, tone, 1);
+let attributes_177oioh2 = attributes;
+template_u1.setProperties(root_177oioh0, attributes_177oioh2, true);
+template_u1.setClass(root_177oioh0, ["chip", "chip--" + (tone), attributes_177oioh2?.class]);
+template_u1.setStyle(root_177oioh0, ["", attributes_177oioh2?.style]);
+return root_177oioh0;
+}
+}
+
+function field(label: string, attributes: Attributes) {
+    {
+let root_177oioh3 = template_177oioh4() as template_u1.Element,
+element_177oioh5 = root_177oioh3.firstElementChild as template_u1.Element,
+element_177oioh6 = element_177oioh5.nextElementSibling as template_u1.Element;
+template_u1.slot(element_177oioh5, label, 1);
+let attributes_177oioh7 = attributes;
+template_u1.setProperties(element_177oioh6, attributes_177oioh7, true);
+template_u1.setClass(element_177oioh6, ["", attributes_177oioh7?.class]);
+template_u1.setStyle(element_177oioh6, ["", attributes_177oioh7?.style]);
+return root_177oioh3;
+}
+}
+
+
+export { chip, field };

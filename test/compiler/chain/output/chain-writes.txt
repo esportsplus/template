@@ -1,0 +1,44 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_1ycdwrs1 = template_u1.template(`<button>+</button><button>-</button><button>sum</button><button>step</button><output>`);
+const template_1ycdwrsc = template_u1.template(`<button>`, true);
+const handler_1ycdwrs7 = (event: Event) => { reactivity_u0.write(step, (event.target as HTMLInputElement).valueAsNumber || step)reactivity_u0.read(step); };
+const handler_1ycdwrs8 = () => { reactivity_u0.write(total, count + step)reactivity_u0.read(count) + reactivity_u0.read(step); };
+const handler_1ycdwrs9 = () => { reactivity_u0.write(count, count.value - step)reactivity_u0.read(step); };
+const handler_1ycdwrsa = () => ((_t0) => (reactivity_u0.write(count, _t0 + 1), _t0))(count.value);
+
+
+
+let count = reactivity_u0.signal(0),
+    step = reactivity_u0.signal(1),
+    total = reactivity_u0.signal(0);
+
+
+const counter = () => {
+let root_1ycdwrs0 = template_1ycdwrs1(),
+element_1ycdwrs2 = root_1ycdwrs0.firstChild as template_u1.Element,
+element_1ycdwrs3 = element_1ycdwrs2.nextSibling as template_u1.Element,
+element_1ycdwrs4 = element_1ycdwrs3.nextSibling as template_u1.Element,
+element_1ycdwrs5 = element_1ycdwrs4.nextSibling as template_u1.Element,
+element_1ycdwrs6 = element_1ycdwrs5.nextSibling as template_u1.Element;
+new template_u1.EffectSlot(element_1ycdwrs6, () => reactivity_u0.read(total), 1);
+template_u1.delegate(element_1ycdwrs5, 'click', handler_1ycdwrs7);
+template_u1.delegate(element_1ycdwrs4, 'click', handler_1ycdwrs8);
+template_u1.delegate(element_1ycdwrs3, 'click', handler_1ycdwrs9);
+template_u1.delegate(element_1ycdwrs2, 'click', handler_1ycdwrsa);
+return root_1ycdwrs0;
+};
+
+const local = (initial: number) => {
+    let value = reactivity_u0.signal(initial);
+
+    {
+let root_1ycdwrsb = template_1ycdwrsc() as template_u1.Element;
+new template_u1.EffectSlot(root_1ycdwrsb, () => reactivity_u0.read(value), 1);
+template_u1.delegate(root_1ycdwrsb, 'click', () => ((_t1) => (reactivity_u0.write(value, _t1 + 1), _t1))(value.value));
+return root_1ycdwrsb;
+}
+};
+
+
+export { counter, local };

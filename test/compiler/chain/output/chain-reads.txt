@@ -1,0 +1,74 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0lsk63p2 = template_u1.template(`<div><!--$--><!--$--><!--$-->`, true);
+const template_0lsk63p7 = template_u1.template(`<b>`, true);
+const template_0lsk63p9 = template_u1.template(`<i>`, true);
+const template_0lsk63pb = template_u1.template(`<em>`, true);
+const part_0lsk63pd = (value: unknown) => value == null || value === false ? '' : value;
+
+
+        class ReactiveObject_0lsk63p0 extends reactivity_u0.ReactiveObject<any> {
+            #label = this[reactivity_u0.SIGNAL]('total');
+#open = this[reactivity_u0.SIGNAL](false);
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get label() {
+                        return reactivity_u0.read(this.#label);
+                    }
+                    set label(_v0) {
+                        reactivity_u0.write(this.#label, _v0);
+                    }
+                
+
+                    get open() {
+                        return reactivity_u0.read(this.#open);
+                    }
+                    set open(_v1) {
+                        reactivity_u0.write(this.#open, _v1);
+                    }
+                
+        }
+    
+
+
+
+let count = reactivity_u0.signal(0),
+    state =  new ReactiveObject_0lsk63p0(),
+    total = reactivity_u0.computed(() => reactivity_u0.read(count) * 2);
+
+
+const view = () => {
+let root_0lsk63p1 = template_0lsk63p2() as template_u1.Element,
+element_0lsk63p3 = root_0lsk63p1.firstChild as template_u1.Element,
+element_0lsk63p4 = element_0lsk63p3.nextSibling as template_u1.Element,
+element_0lsk63p5 = element_0lsk63p4.nextSibling as template_u1.Element;
+new template_u1.EffectSlot(element_0lsk63p3, () => reactivity_u0.read(count));
+new template_u1.EffectSlot(element_0lsk63p4, () => `${state.label} ${reactivity_u0.read(count)} of ${reactivity_u0.read(total)}`);
+new template_u1.EffectSlot(element_0lsk63p5, () => reactivity_u0.read(count) > 0 ? (() => {
+let root_0lsk63p6 = template_0lsk63p7() as template_u1.Element;
+new template_u1.EffectSlot(root_0lsk63p6, () => reactivity_u0.read(count) + reactivity_u0.read(total), 1);
+return root_0lsk63p6;
+})() : (() => {
+let root_0lsk63p8 = template_0lsk63p9() as template_u1.Element;
+template_u1.slot(root_0lsk63p8, state.label, 1);
+return root_0lsk63p8;
+})());
+new template_u1.EffectSlot(root_0lsk63p1, () => [reactivity_u0.read(count), reactivity_u0.read(total)].map((value) => {
+let root_0lsk63pa = template_0lsk63pb() as template_u1.Element;
+new template_u1.EffectSlot(root_0lsk63pa, () => value + reactivity_u0.read(count), 1);
+template_u1.setProperty(root_0lsk63pa, 'data-value', value);
+return root_0lsk63pa;
+}), 2);
+let value_0lsk63pe: Function = () => state.label, value_0lsk63pf: Function = () => reactivity_u0.read(count);
+template_u1.setProperty(root_0lsk63p1, 'title', (element_0lsk63pc: template_u1.Element) => "" + part_0lsk63pd(value_0lsk63pe(element_0lsk63pc)) + ": " + part_0lsk63pd(value_0lsk63pf(element_0lsk63pc)));
+template_u1.setClass(root_0lsk63p1, ["", () => state.open ? 'open' : 'closed']);
+return root_0lsk63p1;
+};
+
+
+export { view };

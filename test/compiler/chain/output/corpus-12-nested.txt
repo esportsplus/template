@@ -1,0 +1,33 @@
+import * as template_u1 from '@esportsplus/template';
+const template_05sv0p41 = template_u1.template(`<span class=badge>`, true);
+const template_05sv0p43 = template_u1.template(`<article><h3></h3><!--$--><!--$-->`, true);
+const template_05sv0p48 = template_u1.template(`<footer><b>`, true);
+const template_05sv0p4a = template_u1.template(`<hr />`, true);
+
+
+
+const badge = (n: number) => {
+let root_05sv0p40 = template_05sv0p41() as template_u1.Element;
+template_u1.slot(root_05sv0p40, n, 1);
+return root_05sv0p40;
+};
+
+const card = (title: string, n: number) => {
+let root_05sv0p42 = template_05sv0p43() as template_u1.Element,
+element_05sv0p44 = root_05sv0p42.firstElementChild as template_u1.Element,
+element_05sv0p45 = (root_05sv0p42.firstChild! as template_u1.Element).nextSibling as template_u1.Element,
+element_05sv0p46 = element_05sv0p45.nextSibling as template_u1.Element;
+template_u1.slot(element_05sv0p44, title, 1);
+template_u1.slot(element_05sv0p45, badge(n));
+element_05sv0p46.parentNode!.insertBefore((() => {
+let root_05sv0p47 = template_05sv0p48() as template_u1.Element,
+element_05sv0p49 = root_05sv0p47.firstElementChild as template_u1.Element;
+template_u1.slot(element_05sv0p49, title, 1);
+return root_05sv0p47;
+})(), element_05sv0p46);
+root_05sv0p42.appendChild(template_05sv0p4a());
+return root_05sv0p42;
+};
+
+
+export { card };

@@ -1,0 +1,65 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0oayxrs2 = template_u1.template(`<button>`, true);
+const template_0oayxrs4 = template_u1.template(`<div><span></span><em>`, true);
+
+
+        class ReactiveObject_0oayxrs0 extends reactivity_u0.ReactiveObject<any> {
+            #count = this[reactivity_u0.SIGNAL](0);
+#name = this[reactivity_u0.SIGNAL]('x');
+#open = this[reactivity_u0.SIGNAL](false);
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get count() {
+                        return reactivity_u0.read(this.#count);
+                    }
+                    set count(_v0) {
+                        reactivity_u0.write(this.#count, _v0);
+                    }
+                
+
+                    get name() {
+                        return reactivity_u0.read(this.#name);
+                    }
+                    set name(_v1) {
+                        reactivity_u0.write(this.#name, _v1);
+                    }
+                
+
+                    get open() {
+                        return reactivity_u0.read(this.#open);
+                    }
+                    set open(_v2) {
+                        reactivity_u0.write(this.#open, _v2);
+                    }
+                
+        }
+    
+
+
+
+let state =  new ReactiveObject_0oayxrs0();
+
+
+const counter = () => {
+let root_0oayxrs1 = template_0oayxrs2() as template_u1.Element;
+new template_u1.EffectSlot(root_0oayxrs1, () => state.count, 1);
+return root_0oayxrs1;
+};
+
+const status = () => {
+let root_0oayxrs3 = template_0oayxrs4() as template_u1.Element,
+element_0oayxrs5 = root_0oayxrs3.firstElementChild as template_u1.Element,
+element_0oayxrs6 = element_0oayxrs5.nextElementSibling as template_u1.Element;
+new template_u1.EffectSlot(element_0oayxrs5, () => state.open ? 'Open' : 'Closed', 1);
+new template_u1.EffectSlot(element_0oayxrs6, () => state.name, 1);
+return root_0oayxrs3;
+};
+
+
+export { counter, status };

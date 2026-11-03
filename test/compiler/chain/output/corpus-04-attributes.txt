@@ -1,0 +1,31 @@
+import * as template_u1 from '@esportsplus/template';
+const template_1oiljo91 = template_u1.template(`<a target=_blank>link`, true);
+const template_1oiljo93 = template_u1.template(`<div>`, true);
+const template_1oiljo95 = template_u1.template(`<input type=text />`, true);
+
+
+
+const anchor = (href: string, title: string) => {
+let root_1oiljo90 = template_1oiljo91() as template_u1.Element;
+template_u1.setProperty(root_1oiljo90, 'href', href);
+template_u1.setProperty(root_1oiljo90, 'title', title);
+return root_1oiljo90;
+};
+
+const data = (id: number, kind: string) => {
+let root_1oiljo92 = template_1oiljo93() as template_u1.Element;
+template_u1.setProperty(root_1oiljo92, 'data-id', id);
+template_u1.setProperty(root_1oiljo92, 'data-kind', kind);
+template_u1.setProperty(root_1oiljo92, 'aria-label', "item " + (id));
+return root_1oiljo92;
+};
+
+const input = (value: string, disabled: boolean) => {
+let root_1oiljo94 = template_1oiljo95() as template_u1.Element;
+template_u1.setProperty(root_1oiljo94, 'value', value);
+template_u1.setProperty(root_1oiljo94, 'disabled', disabled);
+return root_1oiljo94;
+};
+
+
+export { anchor, data, input };

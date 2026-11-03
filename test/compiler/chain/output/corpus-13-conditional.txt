@@ -1,0 +1,56 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0c4qm7c2 = template_u1.template(`<div><!--$-->`, true);
+const template_0c4qm7c4 = template_u1.template(`<p>Nothing`, true);
+const template_0c4qm7c5 = template_u1.template(`<ul><li>one`, true);
+const template_0c4qm7c6 = template_u1.template(`<i>Loading`, true);
+const template_0c4qm7c8 = template_u1.template(`<b>`, true);
+
+
+        class ReactiveObject_0c4qm7c0 extends reactivity_u0.ReactiveObject<any> {
+            #error = this[reactivity_u0.SIGNAL]('');
+#loading = this[reactivity_u0.SIGNAL](true);
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get error() {
+                        return reactivity_u0.read(this.#error);
+                    }
+                    set error(_v0) {
+                        reactivity_u0.write(this.#error, _v0);
+                    }
+                
+
+                    get loading() {
+                        return reactivity_u0.read(this.#loading);
+                    }
+                    set loading(_v1) {
+                        reactivity_u0.write(this.#loading, _v1);
+                    }
+                
+        }
+    
+
+
+
+let state =  new ReactiveObject_0c4qm7c0();
+
+
+const view = (empty: boolean) => {
+let root_0c4qm7c1 = template_0c4qm7c2() as template_u1.Element,
+element_0c4qm7c3 = root_0c4qm7c1.firstChild as template_u1.Element;
+element_0c4qm7c3.parentNode!.insertBefore(empty ? template_0c4qm7c4() : template_0c4qm7c5(), element_0c4qm7c3);
+new template_u1.EffectSlot(root_0c4qm7c1, () => state.loading ? template_0c4qm7c6() : state.error ? (() => {
+let root_0c4qm7c7 = template_0c4qm7c8() as template_u1.Element;
+template_u1.slot(root_0c4qm7c7, state.error, 1);
+return root_0c4qm7c7;
+})() : '', 2);
+return root_0c4qm7c1;
+};
+
+
+export { view };

@@ -1,0 +1,61 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_00nru992 = template_u1.template(`<div>`, true);
+const part_00nru994 = (value: unknown) => value == null || value === false ? '' : value;
+
+
+        class ReactiveObject_00nru990 extends reactivity_u0.ReactiveObject<any> {
+            #bold = this[reactivity_u0.SIGNAL](false);
+#width = this[reactivity_u0.SIGNAL](10);
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get bold() {
+                        return reactivity_u0.read(this.#bold);
+                    }
+                    set bold(_v0) {
+                        reactivity_u0.write(this.#bold, _v0);
+                    }
+                
+
+                    get width() {
+                        return reactivity_u0.read(this.#width);
+                    }
+                    set width(_v1) {
+                        reactivity_u0.write(this.#width, _v1);
+                    }
+                
+        }
+    
+
+
+
+let ui =  new ReactiveObject_00nru990();
+
+
+const bar = (color: string) => {
+let root_00nru991 = template_00nru992() as template_u1.Element;
+let value_00nru995: Function = () => ui.width;
+let value_00nru997: Function = () => ui.bold && 'font-weight: bold';
+template_u1.setStyle(root_00nru991, ["", "color: " + (color), (element_00nru993: template_u1.Element) => " width: " + part_00nru994(value_00nru995(element_00nru993)) + "px", (element_00nru996: template_u1.Element) => " " + part_00nru994(value_00nru997(element_00nru996))]);
+return root_00nru991;
+};
+
+const box = (style: string) => {
+let root_00nru998 = template_00nru992() as template_u1.Element;
+template_u1.setStyle(root_00nru998, ["", style]);
+return root_00nru998;
+};
+
+const object = () => {
+let root_00nru999 = template_00nru992() as template_u1.Element;
+template_u1.setStyle(root_00nru999, ["", () => ({ height: `${ui.width}px`, opacity: ui.bold ? 1 : 0.5 })]);
+return root_00nru999;
+};
+
+
+export { bar, box, object };

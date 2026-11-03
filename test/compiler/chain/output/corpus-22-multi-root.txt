@@ -1,0 +1,26 @@
+import * as template_u1 from '@esportsplus/template';
+const template_1ybaj121 = template_u1.template(`<dt></dt><dd>`);
+const template_1ybaj125 = template_u1.template(`<h1></h1><p>intro</p><p>`);
+
+
+
+const rows = (a: string, b: string) => {
+let root_1ybaj120 = template_1ybaj121(),
+element_1ybaj122 = root_1ybaj120.firstChild as template_u1.Element,
+element_1ybaj123 = element_1ybaj122.nextSibling as template_u1.Element;
+template_u1.slot(element_1ybaj122, a, 1);
+template_u1.slot(element_1ybaj123, b, 1);
+return root_1ybaj120;
+};
+
+const siblings = (a: string) => {
+let root_1ybaj124 = template_1ybaj125(),
+element_1ybaj126 = root_1ybaj124.firstChild as template_u1.Element,
+element_1ybaj127 = (element_1ybaj126.nextSibling! as template_u1.Element).nextSibling as template_u1.Element;
+template_u1.slot(element_1ybaj126, a, 1);
+template_u1.slot(element_1ybaj127, a, 1);
+return root_1ybaj124;
+};
+
+
+export { rows, siblings };

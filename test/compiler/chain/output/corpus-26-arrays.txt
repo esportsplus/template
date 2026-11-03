@@ -1,0 +1,25 @@
+import * as template_u1 from '@esportsplus/template';
+const template_142d5eg1 = template_u1.template(`<div>`, true);
+const template_142d5eg3 = template_u1.template(`<ul>`, true);
+const template_142d5eg5 = template_u1.template(`<li>`, true);
+
+
+
+const classes = (list: string[]) => {
+let root_142d5eg0 = template_142d5eg1() as template_u1.Element;
+template_u1.setClass(root_142d5eg0, ["", list]);
+return root_142d5eg0;
+};
+
+const items = (list: string[]) => {
+let root_142d5eg2 = template_142d5eg3() as template_u1.Element;
+template_u1.slot(root_142d5eg2, list.map((item) => {
+let root_142d5eg4 = template_142d5eg5() as template_u1.Element;
+template_u1.slot(root_142d5eg4, item, 1);
+return root_142d5eg4;
+}), 1);
+return root_142d5eg2;
+};
+
+
+export { classes, items };

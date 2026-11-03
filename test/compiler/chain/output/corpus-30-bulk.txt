@@ -1,0 +1,96 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0i5u6n51 = template_u1.template(`<div data-index=0><span></span><!--$--><ul>`, true);
+const template_0i5u6n56 = template_u1.template(`<b>`, true);
+const template_0i5u6n58 = template_u1.template(`<li>`, true);
+const template_0i5u6n5a = template_u1.template(`<div data-index=1><span></span><!--$--><ul>`, true);
+const template_0i5u6n5h = template_u1.template(`<div data-index=2><span></span><!--$--><ul>`, true);
+const template_0i5u6n5o = template_u1.template(`<div data-index=3><span></span><!--$--><ul>`, true);
+
+
+
+let list =  new reactivity_u0.ReactiveArray<string>();
+
+
+const c0 = (x: string, y: string) => {
+let root_0i5u6n50 = template_0i5u6n51() as template_u1.Element,
+element_0i5u6n52 = root_0i5u6n50.firstElementChild as template_u1.Element,
+element_0i5u6n53 = (root_0i5u6n50.firstChild! as template_u1.Element).nextSibling as template_u1.Element,
+element_0i5u6n54 = element_0i5u6n52.nextElementSibling as template_u1.Element;
+template_u1.slot(element_0i5u6n52, y, 1);
+template_u1.slot(element_0i5u6n53, list.$length ? (() => {
+let root_0i5u6n55 = template_0i5u6n56() as template_u1.Element;
+template_u1.slot(root_0i5u6n55, x, 1);
+return root_0i5u6n55;
+})() : '');
+element_0i5u6n54.appendChild(new template_u1.ArraySlot(list, (item) => {
+let root_0i5u6n57 = template_0i5u6n58() as template_u1.Element;
+template_u1.slot(root_0i5u6n57, item, 1);
+return root_0i5u6n57;
+}, true).fragment);
+template_u1.setClass(root_0i5u6n50, ["row", x]);
+return root_0i5u6n50;
+};
+
+const c1 = (x: string, y: string) => {
+let root_0i5u6n59 = template_0i5u6n5a() as template_u1.Element,
+element_0i5u6n5b = root_0i5u6n59.firstElementChild as template_u1.Element,
+element_0i5u6n5c = (root_0i5u6n59.firstChild! as template_u1.Element).nextSibling as template_u1.Element,
+element_0i5u6n5d = element_0i5u6n5b.nextElementSibling as template_u1.Element;
+template_u1.slot(element_0i5u6n5b, y, 1);
+template_u1.slot(element_0i5u6n5c, list.$length ? (() => {
+let root_0i5u6n5e = template_0i5u6n56() as template_u1.Element;
+template_u1.slot(root_0i5u6n5e, x, 1);
+return root_0i5u6n5e;
+})() : '');
+element_0i5u6n5d.appendChild(new template_u1.ArraySlot(list, (item) => {
+let root_0i5u6n5f = template_0i5u6n58() as template_u1.Element;
+template_u1.slot(root_0i5u6n5f, item, 1);
+return root_0i5u6n5f;
+}, true).fragment);
+template_u1.setClass(root_0i5u6n59, ["row", x]);
+return root_0i5u6n59;
+};
+
+const c2 = (x: string, y: string) => {
+let root_0i5u6n5g = template_0i5u6n5h() as template_u1.Element,
+element_0i5u6n5i = root_0i5u6n5g.firstElementChild as template_u1.Element,
+element_0i5u6n5j = (root_0i5u6n5g.firstChild! as template_u1.Element).nextSibling as template_u1.Element,
+element_0i5u6n5k = element_0i5u6n5i.nextElementSibling as template_u1.Element;
+template_u1.slot(element_0i5u6n5i, y, 1);
+template_u1.slot(element_0i5u6n5j, list.$length ? (() => {
+let root_0i5u6n5l = template_0i5u6n56() as template_u1.Element;
+template_u1.slot(root_0i5u6n5l, x, 1);
+return root_0i5u6n5l;
+})() : '');
+element_0i5u6n5k.appendChild(new template_u1.ArraySlot(list, (item) => {
+let root_0i5u6n5m = template_0i5u6n58() as template_u1.Element;
+template_u1.slot(root_0i5u6n5m, item, 1);
+return root_0i5u6n5m;
+}, true).fragment);
+template_u1.setClass(root_0i5u6n5g, ["row", x]);
+return root_0i5u6n5g;
+};
+
+const c3 = (x: string, y: string) => {
+let root_0i5u6n5n = template_0i5u6n5o() as template_u1.Element,
+element_0i5u6n5p = root_0i5u6n5n.firstElementChild as template_u1.Element,
+element_0i5u6n5q = (root_0i5u6n5n.firstChild! as template_u1.Element).nextSibling as template_u1.Element,
+element_0i5u6n5r = element_0i5u6n5p.nextElementSibling as template_u1.Element;
+template_u1.slot(element_0i5u6n5p, y, 1);
+template_u1.slot(element_0i5u6n5q, list.$length ? (() => {
+let root_0i5u6n5s = template_0i5u6n56() as template_u1.Element;
+template_u1.slot(root_0i5u6n5s, x, 1);
+return root_0i5u6n5s;
+})() : '');
+element_0i5u6n5r.appendChild(new template_u1.ArraySlot(list, (item) => {
+let root_0i5u6n5t = template_0i5u6n58() as template_u1.Element;
+template_u1.slot(root_0i5u6n5t, item, 1);
+return root_0i5u6n5t;
+}, true).fragment);
+template_u1.setClass(root_0i5u6n5n, ["row", x]);
+return root_0i5u6n5n;
+};
+
+
+export { c0, c1, c2, c3 };

@@ -1,0 +1,24 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0fjb88j1 = template_u1.template(`<div class=viewport>`, true);
+const template_0fjb88j3 = template_u1.template(`<div class=row><!--$-->`, true);
+
+
+
+let rows =  new reactivity_u0.ReactiveArray<{ id: number; label: string }>();
+
+
+const grid = () => {
+let root_0fjb88j0 = template_0fjb88j1() as template_u1.Element;
+root_0fjb88j0.appendChild(new template_u1.VirtualSlot(rows, (row) => {
+let root_0fjb88j2 = template_0fjb88j3() as template_u1.Element,
+element_0fjb88j4 = root_0fjb88j2.firstChild as template_u1.Element;
+template_u1.slot(element_0fjb88j4, row.id);
+template_u1.slot(root_0fjb88j2, row.label, 2);
+return root_0fjb88j2;
+}).fragment);
+return root_0fjb88j0;
+};
+
+
+export { grid };

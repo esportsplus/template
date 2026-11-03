@@ -1,0 +1,14 @@
+import * as template_u1 from '@esportsplus/template';
+const template_0luwf4h0 = template_u1.template(`<span class="tag tag--primary" data-size=12>primary`, true);
+
+
+
+const KIND = 'primary';
+
+const SIZE = 12;
+
+
+const tag = () => template_0luwf4h0();
+
+
+export { tag };

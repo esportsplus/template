@@ -1,0 +1,59 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+import { type Attributes } from '@esportsplus/template';
+const template_0hwniaq1 = template_u1.template(`<article><header><h3></h3></header><footer><a>open</a><span></span><button>`, true);
+const template_0hwniaq8 = template_u1.template(`<span>`, true);
+const template_0hwniaqb = template_u1.template(`<section class=cards>`, true);
+
+
+
+type Card = { href: string; index: number; key: string; state: { liked: boolean; likes: number }; title: string; tone: string };
+
+
+let cards =  new reactivity_u0.ReactiveArray<Card>();
+
+
+function card(item: Card) {
+    {
+let root_0hwniaq0 = template_0hwniaq1() as template_u1.Element,
+element_0hwniaq2 = root_0hwniaq0.firstElementChild as template_u1.Element,
+element_0hwniaq3 = element_0hwniaq2.firstElementChild as template_u1.Element,
+element_0hwniaq4 = (element_0hwniaq2.nextElementSibling! as template_u1.Element).firstElementChild as template_u1.Element,
+element_0hwniaq5 = element_0hwniaq4.nextElementSibling as template_u1.Element,
+element_0hwniaq6 = element_0hwniaq5.nextElementSibling as template_u1.Element;
+template_u1.slot(element_0hwniaq3, item.title, 1);
+template_u1.slot(element_0hwniaq2, chip({ class: () => item.state.liked && 'chip--on', title: item.title }, item.tone), 2);
+new template_u1.EffectSlot(element_0hwniaq5, () => item.state.likes, 1);
+new template_u1.EffectSlot(element_0hwniaq6, () => item.state.liked ? 'Liked' : 'Like', 1);
+template_u1.setProperty(element_0hwniaq6, 'aria-pressed', () => item.state.liked);
+template_u1.delegate(element_0hwniaq6, 'click', () => item.state.liked = !item.state.liked);
+template_u1.setProperty(element_0hwniaq4, 'href', item.href);
+template_u1.setProperty(element_0hwniaq3, 'title', item.title);
+template_u1.setProperty(root_0hwniaq0, 'id', item.key);
+template_u1.setProperty(root_0hwniaq0, 'data-index', item.index);
+template_u1.setClass(root_0hwniaq0, ["card", "card--" + (item.tone), () => item.state.liked && 'card--liked']);
+return root_0hwniaq0;
+}
+}
+
+function chip(attributes: Attributes, tone: string) {
+    {
+let root_0hwniaq7 = template_0hwniaq8() as template_u1.Element;
+template_u1.slot(root_0hwniaq7, tone, 1);
+let attributes_0hwniaq9 = attributes;
+template_u1.setProperties(root_0hwniaq7, attributes_0hwniaq9, true);
+template_u1.setClass(root_0hwniaq7, ["chip", "chip--" + (tone), attributes_0hwniaq9?.class]);
+template_u1.setStyle(root_0hwniaq7, ["", attributes_0hwniaq9?.style]);
+return root_0hwniaq7;
+}
+}
+
+
+const list = () => {
+let root_0hwniaqa = template_0hwniaqb() as template_u1.Element;
+root_0hwniaqa.appendChild(new template_u1.ArraySlot(cards, card, true).fragment);
+return root_0hwniaqa;
+};
+
+
+export { list };

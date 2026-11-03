@@ -1,0 +1,15 @@
+import * as template_u1 from '@esportsplus/template';
+const template_0t96s8f0 = template_u1.template(`<footer class=site-footer><p>Copyright</p><a href=/terms>Terms`, true);
+const template_0t96s8f1 = template_u1.template(`<header class=site-header><nav><a href=/>Home</a><a href=/about>About`, true);
+const template_0t96s8f2 = template_u1.template(`plain text without markup`);
+
+
+
+const footer = () => template_0t96s8f0();
+
+const header = () => template_0t96s8f1();
+
+const text = () => template_0t96s8f2();
+
+
+export { footer, header, text };

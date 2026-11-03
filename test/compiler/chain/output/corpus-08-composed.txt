@@ -1,0 +1,56 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0cahv5y2 = template_u1.template(`<a>edit`, true);
+const template_0cahv5y4 = template_u1.template(`<progress>`, true);
+const part_0cahv5y7 = (value: unknown) => value == null || value === false ? '' : value;
+
+
+        class ReactiveObject_0cahv5y0 extends reactivity_u0.ReactiveObject<any> {
+            #index = this[reactivity_u0.SIGNAL](0);
+#total = this[reactivity_u0.SIGNAL](10);
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get index() {
+                        return reactivity_u0.read(this.#index);
+                    }
+                    set index(_v0) {
+                        reactivity_u0.write(this.#index, _v0);
+                    }
+                
+
+                    get total() {
+                        return reactivity_u0.read(this.#total);
+                    }
+                    set total(_v1) {
+                        reactivity_u0.write(this.#total, _v1);
+                    }
+                
+        }
+    
+
+
+
+let state =  new ReactiveObject_0cahv5y0();
+
+
+const href = (base: string, id: number) => {
+let root_0cahv5y1 = template_0cahv5y2() as template_u1.Element;
+template_u1.setProperty(root_0cahv5y1, 'href', "/" + (base) + "/" + (id) + "/edit");
+return root_0cahv5y1;
+};
+
+const progress = (name: string) => {
+let root_0cahv5y3 = template_0cahv5y4() as template_u1.Element;
+let value_0cahv5y6 = name, value_0cahv5y8: Function = () => state.index, value_0cahv5y9: Function = () => state.total;
+template_u1.setProperty(root_0cahv5y3, 'aria-label', (element_0cahv5y5: template_u1.Element) => "" + value_0cahv5y6 + ": " + part_0cahv5y7(value_0cahv5y8(element_0cahv5y5)) + " of " + part_0cahv5y7(value_0cahv5y9(element_0cahv5y5)));
+template_u1.setProperty(root_0cahv5y3, 'value', () => state.index);
+return root_0cahv5y3;
+};
+
+
+export { href, progress };

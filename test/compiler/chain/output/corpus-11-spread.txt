@@ -1,0 +1,37 @@
+import * as template_u1 from '@esportsplus/template';
+import { type Attributes } from '@esportsplus/template';
+const template_0yi3xal1 = template_u1.template(`<button>Go`, true);
+const template_0yi3xal4 = template_u1.template(`<div>`, true);
+
+
+
+const button = (attributes: Attributes) => {
+let root_0yi3xal0 = template_0yi3xal1() as template_u1.Element;
+let attributes_0yi3xal2 = attributes;
+template_u1.setProperties(root_0yi3xal0, attributes_0yi3xal2, true);
+template_u1.setClass(root_0yi3xal0, ["btn", attributes_0yi3xal2?.class]);
+template_u1.setStyle(root_0yi3xal0, ["", attributes_0yi3xal2?.style]);
+return root_0yi3xal0;
+};
+
+const literal = (id: string) => {
+let root_0yi3xal3 = template_0yi3xal4() as template_u1.Element;
+template_u1.setProperty(root_0yi3xal3, 'id', id);
+template_u1.setProperty(root_0yi3xal3, 'title', 'x');
+template_u1.setClass(root_0yi3xal3, ["", 'a b']);
+return root_0yi3xal3;
+};
+
+const many = (a: Attributes, b: Attributes) => {
+let root_0yi3xal5 = template_0yi3xal4() as template_u1.Element;
+let attributes_0yi3xal6 = a;
+template_u1.setProperties(root_0yi3xal5, attributes_0yi3xal6, true);
+let attributes_0yi3xal7 = b;
+template_u1.setProperties(root_0yi3xal5, attributes_0yi3xal7, true);
+template_u1.setClass(root_0yi3xal5, ["", attributes_0yi3xal6?.class, attributes_0yi3xal7?.class]);
+template_u1.setStyle(root_0yi3xal5, ["", attributes_0yi3xal6?.style, attributes_0yi3xal7?.style]);
+return root_0yi3xal5;
+};
+
+
+export { button, literal, many };

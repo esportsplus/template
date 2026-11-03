@@ -1,0 +1,14 @@
+import * as template_u1 from '@esportsplus/template';
+const template_0m14siq1 = template_u1.template(`<pre><code class=language-ts></code></pre><p title="  spaced   value  "> text with gaps `);
+
+
+
+const pre = (code: string) => {
+let root_0m14siq0 = template_0m14siq1(),
+element_0m14siq2 = (root_0m14siq0.firstChild! as template_u1.Element).firstElementChild as template_u1.Element;
+template_u1.slot(element_0m14siq2, code, 1);
+return root_0m14siq0;
+};
+
+
+export { pre };

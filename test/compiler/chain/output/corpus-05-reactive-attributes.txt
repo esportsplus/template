@@ -1,0 +1,58 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0yyel1w2 = template_u1.template(`<button>`, true);
+
+
+        class ReactiveObject_0yyel1w0 extends reactivity_u0.ReactiveObject<any> {
+            #busy = this[reactivity_u0.SIGNAL](false);
+#label = this[reactivity_u0.SIGNAL]('Save');
+#locked = this[reactivity_u0.SIGNAL](false);
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get busy() {
+                        return reactivity_u0.read(this.#busy);
+                    }
+                    set busy(_v0) {
+                        reactivity_u0.write(this.#busy, _v0);
+                    }
+                
+
+                    get label() {
+                        return reactivity_u0.read(this.#label);
+                    }
+                    set label(_v1) {
+                        reactivity_u0.write(this.#label, _v1);
+                    }
+                
+
+                    get locked() {
+                        return reactivity_u0.read(this.#locked);
+                    }
+                    set locked(_v2) {
+                        reactivity_u0.write(this.#locked, _v2);
+                    }
+                
+        }
+    
+
+
+
+let ui =  new ReactiveObject_0yyel1w0();
+
+
+const button = () => {
+let root_0yyel1w1 = template_0yyel1w2() as template_u1.Element;
+new template_u1.EffectSlot(root_0yyel1w1, () => ui.label, 1);
+template_u1.setProperty(root_0yyel1w1, 'aria-busy', () => ui.busy);
+template_u1.setProperty(root_0yyel1w1, 'disabled', () => ui.locked);
+template_u1.setProperty(root_0yyel1w1, 'title', () => ui.label);
+return root_0yyel1w1;
+};
+
+
+export { button };

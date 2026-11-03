@@ -1,0 +1,36 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_1qy6b6f1 = template_u1.template(`<p></p><p></p><span></span><span></span><ul>`);
+const template_1qy6b6f8 = template_u1.template(`<li>`, true);
+
+
+
+let count = reactivity_u0.signal(0),
+    list =  new reactivity_u0.ReactiveArray(['a', 'b', 'c']),
+    title = reactivity_u0.signal('title');
+
+
+const view = () => {
+let root_1qy6b6f0 = template_1qy6b6f1(),
+element_1qy6b6f2 = root_1qy6b6f0.firstChild as template_u1.Element,
+element_1qy6b6f3 = element_1qy6b6f2.nextSibling as template_u1.Element,
+element_1qy6b6f4 = element_1qy6b6f3.nextSibling as template_u1.Element,
+element_1qy6b6f5 = element_1qy6b6f4.nextSibling as template_u1.Element,
+element_1qy6b6f6 = element_1qy6b6f5.nextSibling as template_u1.Element;
+new template_u1.EffectSlot(element_1qy6b6f2, () => reactivity_u0.read(list[count]), 1);
+new template_u1.EffectSlot(element_1qy6b6f3, () => list.$length, 1);
+element_1qy6b6f6.appendChild(new template_u1.ArraySlot(list, (item) => {
+let root_1qy6b6f7 = template_1qy6b6f8() as template_u1.Element;
+template_u1.slot(root_1qy6b6f7, item, 1);
+template_u1.setClass(root_1qy6b6f7, ["", () => item === reactivity_u0.read(title) ? 'on' : '']);
+return root_1qy6b6f7;
+}, true).fragment);
+template_u1.setProperty(element_1qy6b6f5, 'count', () => reactivity_u0.read(count));
+template_u1.setClass(element_1qy6b6f5, ["", () => reactivity_u0.read(title)]);
+template_u1.setProperty(element_1qy6b6f4, 'count', reactivity_u0.read(count));
+template_u1.setProperty(element_1qy6b6f4, 'title', reactivity_u0.read(title));
+return root_1qy6b6f0;
+};
+
+
+export { view };

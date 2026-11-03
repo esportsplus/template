@@ -1,0 +1,36 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import { read, signal, write } from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_10q42c01 = template_u1.template(`<table class="table table-hover table-striped test-data"><tbody>`, true);
+const template_10q42c04 = template_u1.template(`<tr><td class=col-md-1></td><td class=col-md-4><a></a></td><td class=col-md-1><a><span class="glyphicon glyphicon-remove" aria-hidden=true></span></a></td><td class=col-md-6>`, true);
+
+
+
+type Row = { id: number; state: { label: string } };
+
+
+let rows =  new reactivity_u0.ReactiveArray<Row>(),
+    selected = signal(0);
+
+
+const table = () => {
+let root_10q42c00 = template_10q42c01() as template_u1.Element,
+element_10q42c02 = root_10q42c00.firstElementChild as template_u1.Element;
+element_10q42c02.appendChild(new template_u1.ArraySlot(rows, (data) => {
+let root_10q42c03 = template_10q42c04() as template_u1.Element,
+element_10q42c05 = root_10q42c03.firstElementChild as template_u1.Element,
+element_10q42c06 = element_10q42c05.nextElementSibling as template_u1.Element,
+element_10q42c07 = element_10q42c06.firstElementChild as template_u1.Element,
+element_10q42c08 = (element_10q42c06.nextElementSibling! as template_u1.Element).firstElementChild as template_u1.Element;
+template_u1.slot(element_10q42c05, data.id, 1);
+new template_u1.EffectSlot(element_10q42c07, () => data.state.label, 1);
+template_u1.delegate(element_10q42c08, 'click', () => rows.splice(rows.indexOf(data), 1));
+template_u1.delegate(element_10q42c07, 'click', () => write(selected, data.id));
+template_u1.setClass(root_10q42c03, ["", () => signal.selector(selected, data.id) && 'danger']);
+return root_10q42c03;
+}, true).fragment);
+return root_10q42c00;
+};
+
+
+export { table };

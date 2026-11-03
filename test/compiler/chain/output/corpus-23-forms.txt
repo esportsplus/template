@@ -1,0 +1,77 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0jtj6vw2 = template_u1.template(`<form class=signup><input name=name /><input name=email type=email required /><select name=role><option value=user>User</option><option value=admin>Admin</option></select><input type=checkbox /><button type=submit>Sign up`, true);
+const handler_0jtj6vw8 = () => form.agree = !form.agree;
+const handler_0jtj6vw9 = (e: Event) => form.name = (e.target as HTMLInputElement).value;
+
+
+        class ReactiveObject_0jtj6vw0 extends reactivity_u0.ReactiveObject<any> {
+            #agree = this[reactivity_u0.SIGNAL](false);
+#email = this[reactivity_u0.SIGNAL]('');
+#name = this[reactivity_u0.SIGNAL]('');
+#role = this[reactivity_u0.SIGNAL]('user');
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get agree() {
+                        return reactivity_u0.read(this.#agree);
+                    }
+                    set agree(_v0) {
+                        reactivity_u0.write(this.#agree, _v0);
+                    }
+                
+
+                    get email() {
+                        return reactivity_u0.read(this.#email);
+                    }
+                    set email(_v1) {
+                        reactivity_u0.write(this.#email, _v1);
+                    }
+                
+
+                    get name() {
+                        return reactivity_u0.read(this.#name);
+                    }
+                    set name(_v2) {
+                        reactivity_u0.write(this.#name, _v2);
+                    }
+                
+
+                    get role() {
+                        return reactivity_u0.read(this.#role);
+                    }
+                    set role(_v3) {
+                        reactivity_u0.write(this.#role, _v3);
+                    }
+                
+        }
+    
+
+
+
+let form =  new ReactiveObject_0jtj6vw0();
+
+
+const signup = () => {
+let root_0jtj6vw1 = template_0jtj6vw2() as template_u1.Element,
+element_0jtj6vw3 = root_0jtj6vw1.firstElementChild as template_u1.Element,
+element_0jtj6vw4 = element_0jtj6vw3.nextElementSibling as template_u1.Element,
+element_0jtj6vw5 = element_0jtj6vw4.nextElementSibling as template_u1.Element,
+element_0jtj6vw6 = element_0jtj6vw5.nextElementSibling as template_u1.Element,
+element_0jtj6vw7 = element_0jtj6vw6.nextElementSibling as template_u1.Element;
+template_u1.setProperty(element_0jtj6vw7, 'disabled', () => !form.agree);
+template_u1.setProperty(element_0jtj6vw6, 'checked', () => form.agree);
+template_u1.delegate(element_0jtj6vw6, 'change', handler_0jtj6vw8);
+template_u1.setProperty(element_0jtj6vw5, 'value', () => form.role);
+template_u1.setProperty(element_0jtj6vw4, 'value', () => form.email);
+template_u1.setProperty(element_0jtj6vw3, 'value', () => form.name);
+template_u1.delegate(element_0jtj6vw3, 'input', handler_0jtj6vw9);
+return root_0jtj6vw1;
+};
+
+
+export { signup };

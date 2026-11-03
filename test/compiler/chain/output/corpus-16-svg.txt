@@ -1,0 +1,50 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_1v0wvsz2 = template_u1.template(`<svg viewBox="0 0 24 24" width=24 height=24><path /><circle cx=12 cy=12></circle><rect x=0 y=0 width=4 height=4>`, true);
+
+
+        class ReactiveObject_1v0wvsz0 extends reactivity_u0.ReactiveObject<any> {
+            #active = this[reactivity_u0.SIGNAL](false);
+#r = this[reactivity_u0.SIGNAL](4);
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get active() {
+                        return reactivity_u0.read(this.#active);
+                    }
+                    set active(_v0) {
+                        reactivity_u0.write(this.#active, _v0);
+                    }
+                
+
+                    get r() {
+                        return reactivity_u0.read(this.#r);
+                    }
+                    set r(_v1) {
+                        reactivity_u0.write(this.#r, _v1);
+                    }
+                
+        }
+    
+
+
+
+let ui =  new ReactiveObject_1v0wvsz0();
+
+
+const icon = (path: string) => {
+let root_1v0wvsz1 = template_1v0wvsz2() as template_u1.Element,
+element_1v0wvsz3 = root_1v0wvsz1.firstElementChild as template_u1.Element,
+element_1v0wvsz4 = element_1v0wvsz3.nextElementSibling as template_u1.Element;
+template_u1.setProperty(element_1v0wvsz4, 'r', () => ui.r);
+template_u1.setClass(element_1v0wvsz4, ["", () => ui.active && 'on']);
+template_u1.setProperty(element_1v0wvsz3, 'd', path);
+return root_1v0wvsz1;
+};
+
+
+export { icon };

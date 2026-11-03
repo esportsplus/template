@@ -1,0 +1,70 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_1jcmrqb2 = template_u1.template(`<li>`, true);
+const template_1jcmrqb4 = template_u1.template(`<section><h2 class=title>Panel`, true);
+const template_1jcmrqb6 = template_u1.template(`<div>`, true);
+
+
+        class ReactiveObject_1jcmrqb0 extends reactivity_u0.ReactiveObject<any> {
+            #active = this[reactivity_u0.SIGNAL](false);
+#dense = this[reactivity_u0.SIGNAL](false);
+#tone = this[reactivity_u0.SIGNAL]('info');
+
+            constructor() {
+                super(null);
+                
+            }
+
+            
+                    get active() {
+                        return reactivity_u0.read(this.#active);
+                    }
+                    set active(_v0) {
+                        reactivity_u0.write(this.#active, _v0);
+                    }
+                
+
+                    get dense() {
+                        return reactivity_u0.read(this.#dense);
+                    }
+                    set dense(_v1) {
+                        reactivity_u0.write(this.#dense, _v1);
+                    }
+                
+
+                    get tone() {
+                        return reactivity_u0.read(this.#tone);
+                    }
+                    set tone(_v2) {
+                        reactivity_u0.write(this.#tone, _v2);
+                    }
+                
+        }
+    
+
+
+
+let ui =  new ReactiveObject_1jcmrqb0();
+
+
+const item = (kind: string) => {
+let root_1jcmrqb1 = template_1jcmrqb2() as template_u1.Element;
+template_u1.slot(root_1jcmrqb1, kind, 1);
+template_u1.setClass(root_1jcmrqb1, ["item", "item--" + (kind), () => ui.active && 'active', () => ui.dense && 'dense']);
+return root_1jcmrqb1;
+};
+
+const panel = () => {
+let root_1jcmrqb3 = template_1jcmrqb4() as template_u1.Element;
+template_u1.setClass(root_1jcmrqb3, ["panel", () => `panel--${ui.tone}`]);
+return root_1jcmrqb3;
+};
+
+const plain = (cls: string) => {
+let root_1jcmrqb5 = template_1jcmrqb6() as template_u1.Element;
+template_u1.setClass(root_1jcmrqb5, ["", cls]);
+return root_1jcmrqb5;
+};
+
+
+export { item, panel, plain };

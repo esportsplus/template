@@ -1,0 +1,26 @@
+import * as reactivity_u0 from '@esportsplus/reactivity';
+import { read, signal } from '@esportsplus/reactivity';
+import * as template_u1 from '@esportsplus/template';
+const template_0sz6zg31 = template_u1.template(`<ul>`, true);
+const template_0sz6zg33 = template_u1.template(`<li>`, true);
+
+
+
+let items =  new reactivity_u0.ReactiveArray<{ id: number }>(),
+    selected = signal(0);
+
+
+const list = () => {
+let root_0sz6zg30 = template_0sz6zg31() as template_u1.Element;
+root_0sz6zg30.appendChild(new template_u1.ArraySlot(items, (item) => {
+let root_0sz6zg32 = template_0sz6zg33() as template_u1.Element;
+template_u1.slot(root_0sz6zg32, item.id, 1);
+template_u1.setProperty(root_0sz6zg32, 'aria-selected', () => signal.selector(selected, item.id));
+template_u1.setClass(root_0sz6zg32, ["", () => signal.selector(selected, item.id) ? 'on' : '']);
+return root_0sz6zg32;
+}, true).fragment);
+return root_0sz6zg30;
+};
+
+
+export { list };
