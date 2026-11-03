@@ -10,6 +10,7 @@ const ROW = template('<div><span></span></div>');
 
 
 function build(n: number): number[] {
+    // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
     let items = new Array<number>(n);
 
     for (let i = 0; i < n; i++) {

@@ -1,5 +1,5 @@
 import { reactive, read, signal, write } from '@esportsplus/reactivity';
-import { html, type Attributes } from '@esportsplus/template';
+import { type Attributes, html } from '@esportsplus/template';
 
 
 type App = ReturnType<typeof create>;
@@ -84,6 +84,7 @@ function like(item: Card) {
 }
 
 function makeCards(n: number): Card[] {
+    // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
     let items: Card[] = new Array(n);
 
     for (let i = 0; i < n; i++) {
@@ -108,6 +109,7 @@ function makeCards(n: number): Card[] {
 }
 
 function makeRows(n: number): Row[] {
+    // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
     let items: Row[] = new Array(n);
 
     for (let i = 0; i < n; i++) {
@@ -205,7 +207,9 @@ const create = (container: HTMLElement) => {
         },
         partialUpdate: () => {
             // Toggle instead of append so label size stays stable across samples
-            let suffix = (flip = !flip) ? ' !!!' : '';
+            flip = !flip;
+
+            let suffix = flip ? ' !!!' : '';
 
             for (let i = 0, n = rows.length; i < n; i += 10) {
                 rows[i].state.label = rows[i].base + suffix;

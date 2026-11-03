@@ -6,7 +6,7 @@
 // A package dir holds `package.json` and a built `build/` (see snapshot.mjs). Rounds already on disk are
 // skipped, so an interrupted session resumes where it stopped.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';

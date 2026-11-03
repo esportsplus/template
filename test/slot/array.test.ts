@@ -726,6 +726,7 @@ describe('slot/ArraySlot', () => {
 
             container.appendChild(slot.fragment);
 
+            // oxlint-disable-next-line unicorn/no-new-array -- a sparse array is the case under test
             let items = new Array<number>(200000);
 
             for (let i = 0; i < items.length; i++) {

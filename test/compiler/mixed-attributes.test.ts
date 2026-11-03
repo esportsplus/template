@@ -18,7 +18,7 @@ const top = (node: any) => node.nodeType === 11 ? node.firstChild : node;
 function compile(source: string, args: Record<string, unknown> = {}, checked = true) {
     let parsed = checked
             ? languageService.scratch(process.cwd() + '/mixed-fixture.ts', source)
-            : { sourceFile: languageService.parse(process.cwd() + '/mixed-fixture.ts', source), checker: undefined },
+            : { checker: undefined, sourceFile: languageService.parse(process.cwd() + '/mixed-fixture.ts', source) },
         { sourceFile, checker } = parsed,
         result = generateCode(findTemplateArtifacts(sourceFile), sourceFile, checker),
         output = source;
@@ -31,8 +31,9 @@ function compile(source: string, args: Record<string, unknown> = {}, checked = t
     let js = stripTypeScriptTypes(output);
 
     return {
-        result,
         output,
+        result,
+        // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
         value: new Function(NAMESPACE, ...Object.keys(args), js + '\nreturn value;')(runtime, ...Object.values(args))
     };
 }
@@ -109,7 +110,7 @@ describe('compiled regressions', () => {
         expect(output).toContain(`${NAMESPACE}.setClass(`);
         expect(output).toContain('["a", o.kind]');
         expect(output).toContain('["b", o.kind]');
-        expect([...top(value).classList].sort()).toEqual(['b', 'x']);
+        expect([...top(value).classList].sort((a, b) => a.localeCompare(b))).toEqual(['b', 'x']);
     });
 
     it('keeps falsy folds out of whole attribute values', () => {
@@ -141,7 +142,7 @@ describe('compiled mixed attribute values', () => {
     it('keeps neighboring class effects separate from a runtime base', async () => {
         let active = signal(false),
             { value: node } = compile('let value = html`<div class="${base} ${() => active() && "--active"}"></div>`;', {
-                base: 'checkbox checkbox--radio', active: () => read(active)
+                active: () => read(active), base: 'checkbox checkbox--radio'
             });
         let element = top(node) as HTMLElement;
         document.body.append(node);
@@ -242,7 +243,7 @@ describe('compiled mixed attribute values', () => {
     it('normalizes absent callback fragments without losing zero or standalone arrays', async () => {
         let state = signal<unknown>(false),
             { value } = compile('let value = html`<div title="[${getter}]" class="base ${classes}"></div>`;', {
-                getter: () => read(state), classes: ['one', () => 'two']
+                classes: ['one', () => 'two'], getter: () => read(state)
             });
         expect(top(value).title).toBe('[]');
         expect(top(value).className).toBe('base one two');
@@ -409,6 +410,7 @@ describe('compiled host bindings and unquoted attributes', () => {
 
                 return compile(
                     'let value = html`<button onceclick=${click} onwindowresize=${resize}></button>`;',
+                    // oxlint-disable-next-line typescript/no-this-alias -- captures the receiver the runtime binds
                     { click: () => { clicks++; }, resize: function (this: unknown) { resizes++; self = this; } }
                 );
             }),

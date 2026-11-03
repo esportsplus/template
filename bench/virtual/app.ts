@@ -33,6 +33,7 @@ let id = 1,
 
 
 function build(n: number): Row[] {
+    // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
     let rows = new Array<Row>(n);
 
     for (let i = 0; i < n; i++) {
@@ -169,7 +170,6 @@ const create = (container: HTMLElement, virtual: boolean) => {
 
             scroller.scrollTop = 0;
         },
-        scroller,
         scrollToEnd: () => {
             scroll(scroller.scrollHeight);
         },
@@ -191,6 +191,7 @@ const create = (container: HTMLElement, virtual: boolean) => {
 
             scroll(offset);
         },
+        scroller,
         spliceAboveViewport: () => {
             seed = SPLICE_SEED;
 

@@ -33,6 +33,7 @@ function execute(code: string, modules: Record<string, unknown>, named = false):
         .replace(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"];?/g, (_, names, source) => `const { ${names} } = modules[${JSON.stringify(source)}];`)
         .replace(/export\s*\{\s*factory\s*\};?/, '')
         .replace(/export default /, 'return ');
+    // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
     return new Function('modules', js + (named ? '\nreturn { factory };' : ''))(modules);
 }
 
@@ -53,14 +54,14 @@ describe('mixed attributes through compiler plugins', () => {
         for (let type of ['checkbox', 'radio', 'switch']) sources[type] = `import { factory } from './factory'; export default factory('${type}');`;
         for (let [name, source] of Object.entries(sources)) writeFileSync(join(fixture, name + '.ts'), source);
         writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
-            compilerOptions: { module: 'esnext', moduleResolution: 'bundler', target: 'esnext', strict: true, skipLibCheck: true, types: [] },
+            compilerOptions: { module: 'esnext', moduleResolution: 'bundler', skipLibCheck: true, strict: true, target: 'esnext', types: [] },
             files: Object.keys(sources).map(name => './' + name + '.ts')
         }));
 
         let outputs: Record<string, string> = {};
         if (mode === 'vite') {
             let plugin = vite({ root: fixture });
-            plugin.configResolved({ root: fixture, command: 'build' });
+            plugin.configResolved({ command: 'build', root: fixture });
             for (let [name, source] of Object.entries(sources)) {
                 outputs[name] = plugin.transform.handler(source, join(fixture, name + '.ts').replace(/\\/g, '/'))?.code ?? source;
             }
@@ -73,9 +74,7 @@ describe('mixed attributes through compiler plugins', () => {
             writeFileSync(join(fixture, 'package.json'), JSON.stringify({ type: 'module' }));
             writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({
                 compilerOptions: {
-                    module: 'esnext', moduleResolution: 'bundler', target: 'esnext', strict: true,
-                    skipLibCheck: true, outDir: './out', types: [],
-                    plugins: [{ transform: require.resolve('@esportsplus/template/compiler/tsc') }]
+                    module: 'esnext', moduleResolution: 'bundler', outDir: './out', plugins: [{ transform: require.resolve('@esportsplus/template/compiler/tsc') }], skipLibCheck: true, strict: true, target: 'esnext', types: []
                 }, files: Object.keys(sources).map(name => './' + name + '.ts')
             }));
             let env = { ...process.env };
@@ -93,7 +92,7 @@ describe('mixed attributes through compiler plugins', () => {
             expect(outputs.factory).toContain(`["${name}", `);
         }
         expect(outputs.factory).not.toContain('html`');
-        let factoryModule = execute(outputs.factory, { '@esportsplus/template': runtime, '@esportsplus/reactivity': reactivity }, true);
+        let factoryModule = execute(outputs.factory, { '@esportsplus/reactivity': reactivity, '@esportsplus/template': runtime }, true);
 
         for (let type of ['checkbox', 'radio', 'switch']) {
             // tsc emits the relative specifier with its extension
@@ -127,9 +126,9 @@ describe('mixed attributes through compiler plugins', () => {
         let path = join(fixture, 'factory.ts'),
             source = factorySource + '\nexport default factory("checkbox");';
         writeFileSync(path, source);
-        writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', target: 'esnext', strict: true, types: [] }, files: ['./factory.ts'] }));
+        writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, target: 'esnext', types: [] }, files: ['./factory.ts'] }));
         let plugin = vite({ root: fixture });
-        plugin.configResolved({ root: fixture, command: 'serve', server: {} });
+        plugin.configResolved({ command: 'serve', root: fixture, server: {} });
         let output = plugin.transform.handler(source, path.replace(/\\/g, '/'))!.code;
         expect(output).toContain('import.meta.hot.accept(');
         expect(output).toContain('.factory(');
@@ -153,9 +152,9 @@ describe('mixed attributes through compiler plugins', () => {
                 '};'
             ].join('\n');
         writeFileSync(path, source);
-        writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', target: 'esnext', strict: true, types: [] }, files: ['./lists.ts'] }));
+        writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, target: 'esnext', types: [] }, files: ['./lists.ts'] }));
         let plugin = vite({ root: fixture });
-        plugin.configResolved({ root: fixture, command: 'build' });
+        plugin.configResolved({ command: 'build', root: fixture });
         let output = plugin.transform.handler(source, path.replace(/\\/g, '/'))!.code,
             { state, view } = execute(output, { '@esportsplus/reactivity': reactivity, '@esportsplus/template': runtime })();
         document.body.append(view);
@@ -188,9 +187,9 @@ describe('mixed attributes through compiler plugins', () => {
                 'export default (label: string) => h`<div class="a">${label}${t.html`<span>x</span>`}</div>`;'
             ].join('\n');
         writeFileSync(path, source);
-        writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', target: 'esnext', strict: true, types: [] }, files: ['./alias.ts'] }));
+        writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, target: 'esnext', types: [] }, files: ['./alias.ts'] }));
         let plugin = vite({ root: fixture });
-        plugin.configResolved({ root: fixture, command: 'build' });
+        plugin.configResolved({ command: 'build', root: fixture });
         let output = plugin.transform.handler(source, path.replace(/\\/g, '/'))!.code;
         expect(output).not.toContain('h`');
         expect(output).not.toContain('html`');

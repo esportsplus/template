@@ -1,6 +1,6 @@
 // Evaluated first so the raf/microtask stubs land before src modules capture the schedulers
 import { flush } from '../krausest/setup';
-import { reactive, read, signal, ReactiveArray, Signal } from '@esportsplus/reactivity';
+import { ReactiveArray, Signal, reactive, read, signal } from '@esportsplus/reactivity';
 import { test } from 'vitest';
 import { ANCHOR_SOLE } from '../../src/constants';
 import { ArraySlot } from '../../src/slot/array';
@@ -25,6 +25,7 @@ let id = 0,
 
 
 function build(n: number): Row[] {
+    // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
     let items = new Array<Row>(n);
 
     for (let i = 0; i < n; i++) {

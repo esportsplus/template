@@ -81,7 +81,7 @@ function serve(js, label, binary) {
                 }
 
                 response.setHeader('content-type', 'text/html; charset=utf-8');
-                response.end(`<!doctype html><html><head><meta charset="utf-8"><title>virtual</title></head><body><script>${js}<\/script></body></html>`);
+                response.end(`<!doctype html><html><head><meta charset="utf-8"><title>virtual</title></head><body><script>${js}</script></body></html>`);
             });
 
         function finish(error, results) {

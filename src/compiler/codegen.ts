@@ -1,5 +1,6 @@
 import { ts } from '@esportsplus/typescript';
-import { ast, checker as checkers, uid, type ReplacementIntent } from '@esportsplus/typescript/compiler';
+import { ast, checker as checkers, uid } from '@esportsplus/typescript/compiler';
+import type { ReplacementIntent } from '@esportsplus/typescript/compiler';
 import { ANCHOR_LAST, ANCHOR_SOLE } from '../constants';
 import parse from '../event/parse';
 import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
@@ -79,10 +80,12 @@ const PART_VALUE = 3;
 
 const REGEX_ATTRIBUTE_VALUE_OPEN = /=\s*(["']?)$/;
 
+// oxlint-disable-next-line no-control-regex -- NUL delimits markers precisely because source never holds one
 const REGEX_MARKER = /\u0000M(\d+)\u0000/g;
 
 const REGEX_TEMPLATE_SYNTAX = /[\\`\r]|\$\{/g;
 
+// oxlint-disable-next-line no-control-regex -- NUL delimits tokens precisely because source never holds one
 const REGEX_TOKEN = /\u0000T(\d+)\u0000/g;
 
 const REGEX_UNQUOTED_VALUE_CLOSE = /^(?:[\s>]|\/>)/;

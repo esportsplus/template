@@ -13,6 +13,7 @@ const STYLE = ['width: 10px', 'height: 20px', 'color: red', 'opacity: 1', 'margi
 
 // The string a composed value's part contributes, as interpolate() does it
 function s(value: unknown): string {
+    // oxlint-disable-next-line typescript/no-base-to-string -- mirrors the runtime join of a part, whatever its type
     return value == null || value === false ? '' : String(value);
 }
 
@@ -275,7 +276,8 @@ const cases: Case[] = [
             },
             {
                 fn: (ctx) => {
-                    ctx.el.className = (ctx.on = !ctx.on) ? 'a b c danger' : 'a b c';
+                    ctx.on = !ctx.on;
+                    ctx.el.className = ctx.on ? 'a b c danger' : 'a b c';
                 },
                 name: 'write a precomputed className (lower bound)'
             }

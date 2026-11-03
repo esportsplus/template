@@ -1,7 +1,9 @@
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { owner, root, Reactive } from '@esportsplus/reactivity';
 import type { ArrayOp } from '@esportsplus/reactivity';
 import { ARRAY_SLOT } from '../constants';
 import { Element, SlotGroup } from '../types';
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { clone, EMPTY_FRAGMENT, marker, untracked } from '../utilities';
 import { detach, ondisconnect, own, release, report, throws, track } from './cleanup';
 import type { Owner, Slot } from './cleanup';
@@ -157,6 +159,7 @@ class ArraySlot<T> implements Slot {
         if (untracked(array).length) {
             root(() => {
                 let n = untracked(array).length,
+                    // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
                     nodes = new Array<Item>(n);
 
                 for (let i = 0; i < n; i++) {
@@ -319,6 +322,7 @@ class ArraySlot<T> implements Slot {
             remove(nodes.splice(0));
 
             let m = untracked(this.array).length,
+                // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
                 rebuilt = new Array<Item>(m);
 
             for (let i = 0; i < m; i++) {
@@ -333,6 +337,7 @@ class ArraySlot<T> implements Slot {
         let end: Node | null = n > 0 ? nodes[n - 1].tail.nextSibling : null,
             keep = lis(order),
             parent = this.anchor.parentNode,
+            // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
             sorted = new Array(n) as Item[];
 
         for (let i = 0; i < n; i++) {
@@ -441,6 +446,7 @@ class ArraySlot<T> implements Slot {
     }
 
     private unshift(items: T[]) {
+        // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
         let groups = new Array<Item>(items.length);
 
         for (let i = 0, n = items.length; i < n; i++) {

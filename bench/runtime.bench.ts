@@ -199,6 +199,7 @@ test('fragment - dedup empty', async ({ bench }) => {
 
             element.innerHTML = '';
 
+            // oxlint-disable-next-line no-unused-expressions -- the getter read is what is measured
             element.content;
         }),
         bench('cached fragment clone', () => {

@@ -1,1 +1,4 @@
-{ "extends": ["./node_modules/@esportsplus/typescript/oxlintrc.json"] }
+{
+    "extends": ["./node_modules/@esportsplus/typescript/oxlintrc.json"],
+    "ignorePatterns": ["bench/compiler/corpus/**", "storage/**", "test/compiler/chain/**"]
+}

@@ -1,4 +1,4 @@
-import { reactive, read, signal, write, ReactiveArray, Signal } from '@esportsplus/reactivity';
+import { ReactiveArray, Signal, reactive, read, signal, write } from '@esportsplus/reactivity';
 import { setList } from '../../src/attributes';
 import { ANCHOR_SOLE } from '../../src/constants';
 import { delegate } from '../../src/event';
@@ -42,6 +42,7 @@ let id = 1,
 // Not named `rows`: the reactivity compiler tracks reactive arrays by name file-wide, so a
 // shadowing local would have its index writes rewritten to `$set`
 function build(n: number): Row[] {
+    // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
     let items: Row[] = new Array(n);
 
     for (let i = 0; i < n; i++) {
@@ -98,7 +99,9 @@ const create = (container: HTMLElement) => {
         },
         partialUpdate: () => {
             // Toggle instead of append so label size stays stable across samples
-            let suffix = (flip = !flip) ? ' !!!' : '';
+            flip = !flip;
+
+            let suffix = flip ? ' !!!' : '';
 
             for (let i = 0, n = rows.length; i < n; i += 10) {
                 write(rows[i].label, rows[i].base + suffix);

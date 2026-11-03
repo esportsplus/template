@@ -24,6 +24,7 @@ function compile(source: string, args: Record<string, unknown> = {}) {
     return {
         output,
         result,
+        // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
         value: new Function(NAMESPACE, ...Object.keys(args), stripTypeScriptTypes(output) + '\nreturn value;')(runtime, ...Object.values(args))
     };
 }
@@ -77,6 +78,7 @@ describe('compiler emission', () => {
             let { result } = compile('let value = html' + template + ';'),
                 literal = /\.template\((`.*`)(?:, true)?\);$/s.exec(result.prepend[0])![1];
 
+            // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
             expect(new Function('return ' + literal)()).toBe(html);
         });
 

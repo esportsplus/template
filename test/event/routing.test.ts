@@ -106,6 +106,7 @@ function compile(source: string, args: Record<string, unknown> = {}) {
 
     return {
         output,
+        // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
         value: new Function(NAMESPACE, ...Object.keys(args), stripTypeScriptTypes(output) + '\nreturn value;')(namespace, ...Object.values(args))
     };
 }

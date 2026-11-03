@@ -135,7 +135,7 @@ describe('compiler/virtual', () => {
                 instance.configResolved({ command: 'serve', root, server: {} });
                 instance.transform.handler(source, file);
 
-                let result = await instance.handleHotUpdate({
+                let result = instance.handleHotUpdate({
                     file,
                     modules: [{ isSelfAccepting: false }],
                     read: () => readFileSync(file, 'utf8'),

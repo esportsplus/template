@@ -20,13 +20,13 @@ const FILES: Record<string, string> = {
         'export default html;',
         'export const alias = html;'
     ].join('\n'),
-    'renamed.ts': "import { tag } from './barrel';\nexport default (label: string) => tag`<p>${label}</p>`;",
-    'star.ts': "import { html as h } from './barrel';\nexport default (label: string) => h`<p>${label}</p>`;",
+    'constant.ts': "import { alias } from './barrel';\nexport default (label: string) => alias`<p>${label}</p>`;",
+    'default.ts': "import d from './barrel';\nexport default (label: string) => d`<p>${label}</p>`;",
+    'keyed.ts': "import * as B from './barrel';\nexport default (label: string) => B.T['html']`<p>${label}</p>`;",
     'namespace.ts': "import { T } from './barrel';\nexport default (label: string) => T.html`<p>${label}</p>`;",
     'nested.ts': "import * as B from './barrel';\nexport default (label: string) => B.T.html`<p>${label}</p>`;",
-    'default.ts': "import d from './barrel';\nexport default (label: string) => d`<p>${label}</p>`;",
-    'constant.ts': "import { alias } from './barrel';\nexport default (label: string) => alias`<p>${label}</p>`;",
-    'keyed.ts': "import * as B from './barrel';\nexport default (label: string) => B.T['html']`<p>${label}</p>`;"
+    'renamed.ts': "import { tag } from './barrel';\nexport default (label: string) => tag`<p>${label}</p>`;",
+    'star.ts': "import { html as h } from './barrel';\nexport default (label: string) => h`<p>${label}</p>`;"
 };
 
 let fixtures: string[] = [];
@@ -61,6 +61,7 @@ function render(code: string, label: string): string {
             .replace(/export default /, 'return '),
         element = document.createElement('div');
 
+    // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
     element.append(new Function('modules', js)({ '@esportsplus/reactivity': reactivity, '@esportsplus/template': runtime })(label));
 
     return element.textContent!;

@@ -46,7 +46,7 @@ const REGEX_QUOTED_VALUE = /(["'])([\s\S]*?)\1/g;
 
 const REGEX_SLOT_ATTRIBUTES = /<([\w-]+)([^><]*{{\$}}[^><]*)>/g;
 
-const REGEX_SLOT_NODES = /<([\w-]+|[\/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{{\$}}/g;
+const REGEX_SLOT_NODES = /<([\w-]+|[/!])(?:([^><]*{{\$}}[^><]*)|(?:[^><]*))?>|{{\$}}/g;
 
 const REGEX_TAG = /<[\w!/?-]+(?:"[^"]*"|'[^']*'|[^'">])*>/g;
 
@@ -275,6 +275,7 @@ function metadata(found: string): AttributeMetadata {
 
 function methods(children: number, copy: NodePath, first: NodePath[number], next: NodePath[number]) {
     let length = copy.length,
+        // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
         result: NodePath = new Array(length + 1 + children);
 
     for (let i = 0, n = length; i < n; i++) {

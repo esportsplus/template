@@ -1,6 +1,7 @@
 import { owner as running } from '@esportsplus/reactivity';
 import { defineProperty } from '@esportsplus/utilities';
 import { DIRECT_ATTACH_EVENTS, PACKAGE_NAME, PASSIVE_EVENTS } from '../constants';
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { heal, MOUNTED, ondisconnect as disconnect } from '../slot/cleanup';
 import type { Owner, Slot } from '../slot/cleanup';
 import { Attributes, Element, EventOptions, On } from '../types';

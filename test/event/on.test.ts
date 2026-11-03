@@ -50,6 +50,7 @@ function compile(source: string, args: Record<string, unknown>) {
         output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile, written) + output.slice(replacement.node.end);
     }
 
+    // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
     return new Function(NAMESPACE, ...Object.keys(args), stripTypeScriptTypes(result.prepend.join('\n') + '\n' + output) + '\nreturn value;')(namespace, ...Object.values(args));
 }
 
@@ -106,6 +107,7 @@ describe('event/on', () => {
 
             track(on(node, 'click', function (...received) {
                 args = received;
+                // oxlint-disable-next-line typescript/no-this-alias -- captures the receiver the runtime binds
                 self = this;
             }));
 
@@ -342,7 +344,7 @@ describe('event/on', () => {
     describe('ending a binding', () => {
         it('once, the disposer, the dispose argument and signal each remove only their own binding', () => {
             let controller = new AbortController(),
-                counts = { disposer: 0, dispose: 0, kept: 0, once: 0, signal: 0 },
+                counts = { dispose: 0, disposer: 0, kept: 0, once: 0, signal: 0 },
                 node = element('button'),
                 disposer = on(node, 'click', () => { counts.disposer++; });
 
@@ -360,12 +362,12 @@ describe('event/on', () => {
             node.click();
             node.click();
 
-            expect(counts).toEqual({ disposer: 1, dispose: 1, kept: 3, once: 1, signal: 1 });
+            expect(counts).toEqual({ dispose: 1, disposer: 1, kept: 3, once: 1, signal: 1 });
         });
 
         it.each(['capture', 'delegated', 'direct', 'document', 'passive', 'target', 'window'] as const)('ends a %s binding by once, the disposer, the dispose argument or signal, then its native listener', (kind) => {
             let controller = new AbortController(),
-                counts = { disposer: 0, dispose: 0, kept: 0, once: 0, signal: 0 },
+                counts = { dispose: 0, disposer: 0, kept: 0, once: 0, signal: 0 },
                 node = element('button'),
                 options: EventOptions = kind === 'capture' ? { capture: true } : kind === 'direct' ? { direct: true } : kind === 'passive' ? { passive: true } : {},
                 target: EventTarget = kind === 'document' ? document : kind === 'window' ? window : kind === 'target' ? new EventTarget() : node,
@@ -393,7 +395,7 @@ describe('event/on', () => {
             fire();
             fire();
 
-            expect(counts).toEqual({ disposer: 1, dispose: 1, kept: 3, once: 1, signal: 1 });
+            expect(counts).toEqual({ dispose: 1, disposer: 1, kept: 3, once: 1, signal: 1 });
             expect(registered(remove, 'ending')).toBe(0);
 
             kept();

@@ -1,5 +1,6 @@
 import { isArray } from '@esportsplus/utilities';
 import { ARRAY_SLOT } from '../constants';
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { clone, EMPTY_FRAGMENT, marker, text } from '../utilities';
 import type { Element } from '../types';
 import { ArraySlot } from './array';

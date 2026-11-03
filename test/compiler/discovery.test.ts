@@ -14,11 +14,10 @@ type Form = [imports: string, tag: string, parameter?: [binding: string, source:
 type Plugin = ReturnType<typeof vite>;
 
 
-const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => (...args: unknown[]) => Promise<(label: string) => Node>;
-
 // A central module re-exporting html under another name
 const APP = "export { html as h } from '@esportsplus/template';";
 
+const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => (...args: unknown[]) => Promise<(label: string) => Promise<Node>>;
 
 const BARREL = [
     "export { html as tag } from '@esportsplus/template';",
@@ -120,7 +119,7 @@ async function render(code: string, label: string): Promise<string> {
             .replace(/export default /, 'return '),
         modules: Record<string, unknown> = {
             './app': { h: runtime.html },
-            './barrel': { ...runtime, alias: runtime.html, default: runtime.html, T: runtime, tag: runtime.html },
+            './barrel': { ...runtime, T: runtime, alias: runtime.html, default: runtime.html, tag: runtime.html },
             './deep': runtime,
             '@esportsplus/reactivity': reactivity,
             '@esportsplus/template': runtime,
@@ -182,7 +181,7 @@ describe('compiler site discovery', () => {
         });
 
         it('keeps the html import a surviving local alias reads, and removes it otherwise', () => {
-            let files = { 'barrel.ts': BARREL, 'aliased.ts': consumer(FORMS['multi-hop'], staged), 'direct.ts': consumer(FORMS['direct'], staged) },
+            let files = { 'aliased.ts': consumer(FORMS['multi-hop'], staged), 'barrel.ts': BARREL, 'direct.ts': consumer(FORMS['direct'], staged) },
                 { directory, plugin } = project(files);
 
             expect(transform(plugin, directory, 'aliased.ts', files['aliased.ts'])!.code).toMatch(/import \{ html \} from '@esportsplus\/template';/);
@@ -304,7 +303,7 @@ describe('compiler site discovery', () => {
     });
 
     describe('vite ids', () => {
-        let files = { 'direct.ts': consumer(FORMS['direct'], true), 'module.mts': consumer(FORMS['direct'], false), 'common.cts': consumer(FORMS['direct'], false) };
+        let files = { 'common.cts': consumer(FORMS['direct'], false), 'direct.ts': consumer(FORMS['direct'], true), 'module.mts': consumer(FORMS['direct'], false) };
 
         it('transforms an id with a ?worker_file query as the file it names', () => {
             let { directory, plugin } = project(files);

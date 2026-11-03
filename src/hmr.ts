@@ -1,7 +1,9 @@
 import { onCleanup, owner, root } from '@esportsplus/reactivity';
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { own, release, throws, track as watch, unowned } from './slot/cleanup';
 import type { Slot } from './slot/cleanup';
 import render from './slot/render';
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { clone, EMPTY_FRAGMENT } from './utilities';
 
 
@@ -94,6 +96,7 @@ function build(entry: Entry, invocation: Invocation, impl: Function): DocumentFr
     let fragment = clone(EMPTY_FRAGMENT),
         start = document.createComment('hmr'),
         end = document.createComment('hmr'),
+        // oxlint-disable-next-line sort-keys -- property creation order is runtime behaviour, left as written
         instance = {
             anchor: start,
             disposed: false,
@@ -357,11 +360,13 @@ const factory = (moduleId: string, exportId: string, getImpl: () => Function): F
 };
 
 const prune = (moduleId: string): void => {
+    // oxlint-disable-next-line unicorn/no-useless-spread -- a snapshot: teardown removes entries while this loop runs
     for (let entry of [...entries.values()]) {
         if (entry.moduleId !== moduleId) {
             continue;
         }
 
+        // oxlint-disable-next-line unicorn/no-useless-spread -- a snapshot: teardown removes instances while this loop runs
         for (let instance of [...entry.instances]) {
             teardown(instance);
         }

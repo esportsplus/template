@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { delegate, direct, ondisconnect, runtime } from '../../src/event';
 import { root } from '@esportsplus/reactivity';
 import { CLEANUP } from '../../src/constants';
@@ -52,6 +52,7 @@ describe('event/index', () => {
                 thisValue: unknown = null;
 
             container.appendChild(element);
+            // oxlint-disable-next-line typescript/no-this-alias -- captures the receiver the runtime binds
             delegate(element, 'click', function(this: unknown) { thisValue = this; });
 
             element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -176,6 +177,7 @@ describe('event/index', () => {
                 thisValue: unknown = null;
 
             container.appendChild(element);
+            // oxlint-disable-next-line typescript/no-this-alias -- captures the receiver the runtime binds
             direct(element, 'focus', function(this: unknown) { thisValue = this; });
 
             element.dispatchEvent(new FocusEvent('focus'));

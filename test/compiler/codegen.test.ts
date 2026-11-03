@@ -491,8 +491,8 @@ describe('compiler/codegen', () => {
                 { sites, templates } = findTemplateArtifacts(sourceFile);
 
             let ctx = {
-                sites,
                 singles: new Set<string>(),
+                sites,
                 sourceFile,
                 templates: new Map<string, string>()
             };
@@ -509,8 +509,8 @@ describe('compiler/codegen', () => {
                 { sites, templates } = findTemplateArtifacts(sourceFile);
 
             let ctx = {
-                sites,
                 singles: new Set<string>(),
+                sites,
                 sourceFile,
                 templates: new Map<string, string>()
             };

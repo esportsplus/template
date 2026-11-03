@@ -10,9 +10,20 @@ const CORPUS: Record<string, string> = {
         'export const alias = html;',
         'export { html as again };'
     ].join('\n'),
-    'other.ts': [
-        'export const html = (strings: TemplateStringsArray, ...values: unknown[]) => strings.join(String(values));',
-        'export default { html };'
+    'escapes.ts': [
+        "import { html } from '@esportsplus/template';",
+        "import * as B from './barrel';",
+        'declare function take(value: unknown): void;',
+        'let mutable = html;',
+        'take(html);',
+        'take(B.T.html);',
+        'export const shorthand = { html };',
+        'export const parenthesized = () => (html)`<p>x</p>`;',
+        'export const member = html.reactive;',
+        'const { reactive: pulled } = html;',
+        'const [first] = [html];',
+        'export const array = [first, pulled, mutable];',
+        'export default html;'
     ].join('\n'),
     'forms.ts': [
         "import d, { again, alias, tag, html as h, T as N } from './barrel';",
@@ -44,6 +55,15 @@ const CORPUS: Record<string, string> = {
         'export const fromNamespaceKey = () => P[\'html\']`<p>key</p>`;',
         "export const fromObject = () => { const holder = { html: P.html }; return holder.html`<p>object</p>`; };"
     ].join('\n'),
+    'none.ts': [
+        'const tag = (strings: TemplateStringsArray) => strings.join();',
+        'export const plain = tag`<p>none</p>`;',
+        'export const html = 1;'
+    ].join('\n'),
+    'other.ts': [
+        'export const html = (strings: TemplateStringsArray, ...values: unknown[]) => strings.join(String(values));',
+        'export default { html };'
+    ].join('\n'),
     'parameters.ts': [
         "type B = typeof import('./barrel');",
         "export const member = (B: typeof import('./barrel')) => B.tag`<p>member</p>`;",
@@ -54,20 +74,10 @@ const CORPUS: Record<string, string> = {
         "export const destructured = ({ html }: typeof import('@esportsplus/template')) => html`<p>destructured</p>`;",
         "export const destructuredBarrel = ({ tag }: typeof import('./barrel')) => tag`<p>destructured</p>`;"
     ].join('\n'),
-    'escapes.ts': [
-        "import { html } from '@esportsplus/template';",
-        "import * as B from './barrel';",
-        'declare function take(value: unknown): void;',
-        'let mutable = html;',
-        'take(html);',
-        'take(B.T.html);',
-        'export const shorthand = { html };',
-        'export const parenthesized = () => (html)`<p>x</p>`;',
-        'export const member = html.reactive;',
-        'const { reactive: pulled } = html;',
-        'const [first] = [html];',
-        'export const array = [first, pulled, mutable];',
-        'export default html;'
+    're-exports.ts': [
+        "export { html } from '@esportsplus/template';",
+        "export { html as h2, T as T2 } from './barrel';",
+        "export * as P from '@esportsplus/template';"
     ].join('\n'),
     'shadowed.ts': [
         "import { html } from '@esportsplus/template';",
@@ -89,16 +99,6 @@ const CORPUS: Record<string, string> = {
         'export type Typed = typeof typed;',
         'export const value: typeof html | null = null;',
         'export const view = () => html`<p>typed</p>`;'
-    ].join('\n'),
-    're-exports.ts': [
-        "export { html } from '@esportsplus/template';",
-        "export { html as h2, T as T2 } from './barrel';",
-        "export * as P from '@esportsplus/template';"
-    ].join('\n'),
-    'none.ts': [
-        'const tag = (strings: TemplateStringsArray) => strings.join();',
-        'export const plain = tag`<p>none</p>`;',
-        'export const html = 1;'
     ].join('\n')
 };
 

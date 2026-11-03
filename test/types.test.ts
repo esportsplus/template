@@ -4,7 +4,7 @@ import { delegate, direct, on, ondocument, onwindow } from '../src/event';
 import html from '../src/html';
 import { ArraySlot } from '../src/slot/array';
 import { VirtualSlot } from '../src/virtual/slot';
-import type { Attributes, Effect, Element as Bound } from '../src/types';
+import type { Attributes, Element as Bound, Effect } from '../src/types';
 import type * as Public from '../src';
 
 
@@ -12,12 +12,12 @@ describe('types', () => {
     describe('Attributes listeners', () => {
         it('types element events with the element as this', () => {
             let attributes: Attributes<HTMLInputElement> = {
+                    onceinput(event) {
+                        expectTypeOf(event).toEqualTypeOf<InputEvent>();
+                    },
                     onclick(event) {
                         expectTypeOf(event).toEqualTypeOf<PointerEvent>();
                         expectTypeOf(this).toEqualTypeOf<HTMLInputElement>();
-                    },
-                    onceinput(event) {
-                        expectTypeOf(event).toEqualTypeOf<InputEvent>();
                     },
                     onkeydown(event) {
                         expectTypeOf(event).toEqualTypeOf<KeyboardEvent>();
@@ -308,6 +308,7 @@ describe('types', () => {
         it('leaves factories without properties untouched', () => {
             let plain = component<Attributes>(() => '');
 
+            // oxlint-disable-next-line typescript/unbound-method -- compares the method itself, never calls it
             expect(plain.bind).toBe(Function.prototype.bind);
             expectTypeOf(plain).toEqualTypeOf<ReturnType<typeof component<Attributes>>>();
         });

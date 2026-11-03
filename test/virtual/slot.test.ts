@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { reactive, Reactive } from '@esportsplus/reactivity';
+import { Reactive, reactive } from '@esportsplus/reactivity';
 import { parent as parentOf } from '../../src/slot/cleanup';
 import type { Slot } from '../../src/slot/cleanup';
 import { INDEX } from '../../src/virtual/measure';

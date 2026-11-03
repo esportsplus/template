@@ -66,7 +66,11 @@ const run = (app: App, flush: VoidFunction, forceLayout?: VoidFunction): Result[
                 setup: () => rows(1000)
             },
             {
-                fn: () => app.select((toggle = !toggle) ? 1 : 5),
+                fn: () => {
+                    toggle = !toggle;
+
+                    return app.select(toggle ? 1 : 5);
+                },
                 name: 'rows: select',
                 samples: 60,
                 setup: () => rows(1000)

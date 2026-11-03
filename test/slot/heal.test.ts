@@ -135,6 +135,7 @@ describe('slot/cleanup sweep', () => {
         }
 
         expect(reads()).toBe(61);
+        // oxlint-disable-next-line typescript/unbound-method -- a mock is asserted on, never called
         expect(slot.release).not.toHaveBeenCalled();
     });
 
@@ -150,6 +151,7 @@ describe('slot/cleanup sweep', () => {
         sweep();
         sweep();
 
+        // oxlint-disable-next-line typescript/unbound-method -- a mock is asserted on, never called
         expect(slot.release).toHaveBeenCalledTimes(1);
         expect(slot.disposed).toBe(true);
         // Two visits, the release, and the warning naming the anchor
@@ -1008,6 +1010,7 @@ describe('ownership', () => {
         render(parent, () => {
             hook(parent, released);
 
+            // oxlint-disable-next-line no-constant-binary-expression -- constructs the slot for its effect, then renders nothing
             return new EffectSlot(anchor(element('p', parent)), () => read(s)) && '';
         });
 

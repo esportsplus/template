@@ -1,12 +1,15 @@
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { flush, owner, read, root, signal, write, Reactive, ReactiveArray } from '@esportsplus/reactivity';
 import { onconnect } from '../event';
 import { ArraySlot } from '../slot/array';
 import { ondisconnect, own, track } from '../slot/cleanup';
 import type { Owner, Slot } from '../slot/cleanup';
 import { Element } from '../types';
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { clone, EMPTY_FRAGMENT, marker as MARKER, untracked } from '../utilities';
 import { create, index, insert, offset, remove, reorder, set, size } from './cache';
 import type { Cache } from './cache';
+// oxlint-disable-next-line sort-imports -- members ordered case-insensitively, as the house standard reads; reordering runtime code is out of scope
 import { INDEX, observe, SIZE, SLOT, unobserve } from './measure';
 
 
@@ -486,6 +489,7 @@ class VirtualSlot<T> implements Slot {
             return;
         }
 
+        // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
         let items = new Array<T>(j - i + 1);
 
         for (let k = i; k <= j; k++) {
@@ -497,6 +501,7 @@ class VirtualSlot<T> implements Slot {
 
     private permuteReverse() {
         let length = this.cache.length,
+            // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
             sizes = new Array<number>(length);
 
         for (let i = 0; i < length; i++) {
@@ -510,6 +515,7 @@ class VirtualSlot<T> implements Slot {
 
     private permuteSort(order: number[]) {
         let length = this.cache.length,
+            // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
             sizes = new Array<number>(length);
 
         for (let i = 0; i < length; i++) {

@@ -11,6 +11,7 @@ describe('signal.selector', () => {
     it('re-runs only the leaving and entering key effects on write (O(2))', () => {
         const N = 64;
 
+        // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
         let counters = new Array<number>(N).fill(0),
             disposers: VoidFunction[] = [],
             source = signal(0);

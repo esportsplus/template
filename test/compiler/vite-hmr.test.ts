@@ -147,7 +147,7 @@ describe('compiler/vite-hmr', () => {
     describe('handleHotUpdate', () => {
         it('leaves CSS/SCSS untouched', async () => {
             let instance = plugin(root, { command: 'serve', server: {} }),
-                result = await instance.handleHotUpdate({
+                result = instance.handleHotUpdate({
                     file: root + '/src/style.scss',
                     modules: [],
                     server: { ws: { send: vi.fn() } }
@@ -158,7 +158,7 @@ describe('compiler/vite-hmr', () => {
 
         it('lets self-accepting modules proceed', async () => {
             let instance = plugin(root, { command: 'serve', server: {} }),
-                result = await instance.handleHotUpdate({
+                result = instance.handleHotUpdate({
                     file: root + '/src/component.ts',
                     modules: [{ isSelfAccepting: true }],
                     server: { ws: { send: vi.fn() } }
@@ -186,7 +186,7 @@ describe('compiler/vite-hmr', () => {
 
                 instance.transform.handler(source, file);
 
-                let result = await instance.handleHotUpdate({
+                let result = instance.handleHotUpdate({
                         file,
                         modules: [{ isSelfAccepting: false }],
                         read: () => readFileSync(file, 'utf8'),
