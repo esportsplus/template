@@ -15,6 +15,8 @@ type Result = {
     min: number;
     name: string;
     samples: number;
+    // Median time before the forced layout: the script's share, which layout would otherwise hide
+    script: number;
 };
 
 
@@ -22,7 +24,8 @@ const WARMUP = 3;
 
 
 function measure(op: Op, flush: VoidFunction, forceLayout?: VoidFunction): Result {
-    let times: number[] = [];
+    let scripts: number[] = [],
+        times: number[] = [];
 
     for (let i = 0; i < WARMUP; i++) {
         op.setup();
@@ -43,10 +46,12 @@ function measure(op: Op, flush: VoidFunction, forceLayout?: VoidFunction): Resul
 
         op.fn();
         flush();
+        scripts.push(performance.now() - start);
         forceLayout?.();
         times.push(performance.now() - start);
     }
 
+    scripts.sort((a, b) => a - b);
     times.sort((a, b) => a - b);
 
     let sum = 0;
@@ -61,7 +66,8 @@ function measure(op: Op, flush: VoidFunction, forceLayout?: VoidFunction): Resul
         median: times[times.length >> 1],
         min: times[0],
         name: op.name,
-        samples: times.length
+        samples: times.length,
+        script: scripts[scripts.length >> 1]
     };
 }
 
@@ -181,5 +187,5 @@ const run = (app: App, flush: VoidFunction, forceLayout?: VoidFunction): Result[
 };
 
 
-export { format, run };
+export { format, measure, run };
 export type { Op, Result };
