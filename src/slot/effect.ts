@@ -3,7 +3,7 @@ import { isAsyncFunction } from '@esportsplus/utilities';
 import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable, SlotGroup } from '../types';
 import { text } from '../utilities'
-import { claim, context, detach, enter, exit, MOUNTED, ondisconnect, run, stale, track } from './cleanup';
+import { claim, context, detach, enter, exit, ondisconnect, run, stale, track, MOUNTED } from './cleanup';
 import type { Slot } from './cleanup';
 import render from './render';
 
