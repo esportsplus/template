@@ -69,7 +69,7 @@ function card(item: Card) {
             <p class=${item.tone}>${item.body}</p>
             <footer>
                 <a href=${item.href} aria-label=${item.cta}>${item.cta}</a>
-                <span>${() => item.state.likes}</span>
+                <span style="--likes: ${() => item.state.likes}">${() => item.state.likes}</span>
                 <button type="button" aria-pressed=${() => item.state.liked} onclick=${() => like(item)}>
                     ${() => item.state.liked ? 'Liked' : 'Like'}
                 </button>
