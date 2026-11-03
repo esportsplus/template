@@ -87,6 +87,8 @@ let build = join(workspace, 'node_modules/@esportsplus/template/build/compiler')
     opened = languageService.open(config),
     { checker, program } = opened.project,
     counts = new Map(),
+    // One pass over the corpus as a build makes it: every file transformed once against the same program
+    counted = counting(checker, counts),
     results = [],
     total = 0;
 
@@ -100,9 +102,7 @@ try {
             throw new Error(`Corpus: '${path}' is not in the program!`);
         }
 
-        let counted = counting(checker, counts);
-
-        generateCode(findTemplateArtifacts(sourceFile, counted, program), sourceFile, counted);
+        generateCode(findTemplateArtifacts(sourceFile, counted, program), sourceFile, counted, program);
 
         for (let j = 0; j < 3; j++) {
             generateCode(findTemplateArtifacts(sourceFile, checker, program), sourceFile, checker);
