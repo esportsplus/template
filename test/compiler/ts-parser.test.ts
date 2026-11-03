@@ -30,6 +30,15 @@ describe('compiler/ts-parser', () => {
             expect(calls.length).toBe(1);
         });
 
+        it('skips a file that imports nothing, and walks one that imports', () => {
+            let body = 'const a = 1; let b = 0; b = a; declare const el: HTMLElement; el.remove();',
+                skipped = artifacts(body),
+                walked = artifacts(`import { x } from './x';\n${body}`);
+
+            expect([skipped.assigned.size, skipped.constants.size, skipped.removals.length]).toEqual([0, 0, 0]);
+            expect([walked.assigned.size, walked.constants.size, walked.removals.length]).toEqual([1, 2, 1]);
+        });
+
         it('rejects a template tagged by a parameter that shadows the import', () => {
             let { templates } = artifacts([
                 `import { html } from '@esportsplus/template';`,
