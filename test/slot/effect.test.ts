@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { flush, read, root, signal, write } from '@esportsplus/reactivity';
-import { ANCHOR_LAST, ANCHOR_MARKER, ANCHOR_SOLE } from '../../src/constants';
+import { ANCHOR_MARKER, ANCHOR_SOLE } from '../../src/constants';
 import { ondisconnect } from '../../src/slot/cleanup';
 import { EffectSlot } from '../../src/slot/effect';
 import { marker } from '../../src/utilities';
@@ -454,7 +454,7 @@ describe('slot/EffectSlot', () => {
             span.textContent = 'static';
             parent.appendChild(span);
 
-            new EffectSlot(parent, () => 'tail', ANCHOR_LAST);
+            new EffectSlot(parent, () => 'tail', ANCHOR_SOLE);
 
             expect(parent.childNodes.length).toBe(2);
             expect(parent.firstChild).toBe(span);
@@ -511,7 +511,7 @@ describe('slot/EffectSlot', () => {
             span.textContent = 'keep';
             parent.appendChild(span);
 
-            let slot = new EffectSlot(parent, () => 'gone', ANCHOR_LAST);
+            let slot = new EffectSlot(parent, () => 'gone', ANCHOR_SOLE);
 
             expect(parent.textContent).toBe('keepgone');
 

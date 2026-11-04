@@ -22,7 +22,7 @@ element_0hwniaq4 = (element_0hwniaq2.nextElementSibling! as template_u1.Element)
 element_0hwniaq5 = element_0hwniaq4.nextElementSibling as template_u1.Element,
 element_0hwniaq6 = element_0hwniaq5.nextElementSibling as template_u1.Element;
 template_u1.slot(element_0hwniaq3, item.title, 1);
-template_u1.slot(element_0hwniaq2, chip({ class: () => item.state.liked && 'chip--on', title: item.title }, item.tone), 2);
+template_u1.slot(element_0hwniaq2, chip({ class: () => item.state.liked && 'chip--on', title: item.title }, item.tone), 1);
 new template_u1.EffectSlot(element_0hwniaq5, () => item.state.likes, 1);
 new template_u1.EffectSlot(element_0hwniaq6, () => item.state.liked ? 'Liked' : 'Like', 1);
 template_u1.setProperty(element_0hwniaq6, 'aria-pressed', () => item.state.liked);

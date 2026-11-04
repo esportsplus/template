@@ -639,12 +639,12 @@ describe('compiler/codegen', () => {
             expect(result.prepend[0]).toContain('hello');
         });
 
-        it('emits 3-arg EffectSlot (last flag) for last-child slot after text', () => {
+        it('emits 3-arg EffectSlot (append flag) for last-child slot after text', () => {
             let { result } = codegen(`let x = html\`<div>label \${() => count}</div>\`;`);
             let code = result.replacements[0].generate(EMPTY, written);
 
             expect(code).toContain(`${NAMESPACE}.EffectSlot`);
-            expect(code).toMatch(/,\s*2\)/);
+            expect(code).toMatch(/,\s*1\)/);
         });
 
         it('leaves mid-position slot in marker mode (2-arg, no flag)', () => {

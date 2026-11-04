@@ -1,7 +1,7 @@
 import { ts } from '@esportsplus/typescript';
 import { ast, checker as checkers, uid } from '@esportsplus/typescript/compiler';
 import type { Prepend, ReplacementIntent, Text } from '@esportsplus/typescript/compiler';
-import { ANCHOR_LAST, ANCHOR_SOLE } from '../constants';
+import { ANCHOR_SOLE } from '../constants';
 import parse from '../event/parse';
 import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
 import type { Entrypoint } from './constants';
@@ -402,7 +402,7 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
 }
 
 function generateNodeBinding(ctx: CodegenContext, anchor: string, expr: ts.Expression | undefined, text: () => string, mode: 'last' | 'sole' | undefined): string {
-    let flag = mode ? ', ' + (mode === 'sole' ? ANCHOR_SOLE : ANCHOR_LAST) : '',
+    let flag = mode ? ', ' + ANCHOR_SOLE : '',
         node: string;
 
     switch (expr ? analyze(expr, ctx.sites, ctx.checker) : TYPES.Unknown) {

@@ -1,9 +1,8 @@
 const PACKAGE_NAME = '@esportsplus/template';
 
-const ANCHOR_LAST = 2;
-
 const ANCHOR_MARKER = 0;
 
+// The anchor is the element the slot's content is appended to: the slot is its sole or last child
 const ANCHOR_SOLE = 1;
 
 const ARRAY_SLOT = Symbol.for(`${PACKAGE_NAME}/array.slot`);
@@ -69,7 +68,7 @@ const UNCOMPILED = 'must be compiled. Ensure vite-plugin is configured.';
 
 
 export {
-    ANCHOR_LAST, ANCHOR_MARKER, ANCHOR_SOLE,
+    ANCHOR_MARKER, ANCHOR_SOLE,
     ARRAY_SLOT, ATTRIBUTE_DELIMITERS,
     CLEANUP,
     DIRECT_ATTACH_EVENTS,

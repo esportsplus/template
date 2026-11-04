@@ -48,7 +48,7 @@ new template_u1.EffectSlot(root_0c4qm7c1, () => state.loading ? template_0c4qm7c
 let root_0c4qm7c7 = template_0c4qm7c8() as template_u1.Element;
 template_u1.slot(root_0c4qm7c7, state.error, 1);
 return root_0c4qm7c7;
-})() : '', 2);
+})() : '', 1);
 return root_0c4qm7c1;
 };
 

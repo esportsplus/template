@@ -14,7 +14,7 @@ root_0fjb88j0.appendChild(new template_u1.VirtualSlot(rows, (row) => {
 let root_0fjb88j2 = template_0fjb88j3() as template_u1.Element,
 element_0fjb88j4 = root_0fjb88j2.firstChild as template_u1.Element;
 template_u1.slot(element_0fjb88j4, row.id);
-template_u1.slot(root_0fjb88j2, row.label, 2);
+template_u1.slot(root_0fjb88j2, row.label, 1);
 return root_0fjb88j2;
 }).fragment);
 return root_0fjb88j0;

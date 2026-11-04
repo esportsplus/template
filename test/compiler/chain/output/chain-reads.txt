@@ -63,7 +63,7 @@ let root_0lsk63pa = template_0lsk63pb() as template_u1.Element;
 new template_u1.EffectSlot(root_0lsk63pa, () => value + reactivity_u0.read(count), 1);
 template_u1.setProperty(root_0lsk63pa, 'data-value', value);
 return root_0lsk63pa;
-}), 2);
+}), 1);
 let value_0lsk63pe: Function = () => state.label, value_0lsk63pf: Function = () => reactivity_u0.read(count);
 template_u1.setProperty(root_0lsk63p1, 'title', (element_0lsk63pc: template_u1.Element) => "" + part_0lsk63pd(value_0lsk63pe(element_0lsk63pc)) + ": " + part_0lsk63pd(value_0lsk63pf(element_0lsk63pc)));
 template_u1.setClass(root_0lsk63p1, ["", () => state.open ? 'open' : 'closed']);
