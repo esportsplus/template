@@ -99,3 +99,44 @@ Built against the local `@esportsplus/typescript` and `@esportsplus/reactivity` 
 - **T-6**: all deps latest (vitest 5.1.0, coverage 5.1.0, jsdom 30.1.3, @types/node 26.6.6, oxlint 1.90.0, oxlint-tsgolint 7.0.2005). happy-dom 21.0.4 (branch `experiment/happy-dom`): 5 of 1689 tests fail (IDL `checked` reset, listeners after a throwing handler ×2, the 200k-group ArraySlot build times out) and the run is ~3× slower, so jsdom stays. `bench/slot/bulk.bench.ts` ran out of heap before this work too (dev slot tracking + a loop that never yields); samples now release their slot and rows.
 - **Bench** `bench/compiler/chain.bench.ts` (reactivity + template via `coordinator.transform`, 30 modules, fresh program per pass), mean per pass: before 191–209 ms (median ≈197), after 137–160 ms (median ≈146), ≈26% faster; after the prepend-entry and case-insensitive-lint follow-up 135–142 ms over 3 runs. `findTemplateArtifacts + generateCode (with checker)`, 100 components: ≈37 ms → ≈25 ms.
 - **T-7**: README SVG section notes the sprite `<use>` forms and when an icon must be an inline `html` template.
+
+## 6. Diff-based class/style writes (2026-11-03, branch `perf/diff-writes`)
+
+`src/attributes.ts` no longer serialises a whole class or style list on each change, so a class or declaration written from outside the template (`classList.add`, `style.setProperty('--morph-x', …)` in ui's `card.ts`, third-party code) survives every store write. Public API (`setClass`, `setList`, `setProperty`, `setProperties`, `setStyle`) and compiled output are unchanged; `test/compiler` snapshots untouched.
+
+- **Classes**: a refcount per token (`Map<token, writers>`). The static list (compiled `parts[0]`, static parts, the attribute at first contact for `setList`-created state) holds its tokens for good; a part adds 1 per token it returns. A token entering (0 → 1) is added, leaving (1 → 0) removed. Several changes in one run are one write: `classList.add(...)`, `classList.remove(...)`, or for a mixed change the attribute's tokens (foreign ones included) less the removed plus the added, written once (never `classList`, which jsdom keeps in sync on every later write once created).
+- **Styles**: per property a stack of declarations, the static one at the bottom and parts above it, the last part to write on top (last-writer-wins). A retraction uncovers the declaration beneath (or removes the property when none is left); a retraction under the top writes nothing. Applied with `style.setProperty(name, value, priority)` / `style.removeProperty(name)`; `!important` (any spacing/case) becomes the priority.
+- **Tokens that are not `name: value`**: they arise only from strings (`collect`), and today's `cssText` path let the CSS parser drop them; they are still accepted and ignored. The one case today's join really relied on, a `;` inside `url(data:…;base64,…)` or a quoted string, is handled by splitting style strings on `;` outside parentheses and quotes, so every surviving token is a declaration and there is **no `cssText` exception**.
+- **First write**: the compiler strips a bound list's static tokens from the clone (`parser.ts`), so a compiled element reaches `setClass`/`setStyle` without the attribute. An element without the attribute provably holds nothing foreign, so it gets the whole list in one `className`/`cssText` assignment (spy-tested). An element that already holds its list gets only the missing tokens, never a re-serialisation. A one-class toggle is written whole when the attribute is empty or holds only the class leaving (the krausest select path).
+- Removed: the sole-owner `setProperty` fast path, `join`, `rewrite`, `sole`, the seed's trailing-`;` trim.
+
+Bench, 3 runs each, same machine (other agents' node processes idle in the background). Before = main @ 622945b, after = `perf/diff-writes`. ms, min of the 3 runs' minimums / median of the 3 runs' medians. jsdom: `pnpm bench:krausest`. Browser: `bench/krausest/run-browser.mjs` on system Chrome 156 (the cached Playwright Chromium 153 hangs under `--dump-dom`: its sandbox cannot access the executable). The browser clamps `performance.now()` to 0.1 ms.
+
+| krausest | jsdom before | jsdom after | browser before | browser after |
+|---|---|---|---|---|
+| create 1,000 rows | 36.63 / 42.25 | 37.16 / 42.48 | 30.40 / 33.40 | 31.60 / 32.70 |
+| replace all 1,000 rows | 39.78 / 44.84 | 40.84 / 44.09 | 33.60 / 35.50 | 32.50 / 35.40 |
+| partial update every 10th row | 0.058 / 0.068 | 0.055 / 0.070 | 4.30 / 5.60 | 4.70 / 5.90 |
+| select row | 0.0037 / 0.0040 | 0.0041 / 0.0050 | 0.00 / 0.00 | 0.00 / 0.00 |
+| swap rows | 0.08 / 0.12 | 0.08 / 0.10 | 1.40 / 1.90 | 1.50 / 2.00 |
+| remove one row | 0.02 / 0.02 | 0.02 / 0.02 | 1.20 / 1.90 | 1.30 / 1.70 |
+| create 10,000 rows | 403.49 / 431.41 | 410.08 / 426.32 | 439.00 / 462.80 | 429.90 / 453.40 |
+| append 1,000 rows to 10,000 | 36.29 / 39.49 | 35.74 / 38.74 | 56.00 / 59.30 | 54.90 / 58.40 |
+| clear 10,000 rows | 47.23 / 52.16 | 46.76 / 49.81 | 27.40 / 29.70 | 27.00 / 29.20 |
+| clear 1,000 rows | 2.77 / 4.42 | 2.73 / 3.87 | 2.00 / 2.60 | 1.90 / 2.40 |
+
+Noise (half the spread of the 3 medians): ±0.2–5% on the create/replace/append/clear-10k rows, ±8–25% on the sub-ms rows. Every row is within noise except jsdom select row (+25%, about +0.9 µs). Traced with a 20k-select loop: first +60%, from `update()` touching `element.classList` (jsdom then re-parses a DOMTokenList on every later class write) and from `classList` add/remove being 2× a `className` set in jsdom. Fixed by keeping `classList` out of the whole-write paths and writing a provably foreign-free toggle whole. The remainder is the refcount bookkeeping plus one `getAttribute` per toggle, the price of foreign safety. In Chrome the same loop measures 1.05 → 1.19 µs per select (+0.13 µs, layout included).
+
+Micro-bench `bench/attributes/diff.bench.ts` (jsdom, ops/s, 3 runs; one of 5 parts changes per iteration). Before, the store's first write wiped the 20 foreign declarations, so its "20 foreign" case is really 0 foreign:
+
+| case | before | after |
+|---|---|---|
+| store style, no foreign | 372k–377k | 403k–416k |
+| store style, 20 foreign | 371k–378k (foreign wiped) | 277k–284k (foreign kept) |
+| raw `cssText` rewrite incl. 20 foreign (what a correct full rewrite costs) | 43k–45k | 43k–45k |
+| raw `setProperty`, 20 foreign | 399k–400k | 393k–403k |
+| store class, one class swapped | 914k–949k | 557k–567k |
+
+The class swap pays for reading the attribute (foreign tokens) instead of blind-writing the joined list. Attribute cases of `pnpm bench:run` (`bench/attributes/apply.bench.ts`, `runtime.bench.ts` class/style) do not reach the list store and stay within run-to-run noise (data-id drain 1,924–2,050 → 1,997–2,126 ops/s; expando drain 567–586 → 571–609).
+
+Addendum (`b099fdd`): a single class leaving while a single class enters now goes through `classList.replace`, keeping the class's position; if foreign code already removed the old class the new one is added. Every other mixed change still reads the attribute once and writes once. The six tests that asserted class strings now assert class sets. jsdom micro-bench for that path: 512k–519k ops/s against 563k–566k for the string rebuild (jsdom slows every class write once `classList` has been touched); in Chrome `replace` measured 0.37 µs against 0.55 µs per swap. Krausest select row and partial update unchanged within noise.
