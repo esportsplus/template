@@ -134,33 +134,40 @@ class VirtualSlot<T> implements Slot {
 
                     switch (op.op) {
                         case 'clear':
-                            this.removed(0, length);
+                            if (length > 0) {
+                                this.combine(0, length, 0);
+                            }
+
                             this.reset = true;
                             break;
                         case 'concat':
                         case 'push':
-                            this.inserted(length, op.items.length);
+                            if (op.items.length > 0) {
+                                this.combine(length, 0, op.items.length);
+                            }
                             break;
                         case 'pop':
-                            this.removed(length - 1, 1);
+                            this.combine(length - 1, 1, 0);
                             break;
                         case 'reverse':
-                            this.permuteReverse();
+                            this.permute(null);
                             break;
                         case 'set':
-                            this.replaced();
+                            this.dirty = true;
                             break;
                         case 'shift':
-                            this.removed(0, 1);
+                            this.combine(0, 1, 0);
                             break;
                         case 'sort':
-                            this.permuteSort(op.order);
+                            this.permute(op.order);
                             break;
                         case 'splice':
                             this.combine(op.start, op.deleteCount, op.items.length);
                             break;
                         case 'unshift':
-                            this.inserted(0, op.items.length);
+                            if (op.items.length > 0) {
+                                this.combine(0, 0, op.items.length);
+                            }
                             break;
                     }
                 }
@@ -206,71 +213,52 @@ class VirtualSlot<T> implements Slot {
         this.jump = 0;
         this.written = next === this.offset ? -1 : next;
         this.offset = next;
-
-        if (this.scroller === window) {
-            window.scrollTo(0, this.listTop + next);
-        }
-        else {
-            (this.scroller as HTMLElement).scrollTop = this.listTop + next;
-        }
+        this.scroll(next);
     }
 
     private applyRange(start: number, end: number) {
-        if (!this.reset && start === this.start && end === this.end) {
-            if (this.dirty) {
-                this.patch(start);
+        let moved = this.reset || start !== this.start || end !== this.end;
+
+        if (moved) {
+            let oldStart = this.start,
+                oldEnd = this.end;
+
+            if (this.reset || end <= oldStart || start >= oldEnd) {
+                this.windowed.splice(0, untracked(this.windowed).length, ...this.array.slice(start, end));
+            }
+            else {
+                if (start < oldStart) {
+                    this.windowed.unshift(...this.array.slice(start, oldStart));
+                }
+                else if (start > oldStart) {
+                    this.windowed.splice(0, start - oldStart);
+                }
+
+                if (end > oldEnd) {
+                    this.windowed.push(...this.array.slice(oldEnd, end));
+                }
+                else if (end < oldEnd) {
+                    this.windowed.splice(untracked(this.windowed).length - (oldEnd - end), oldEnd - end);
+                }
             }
 
-            if (this.dirty || this.resync) {
-                flush();
-                this.sync();
+            this.reset = false;
+            this.start = start;
+            this.end = end;
 
-                this.resync = false;
-            }
-
-            return;
+            write(this.rangeSignal, [start, end]);
         }
-
-        let oldStart = this.start,
-            oldEnd = this.end;
-
-        if (this.reset || end <= oldStart || start >= oldEnd) {
-            this.windowed.splice(0, untracked(this.windowed).length, ...this.array.slice(start, end));
-        }
-        else {
-            if (start < oldStart) {
-                this.windowed.unshift(...this.array.slice(start, oldStart));
-            }
-            else if (start > oldStart) {
-                this.windowed.splice(0, start - oldStart);
-            }
-
-            if (end > oldEnd) {
-                this.windowed.push(...this.array.slice(oldEnd, end));
-            }
-            else if (end < oldEnd) {
-                this.windowed.splice(untracked(this.windowed).length - (oldEnd - end), oldEnd - end);
-            }
-        }
-
-        this.reset = false;
-        this.start = start;
-        this.end = end;
-
-        write(this.rangeSignal, [start, end]);
 
         if (this.dirty) {
             this.patch(start);
         }
 
-        flush();
-        this.sync();
+        if (moved || this.dirty || this.resync) {
+            flush();
+            this.sync();
 
-        this.resync = false;
-    }
-
-    private clampIndex(value: number, length: number) {
-        return clamp(value, 0, length - 1);
+            this.resync = false;
+        }
     }
 
     private clampOffset(value: number) {
@@ -394,25 +382,6 @@ class VirtualSlot<T> implements Slot {
         this.run();
     }
 
-    private inserted(at: number, count: number) {
-        if (count <= 0) {
-            return;
-        }
-
-        let before = this.top();
-
-        insert(this.cache, at, count);
-
-        if (at <= this.start) {
-            this.renumber(count);
-        }
-        else if (at < this.end) {
-            this.dirty = true;
-        }
-
-        this.jump += this.top() - before;
-    }
-
     private measureRendered(): boolean {
         let node: Node | null = this.spacerTop.nextSibling,
             measured = false;
@@ -496,27 +465,14 @@ class VirtualSlot<T> implements Slot {
         current.splice(i, j - i + 1, ...items);
     }
 
-    private permuteReverse() {
+    // 'order' null reverses
+    private permute(order: number[] | null) {
         let length = this.cache.length,
             // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
             sizes = new Array<number>(length);
 
         for (let i = 0; i < length; i++) {
-            sizes[i] = this.cache.sizes[length - 1 - i];
-        }
-
-        reorder(this.cache, sizes);
-
-        this.reset = true;
-    }
-
-    private permuteSort(order: number[]) {
-        let length = this.cache.length,
-            // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
-            sizes = new Array<number>(length);
-
-        for (let i = 0; i < length; i++) {
-            let source = order[i];
+            let source = order === null ? length - 1 - i : order[i];
 
             sizes[i] = source >= 0 && source < length ? this.cache.sizes[source] : 0;
         }
@@ -563,25 +519,6 @@ class VirtualSlot<T> implements Slot {
         }
     }
 
-    private removed(at: number, count: number) {
-        if (count <= 0) {
-            return;
-        }
-
-        let before = this.top();
-
-        remove(this.cache, at, count);
-
-        if (at + count <= this.start) {
-            this.renumber(-count);
-        }
-        else if (at < this.end) {
-            this.dirty = true;
-        }
-
-        this.jump += this.top() - before;
-    }
-
     // A mutation entirely above the window moves the same rows to new indices: renumber
     // instead of rebuilding, and let the pending jump carry the viewport with them
     private renumber(delta: number) {
@@ -610,15 +547,11 @@ class VirtualSlot<T> implements Slot {
             start = index(this.cache, Math.max(0, base - behind), this.start),
             end = index(this.cache, base + viewport + ahead, this.end - 1) + 1;
 
-        start = this.clampIndex(start, length);
+        start = clamp(start, 0, length - 1);
         end = clamp(end, start + 1, length);
 
         this.applyRange(start, end);
         this.updateSpacers();
-    }
-
-    private replaced() {
-        this.dirty = true;
     }
 
     resized(index: number, height: number) {
@@ -701,6 +634,15 @@ class VirtualSlot<T> implements Slot {
                 this.run();
             }
         });
+    }
+
+    private scroll(value: number) {
+        if (this.scroller === window) {
+            window.scrollTo(0, this.listTop + value);
+        }
+        else {
+            (this.scroller as HTMLElement).scrollTop = this.listTop + value;
+        }
     }
 
     private scrollTarget(target: number, align: Align) {
@@ -796,13 +738,7 @@ class VirtualSlot<T> implements Slot {
     private writeScroll(value: number) {
         let before = this.offset;
 
-        if (this.scroller === window) {
-            window.scrollTo(0, this.listTop + value);
-        }
-        else {
-            (this.scroller as HTMLElement).scrollTop = this.listTop + value;
-        }
-
+        this.scroll(value);
         this.offset = this.readOffset();
         this.written = this.offset === before ? -1 : this.offset;
     }
