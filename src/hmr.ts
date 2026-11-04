@@ -148,64 +148,21 @@ function forward(source: Function, target: Function): void {
     }
 }
 
-function setLength(target: Function, source: Function): void {
-    try {
-        Object.defineProperty(target, 'length', {
-            configurable: true,
-            value: source.length
-        });
-    }
-    catch {
-        // Some environments make function length read-only; arity preservation is best-effort.
-    }
-}
-
-function setName(target: Function, source: Function): void {
-    try {
-        Object.defineProperty(target, 'name', {
-            configurable: true,
-            value: source.name
-        });
-    }
-    catch {
-        // Best-effort only.
-    }
-}
-
-function wrapperFor(entry: Entry, impl: Function, tracked: boolean): Function {
-    if (tracked) {
-        let wrapper = function (this: unknown, ...args: unknown[]) {
-            let current = entry!.current ?? entry!.pending;
-
-            if (current === null) {
-                throw new Error('@esportsplus/template: hmr factory invoked while its module is being replaced');
-            }
-
-            return build(entry!, { args, thisArg: this }, current);
-        };
-
-        setLength(wrapper, impl);
-        setName(wrapper, impl);
-        forward(impl, wrapper);
-
-        return wrapper;
-    }
-
-    let wrapper = function (this: unknown, ...args: unknown[]) {
-        let current = entry!.current ?? entry!.pending;
-
-        if (current === null) {
-            throw new Error('@esportsplus/template: hmr callable invoked while its module is being replaced');
+// Gives the wrapper the implementation's arity, name and own properties
+function mirror(wrapper: Function, impl: Function): void {
+    for (let key of ['length', 'name'] as const) {
+        try {
+            Object.defineProperty(wrapper, key, {
+                configurable: true,
+                value: impl[key]
+            });
         }
+        catch {
+            // Best-effort: some environments make a function's length or name read-only
+        }
+    }
 
-        return Reflect.apply(current, this, args);
-    };
-
-    setLength(wrapper, impl);
-    setName(wrapper, impl);
     forward(impl, wrapper);
-
-    return wrapper;
 }
 
 // Builds an implementation's content in a root of its own: owned by the instance's root while that is building, and
@@ -217,6 +174,33 @@ function mount(instance: Instance, impl: Function): unknown {
 
         return Reflect.apply(impl, instance.invocation.thisArg, instance.invocation.args);
     });
+}
+
+function register(kind: 'callable' | 'factory', moduleId: string, exportId: string, getImpl: () => Function): Function {
+    let entry = entryFor(moduleId, exportId, kind),
+        impl = getImpl();
+
+    track(moduleId, exportId);
+
+    if (entry.wrapper === null) {
+        entry.current = impl;
+        entry.wrapper = function (this: unknown, ...args: unknown[]) {
+            let current = entry.current ?? entry.pending;
+
+            if (current === null) {
+                throw new Error(`@esportsplus/template: hmr ${kind} invoked while its module is being replaced`);
+            }
+
+            return kind === 'factory' ? build(entry, { args, thisArg: this }, current) : Reflect.apply(current, this, args);
+        };
+    }
+    else {
+        entry.pending = impl;
+    }
+
+    mirror(entry.wrapper, impl);
+
+    return entry.wrapper;
 }
 
 function remount(entry: Entry): void {
@@ -291,25 +275,7 @@ const accept = (moduleId: string): boolean => {
     return true;
 };
 
-const callable = (moduleId: string, exportId: string, getImpl: () => Function): Function => {
-    let entry = entryFor(moduleId, exportId, 'callable'),
-        impl = getImpl();
-
-    track(moduleId, exportId);
-
-    if (entry.wrapper === null) {
-        entry.current = impl;
-        entry.wrapper = wrapperFor(entry, impl, false);
-    }
-    else {
-        entry.pending = impl;
-        setLength(entry.wrapper, impl);
-        setName(entry.wrapper, impl);
-        forward(impl, entry.wrapper);
-    }
-
-    return entry.wrapper;
-};
+const callable = (moduleId: string, exportId: string, getImpl: () => Function): Function => register('callable', moduleId, exportId, getImpl);
 
 const dispose = (moduleId: string): void => {
     pendingExports.set(moduleId, new Set());
@@ -337,25 +303,7 @@ const eager = (moduleId: string, exportId: string, builder: () => unknown): Docu
     return entry.fragment;
 };
 
-const factory = (moduleId: string, exportId: string, getImpl: () => Function): Function => {
-    let entry = entryFor(moduleId, exportId, 'factory'),
-        impl = getImpl();
-
-    track(moduleId, exportId);
-
-    if (entry.wrapper === null) {
-        entry.current = impl;
-        entry.wrapper = wrapperFor(entry, impl, true);
-    }
-    else {
-        entry.pending = impl;
-        setLength(entry.wrapper, impl);
-        setName(entry.wrapper, impl);
-        forward(impl, entry.wrapper);
-    }
-
-    return entry.wrapper;
-};
+const factory = (moduleId: string, exportId: string, getImpl: () => Function): Function => register('factory', moduleId, exportId, getImpl);
 
 const prune = (moduleId: string): void => {
     // oxlint-disable-next-line unicorn/no-useless-spread -- a snapshot: teardown removes entries while this loop runs
