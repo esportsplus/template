@@ -11,6 +11,9 @@ import type { Owner, Slot } from './cleanup';
 type Item = Slot & SlotGroup;
 
 
+const EMPTY: never[] = [];
+
+
 // Releases rows and leaves their nodes in place
 function dispose(items: Item[]) {
     throws(releases(items));
@@ -156,15 +159,7 @@ class ArraySlot<T> implements Slot {
 
         if (untracked(array).length) {
             root(() => {
-                let n = untracked(array).length,
-                    // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
-                    nodes = new Array<Item>(n);
-
-                for (let i = 0; i < n; i++) {
-                    nodes[i] = this.template(array[i]);
-                }
-
-                this.nodes = nodes;
+                this.nodes = this.rows();
             });
         }
 
@@ -197,28 +192,35 @@ class ArraySlot<T> implements Slot {
     }
 
     private change(op: ArrayOp<T>) {
+        let n = this.nodes.length;
+
         switch (op.op) {
             case 'clear':
                 this.clear();
                 break;
             case 'concat':
-                this.push(op.items);
+            case 'push':
+                this.splice(n, 0, op.items);
                 break;
             case 'pop':
-                this.pop();
+                this.splice(n - 1, 1, EMPTY);
                 break;
-            case 'push':
-                this.push(op.items);
+            case 'reverse': {
+                // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
+                let order = new Array<number>(n);
+
+                for (let i = 0; i < n; i++) {
+                    order[i] = n - 1 - i;
+                }
+
+                this.sort(order);
                 break;
-            case 'reverse':
-                this.nodes.reverse();
-                this.sync();
-                break;
+            }
             case 'set':
                 this.splice(op.index, 1, [op.item]);
                 break;
             case 'shift':
-                this.shift();
+                this.splice(0, 1, EMPTY);
                 break;
             case 'sort':
                 this.sort(op.order);
@@ -227,7 +229,7 @@ class ArraySlot<T> implements Slot {
                 this.splice(op.start, op.deleteCount, op.items);
                 break;
             case 'unshift':
-                this.unshift(op.items);
+                this.splice(0, 0, op.items);
                 break;
         }
     }
@@ -271,45 +273,27 @@ class ArraySlot<T> implements Slot {
     }
 
     // The node a row inserted after 'index' goes after
-    private last(index: number = this.nodes.length - 1) {
+    private last(index: number) {
         let node = this.nodes[index];
 
-        if (node) {
-            return node.tail || node.head;
-        }
-
-        return this.anchor;
-    }
-
-    private pop() {
-        let group = this.nodes.pop();
-
-        if (group) {
-            remove([group]);
-        }
-    }
-
-    private push(items: T[]) {
-        let anchor = this.last(),
-            nodes = this.nodes;
-
-        for (let i = 0, n = items.length; i < n; i++) {
-            nodes.push(this.template(items[i]));
-        }
-
-        anchor.after(this.fragment);
+        return node ? node.tail : this.anchor;
     }
 
     release() {
         this.dispose();
     }
 
-    private shift() {
-        let group = this.nodes.shift();
+    private rows() {
+        let array = this.array,
+            n = untracked(array).length,
+            // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
+            nodes = new Array<Item>(n);
 
-        if (group) {
-            remove([group]);
+        for (let i = 0; i < n; i++) {
+            nodes[i] = this.template(array[i]);
         }
+
+        return nodes;
     }
 
     private sort(order: number[]) {
@@ -318,16 +302,7 @@ class ArraySlot<T> implements Slot {
 
         if (n !== order.length) {
             remove(nodes.splice(0));
-
-            let m = untracked(this.array).length,
-                // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
-                rebuilt = new Array<Item>(m);
-
-            for (let i = 0; i < m; i++) {
-                rebuilt[i] = this.template(this.array[i]);
-            }
-
-            this.nodes = rebuilt;
+            this.nodes = this.rows();
             this.anchor.after(this.fragment);
             return;
         }
@@ -377,7 +352,7 @@ class ArraySlot<T> implements Slot {
         }
     }
 
-    private splice(start: number, deleteCount: number = this.nodes.length, items: T[]) {
+    private splice(start: number, deleteCount: number, items: T[]) {
         let nodes = this.nodes;
 
         remove(nodes.splice(start, deleteCount));
@@ -398,63 +373,6 @@ class ArraySlot<T> implements Slot {
 
         this.last(start - 1).after(this.fragment);
     }
-
-    private sync() {
-        let nodes = this.nodes,
-            n = nodes.length;
-
-        if (!n) {
-            return;
-        }
-
-        let parent = this.anchor.parentNode;
-
-        if (parent && parent.isConnected && 'moveBefore' in parent) {
-            let ref: Node | null = nodes[0].tail.nextSibling;
-
-            for (let i = n - 1; i >= 0; i--) {
-                let group = nodes[i],
-                    node: Node | null = group.tail;
-
-                while (node) {
-                    let prev: Node | null = node === group.head ? null : node.previousSibling;
-
-                    (parent as any).moveBefore(node, ref);
-                    ref = node;
-                    node = prev;
-                }
-            }
-
-            return;
-        }
-
-        for (let i = 0; i < n; i++) {
-            let group = nodes[i],
-                next: Node | null,
-                node: Node | null = group.head;
-
-            while (node) {
-                next = node === group.tail ? null : node.nextSibling;
-                this.fragment.append(node);
-                node = next;
-            }
-        }
-
-        this.anchor.after(this.fragment);
-    }
-
-    private unshift(items: T[]) {
-        // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
-        let groups = new Array<Item>(items.length);
-
-        for (let i = 0, n = items.length; i < n; i++) {
-            groups[i] = this.template(items[i]);
-        }
-
-        this.nodes = groups.concat(this.nodes);
-        this.anchor.after(this.fragment);
-    }
-
 
     // The array's length, which runs ahead of the rendered rows only between a change and the pass that renders it
     get length() {
