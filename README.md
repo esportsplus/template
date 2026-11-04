@@ -625,18 +625,18 @@ type Attributes<T extends HTMLElement = HTMLElement> = {
 
 type EventOptions = { capture?: boolean; direct?: boolean; once?: boolean; passive?: boolean; signal?: AbortSignal };
 
-type Factory<A, C, R> = {
+interface Factory<A, C, R, P = {}> {
     (): R;
     <T extends A>(attributes: T): R;
     <T extends C>(content: T): R;
     (attributes: A, content?: C): R;
-    bind(context: { attributes?: Partial<A>, content?: C }): Factory<A, C, R>;
-};
+    bind(context: { attributes?: Partial<A>, content?: C }): Factory<A, C, R, P> & P;
+}
 ```
 
 `Attributes` types the keys the runtime treats specially: `class`/`style` lists, lifecycle hooks, and event listeners, whose `event` and `this` are typed per event. Every other key (DOM properties, `aria-*`, `data-*`, SVG attributes, custom attributes) falls through to `Record<PropertyKey, unknown>`, so components can declare their own props with any name. `Attributes<HTMLInputElement>` narrows the element passed to listeners, lifecycle hooks, and attribute effects; parameters are checked bivariantly, so `(el: HTMLInputElement) => ...` is accepted where `HTMLElement` is expected.
 
-Content effects receive a disposer that tears down their slot; attribute effects receive the element they are bound to. `component()` returns a `Factory`, whose `bind` presets a partial set of attributes.
+Content effects receive a disposer that tears down their slot; attribute effects receive the element they are bound to. `component()` returns a `Factory` intersected with the `properties` it was given, whose `bind` presets a partial set of attributes.
 
 ### render(parent, factory) / render(parent, attributes, factory)
 

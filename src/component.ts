@@ -2,14 +2,16 @@ import { Attributes, Renderable } from './types';
 import { EMPTY_OBJECT, isObject } from '@esportsplus/utilities';
 
 
-type Factory<A, C, R, P = {}> = {
+// An interface so declaration emit names it: as an `{ ... } & P` alias, `& {}` drops the alias and leaves an
+// anonymous recursive type that cannot be serialized (TS5088) at inferred `export default component(...)` sites
+interface Factory<A, C, R, P = {}> {
     (): R;
     <T extends A>(attributes: T): R;
     <T extends C>(content: T): R;
     (attributes: A, content?: C): R;
     // Presets bind only the attributes they fix; callers supply the rest
-    bind(context: { attributes?: Partial<A>, content?: C }): Factory<A, C, R, P>;
-} & P;
+    bind(context: { attributes?: Partial<A>, content?: C }): Factory<A, C, R, P> & P;
+}
 
 
 export default <
@@ -44,7 +46,7 @@ export default <
         Object.assign(factory, properties, { bind });
     }
 
-    return factory as Factory<A, C, ReturnType<typeof template>, P>;
+    return factory as Factory<A, C, ReturnType<typeof template>, P> & P;
 };
 
 export type { Factory };
