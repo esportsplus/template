@@ -436,14 +436,15 @@ const onwindow = ((element: Element, event: string, listener: Function, options?
     subscribe(registration(window, event, false, undefined), window, listener, attribute(options) | GUARDED, element, running(), undefined);
 }) as Keyed<'onwindow'>;
 
-const hooks = { onconnect, ondisconnect, onfirstpaint, ontick };
 
-const routes: Record<Route, (element: Element, event: string, listener: Function, options?: Once) => void> = {
-    delegate,
-    direct,
-    ondocument,
-    onwindow
-};
+let hooks = { onconnect, ondisconnect, onfirstpaint, ontick },
+    routes: Record<Route, (element: Element, event: string, listener: Function, options?: Once) => void> = {
+        delegate,
+        direct,
+        ondocument,
+        onwindow
+    };
+
 
 const runtime = <E extends `on${string}`>(element: Element, name: E, listener: Attributes[E]): void => {
     let key = parse(name);
