@@ -1,4 +1,5 @@
 import { ts } from '@esportsplus/typescript';
+import { unwrap } from './ts-parser';
 
 
 type Primitive = boolean | number | string;
@@ -59,9 +60,7 @@ function combine(parameters: Map<ts.Symbol, { name: string; values: Primitive[] 
 // user code, read an object property/getter, or evaluate a reactive callback.
 // Without a checker only literal syntax evaluates; identifiers stay unknown.
 function evaluate(node: ts.Expression, scope: Scope): Primitive | typeof UNKNOWN {
-    while (ts.isAsExpression(node) || ts.isParenthesizedExpression(node) || ts.isSatisfiesExpression(node)) {
-        node = node.expression;
-    }
+    node = unwrap(node);
 
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
         return node.text;

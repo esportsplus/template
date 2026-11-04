@@ -7,7 +7,7 @@ import type { Element, Statement } from './scan';
 import { edit } from './sourcemap';
 import type { Edit } from './sourcemap';
 import { isFunctionType } from './ts-analyzer';
-import { findTemplateArtifacts } from './ts-parser';
+import { findTemplateArtifacts, unwrap } from './ts-parser';
 
 
 // Per-plugin-instance handshake with the bundler integration: it sets `id` (null disables HMR,
@@ -329,18 +329,6 @@ function siteKind(statement: ts.Statement): Site['kind'] | null {
     return null;
 }
 
-function unwrap(expression: ts.Expression): ts.Expression {
-    while (
-        ts.isParenthesizedExpression(expression) ||
-        ts.isAsExpression(expression) ||
-        ts.isSatisfiesExpression(expression) ||
-        ts.isNonNullExpression(expression)
-    ) {
-        expression = expression.expression;
-    }
-
-    return expression;
-}
 
 
 // Wraps each planned export site in the lowered code. Every edit stays on its line and every new

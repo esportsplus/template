@@ -1,5 +1,6 @@
 import { ts } from '@esportsplus/typescript';
 import { REMOVALS } from './constants';
+import { unwrap } from './ts-parser';
 import type { Artifacts } from './ts-parser';
 
 
@@ -209,20 +210,6 @@ function traced(node: ts.Expression, artifacts: Artifacts, handlers: Handlers, t
 
     return false;
 }
-
-function unwrap(node: ts.Expression): ts.Expression {
-    while (
-        ts.isParenthesizedExpression(node) ||
-        ts.isAsExpression(node) ||
-        ts.isSatisfiesExpression(node) ||
-        ts.isNonNullExpression(node)
-    ) {
-        node = node.expression;
-    }
-
-    return node;
-}
-
 
 // Calls and writes that remove or replace template-owned nodes by hand, only where the receiver is traceable to
 // template output; anything else (raw DOM, values of unknown origin) is left alone

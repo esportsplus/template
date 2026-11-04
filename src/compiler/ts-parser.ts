@@ -267,6 +267,20 @@ const isHtmlTemplate = (node: ts.Node, sites: Set<ts.Node>): node is ts.TaggedTe
     return ts.isTaggedTemplateExpression(node) && sites.has(node.tag);
 };
 
+// Past the wrappers that compile to nothing: parentheses, type assertions and non-null assertions
+const unwrap = (node: ts.Expression): ts.Expression => {
+    while (
+        ts.isParenthesizedExpression(node) ||
+        ts.isAsExpression(node) ||
+        ts.isSatisfiesExpression(node) ||
+        ts.isNonNullExpression(node)
+    ) {
+        node = node.expression;
+    }
 
-export { entrypointOf, extractTemplateParts, findTemplateArtifacts, isHtmlTemplate };
+    return node;
+};
+
+
+export { entrypointOf, extractTemplateParts, findTemplateArtifacts, isHtmlTemplate, unwrap };
 export type { Artifacts, ReactiveCallInfo, TemplateInfo };

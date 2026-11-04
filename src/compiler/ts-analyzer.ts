@@ -2,7 +2,7 @@ import { ts } from '@esportsplus/typescript';
 import { imports } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT_REACTIVITY, PACKAGE_NAME, PACKAGE_REACTIVITY, TYPES } from './constants';
 import { constant, isConstDeclaration } from './specialize';
-import { entrypointOf, isHtmlTemplate } from './ts-parser';
+import { entrypointOf, isHtmlTemplate, unwrap } from './ts-parser';
 
 
 type SelectorComparison = {
@@ -55,15 +55,6 @@ function isReadCall(expr: ts.Expression, checker?: ts.Checker): expr is ts.CallE
         (!checker || imports.includes(checker, expr.expression, PACKAGE_REACTIVITY, READ))
     );
 }
-
-function unwrap(expr: ts.Expression): ts.Expression {
-    while (ts.isAsExpression(expr) || ts.isParenthesizedExpression(expr) || ts.isSatisfiesExpression(expr)) {
-        expr = expr.expression;
-    }
-
-    return expr;
-}
-
 
 const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker): TYPES => {
     while (ts.isParenthesizedExpression(expr)) {
