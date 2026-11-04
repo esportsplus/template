@@ -9,6 +9,15 @@ import type { Owner, Slot } from './cleanup';
 import render from './render';
 
 
+function insert(anchor: Element, mode: number, node: Node) {
+    if (mode === ANCHOR_MARKER) {
+        anchor.after(node);
+    }
+    else {
+        anchor.appendChild(node);
+    }
+}
+
 function unwrap(value: unknown): unknown {
     if (typeof value === 'function') {
         return unwrap( value() );
@@ -62,15 +71,9 @@ class EffectSlot implements Slot {
                     )) as Computed<unknown> & { pending: Computed<boolean> };
 
                 effect(() => {
-                    if (this.anchor.isConnected) {
-                        this.state |= MOUNTED;
-                    }
-                    else if (this.state & MOUNTED) {
-                        stale(this);
+                    if (!this.live()) {
                         return;
                     }
-
-                    own(this);
 
                     let content: unknown;
 
@@ -104,18 +107,9 @@ class EffectSlot implements Slot {
             let dispose = fn.length ? () => this.dispose() : undefined,
                 // Reruns already wait for reactivity's microtask, so each one writes straight away.
                 disposer = effect(() => {
-                    if (this.anchor.isConnected) {
-                        this.state |= MOUNTED;
-                    }
-                    // Out of the document after being seen in it: idle until the end of the task tells a move from a
-                    // removal, then revived or released
-                    else if (this.state & MOUNTED) {
-                        stale(this);
+                    if (!this.live()) {
                         return;
                     }
-
-                    // Slots the run builds are made within this effect, so this slot is their parent
-                    own(this);
 
                     let value = unwrap( fn(dispose) );
 
@@ -166,6 +160,22 @@ class EffectSlot implements Slot {
         }
     }
 
+    // Out of the document after being seen in it, a run idles until the end of the task tells a move from a removal,
+    // then is revived or released. A live run makes this slot the parent of the slots it builds.
+    private live() {
+        if (this.anchor.isConnected) {
+            this.state |= MOUNTED;
+        }
+        else if (this.state & MOUNTED) {
+            stale(this);
+            return false;
+        }
+
+        own(this);
+
+        return true;
+    }
+
     release() {
         if (this.disposed) {
             return;
@@ -209,25 +219,13 @@ class EffectSlot implements Slot {
 
             if (textnode) {
                 textnode.nodeValue = value as string;
-
-                if (textnode.parentNode === null) {
-                    if (mode === ANCHOR_MARKER) {
-                        anchor.after(textnode);
-                    }
-                    else {
-                        anchor.appendChild(textnode);
-                    }
-                }
             }
             else {
                 textnode = this.textnode = text(value as string);
+            }
 
-                if (mode === ANCHOR_MARKER) {
-                    anchor.after(textnode);
-                }
-                else {
-                    anchor.appendChild(textnode);
-                }
+            if (textnode.parentNode === null) {
+                insert(anchor, mode, textnode);
             }
         }
         else {
@@ -256,13 +254,7 @@ class EffectSlot implements Slot {
                     tail: tail as Element
                 };
                 this.value = value;
-
-                if (mode === ANCHOR_MARKER) {
-                    anchor.after(fragment);
-                }
-                else {
-                    anchor.appendChild(fragment);
-                }
+                insert(anchor, mode, fragment);
             }
         }
 
@@ -274,4 +266,4 @@ class EffectSlot implements Slot {
 }
 
 
-export { EffectSlot };
+export { EffectSlot, insert };

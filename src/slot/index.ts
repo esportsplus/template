@@ -1,7 +1,7 @@
 import { ANCHOR_MARKER } from '../constants';
 import { Element, Renderable } from '../types';
 import { adopt } from './cleanup';
-import { EffectSlot } from './effect';
+import { EffectSlot, insert } from './effect';
 import render from './render';
 
 
@@ -14,13 +14,7 @@ export default <T>(anchor: Element, renderable: Renderable<T>, mode: number = AN
 
         // Built outside any owner, it is owned by the slot's
         adopt(node);
-
-        if (mode === ANCHOR_MARKER) {
-            anchor.after(node);
-        }
-        else {
-            anchor.appendChild(node);
-        }
+        insert(anchor, mode, node);
     }
 };
 export * from './array';
