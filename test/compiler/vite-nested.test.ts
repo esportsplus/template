@@ -25,7 +25,7 @@ function build(root: string) {
 
 // A worker bundle is a nested build with fresh plugin instances transforming the outer build's modules again
 describe('compiler/vite nested builds', () => {
-    it('answers a nested build from the outer build, warning once, and keeps compiling after it closes', () => {
+    it('answers a nested build from the outer build, warning once, and keeps compiling after it closes', async () => {
         let root = process.cwd().replace(/\\/g, '/'),
             id = root + '/src/__nested_panel.ts',
             outer = build(root),
@@ -41,10 +41,12 @@ describe('compiler/vite nested builds', () => {
         // Answered from the build cache: no plugin ran, so the removal is not reported again
         expect(warnings.nested).not.toHaveBeenCalled();
 
-        nested.closeBundle();
+        // oxlint-disable-next-line typescript/await-thenable -- closeBundle() returns a promise from the next @esportsplus/typescript
+        await nested.closeBundle();
 
         expect(outer.transform.handler.call({ warn: warnings.outer }, OTHER, root + '/src/__nested_other.ts')!.code).toContain('.template(');
 
-        outer.closeBundle();
+        // oxlint-disable-next-line typescript/await-thenable -- closeBundle() returns a promise from the next @esportsplus/typescript
+        await outer.closeBundle();
     });
 });
