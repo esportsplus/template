@@ -100,7 +100,9 @@ Built against the local `@esportsplus/typescript` and `@esportsplus/reactivity` 
 - **Bench** `bench/compiler/chain.bench.ts` (reactivity + template via `coordinator.transform`, 30 modules, fresh program per pass), mean per pass: before 191–209 ms (median ≈197), after 137–160 ms (median ≈146), ≈26% faster; after the prepend-entry and case-insensitive-lint follow-up 135–142 ms over 3 runs. `findTemplateArtifacts + generateCode (with checker)`, 100 components: ≈37 ms → ≈25 ms.
 - **T-7**: README SVG section notes the sprite `<use>` forms and when an icon must be an inline `html` template.
 
-## 6. Diff-based class/style writes (2026-11-03, branch `perf/diff-writes`)
+## 6. Diff-based class/style writes (2026-11-03, branch `perf/diff-writes`, REJECTED 2026-11-04)
+
+Decision: not adopted. Every class and style write goes through the library (`setClass`, `setStyle`, `setProperties`, …), and writes that bypass it are unsupported, so the main store's whole-list write is the intended behaviour and the diff store's per-token bookkeeping is not worth carrying. The branch stays unmerged for reference; its one unrelated commit, `template({ plugins })` running extra compiler plugins in the vite host, moved to `feat/host-plugins`. The notes below record what was measured.
 
 `src/attributes.ts` no longer serialises a whole class or style list on each change, so a class or declaration written from outside the template (`classList.add`, `style.setProperty('--morph-x', …)` in ui's `card.ts`, third-party code) survives every store write. Public API (`setClass`, `setList`, `setProperty`, `setProperties`, `setStyle`) and compiled output are unchanged; `test/compiler` snapshots untouched.
 
