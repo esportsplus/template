@@ -41,12 +41,10 @@ describe('compiler/vite nested builds', () => {
         // Answered from the build cache: no plugin ran, so the removal is not reported again
         expect(warnings.nested).not.toHaveBeenCalled();
 
-        // oxlint-disable-next-line typescript/await-thenable -- closeBundle() returns a promise from the next @esportsplus/typescript
         await nested.closeBundle();
 
         expect(outer.transform.handler.call({ warn: warnings.outer }, OTHER, root + '/src/__nested_other.ts')!.code).toContain('.template(');
 
-        // oxlint-disable-next-line typescript/await-thenable -- closeBundle() returns a promise from the next @esportsplus/typescript
         await outer.closeBundle();
     });
 });
