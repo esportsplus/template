@@ -25,7 +25,7 @@ function build(root: string) {
 
 // A worker bundle is a nested build with fresh plugin instances transforming the outer build's modules again
 describe('compiler/vite nested builds', () => {
-    it('answers a nested build from the outer build, warning once, and keeps compiling after it closes', async () => {
+    it('answers a nested build from the outer build, warning in both, and keeps compiling after it closes', async () => {
         let root = process.cwd().replace(/\\/g, '/'),
             id = root + '/src/__nested_panel.ts',
             outer = build(root),
@@ -38,8 +38,9 @@ describe('compiler/vite nested builds', () => {
         expect(first!.code).toContain('.template(');
         expect(second!.code).toBe(first!.code);
         expect(warnings.outer).toHaveBeenCalledTimes(1);
-        // Answered from the build cache: no plugin ran, so the removal is not reported again
-        expect(warnings.nested).not.toHaveBeenCalled();
+        // Answered from the build cache: no plugin ran, but the host reports the kept removal warning again
+        expect(warnings.nested).toHaveBeenCalledTimes(1);
+        expect(warnings.nested.mock.calls[0][0]).toEqual(warnings.outer.mock.calls[0][0]);
 
         await nested.closeBundle();
 

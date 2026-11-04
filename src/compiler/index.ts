@@ -1,6 +1,6 @@
 import { ts } from '@esportsplus/typescript';
 import { imports as sourceImports } from '@esportsplus/typescript/compiler';
-import type { ImportIntent, Plugin, TransformContext } from '@esportsplus/typescript/compiler';
+import type { ImportIntent, Plugin, TransformContext, Warning } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT, NAMESPACE, PACKAGE_NAME, PACKAGE_REACTIVITY, SIGNAL } from './constants';
 import { generateCode } from './codegen';
 import { findRemovals } from './removal';
@@ -53,12 +53,22 @@ function hasSignalImport(sourceFile: ts.SourceFile): boolean {
     return false;
 }
 
+// The host reports it at the removal's file:line:column
+function warning(removal: Removal): Warning {
+    return {
+        message: `\`${removal.text}\` removes or replaces template-owned nodes by hand, so their lifecycle hooks and ` +
+            `what they created stay alive until the content that owns them is released. Change content through a slot, ` +
+            `reactive array or render() disposer instead (see README 'Removing template content').`,
+        position: removal.start
+    };
+}
+
 
 // No text patterns: a file can reach `html` under any name (a barrel's rename, a default
 // re-export), so every file is resolved against the program and only its sites are compiled.
-// 'report' receives each file's hand removals of template output; the tsc path has no channel
-// to warn through, so it passes none and they are not looked for.
-const compiler = (report: ((removals: Removal[]) => void) | null = null): Plugin => ({
+// With `warn`, hand removals of template output are returned as warnings; the tsc path has no
+// channel to report them through, so it does not look for them.
+const compiler = (warn = false): Plugin => ({
     name: PACKAGE_NAME,
     transform: (ctx: TransformContext) => {
         let artifacts = findTemplateArtifacts(ctx.sourceFile, ctx.checker, ctx.program);
@@ -67,18 +77,13 @@ const compiler = (report: ((removals: Removal[]) => void) | null = null): Plugin
             throw escaped(ctx.sourceFile, artifacts.escapes);
         }
 
-        if (report !== null) {
-            let removals = findRemovals(artifacts, ctx.sourceFile);
-
-            if (removals.length > 0) {
-                report(removals);
-            }
-        }
+        let removals = warn ? findRemovals(artifacts, ctx.sourceFile) : [],
+            warnings = removals.length > 0 ? removals.map(warning) : undefined;
 
         let { nested, prepend, replacements, selectorFired } = generateCode(artifacts, ctx.sourceFile, ctx.checker, ctx.program);
 
         if (replacements.length === 0 && prepend.length === 0) {
-            return artifacts.dependencies.length > 0 ? { dependencies: artifacts.dependencies } : {};
+            return artifacts.dependencies.length > 0 ? { dependencies: artifacts.dependencies, warnings } : { warnings };
         }
 
         let imports: ImportIntent[] = [{
@@ -94,11 +99,10 @@ const compiler = (report: ((removals: Removal[]) => void) | null = null): Plugin
             });
         }
 
-        return { dependencies: artifacts.dependencies, imports, prepend, replacements: [...replacements, ...nested] };
+        return { dependencies: artifacts.dependencies, imports, prepend, replacements: [...replacements, ...nested], warnings };
     }
 });
 
 
 export default compiler();
 export { compiler };
-export type { Removal };

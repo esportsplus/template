@@ -19,7 +19,7 @@ function transform(code: string, name: string, command: string = 'build') {
 
     let result = instance.transform.handler.call({ warn }, code, root + '/src/' + name);
 
-    return { messages: warn.mock.calls.map(call => call[0] as string), result };
+    return { messages: warn.mock.calls.map(call => (call[0] as { message: string }).message), result };
 }
 
 
@@ -29,7 +29,7 @@ describe('compiler/vite removal warnings', () => {
 
         expect(result).not.toBeNull();
         expect(messages).toHaveLength(1);
-        expect(messages[0]).toMatch(/^@esportsplus\/template: .*\/src\/__removal_\w+\.ts:3:5 `element\.remove`/);
+        expect(messages[0]).toMatch(/^.*\/src\/__removal_\w+\.ts:3:5 `element\.remove` removes or replaces template-owned nodes/);
         expect(messages[0]).toContain(`README 'Removing template content'`);
     });
 

@@ -531,8 +531,9 @@ write to `innerHTML`, `outerHTML`, `textContent` or `innerText`, whose target is
 lifecycle hook (`onconnect`, `ondisconnect`, `onfirstpaint`, `ontick`) receives, `this` in an event handler written
 as a `function`, or a variable initialized from one of those and never reassigned. Only handlers written in the
 template itself are followed; anything it cannot trace (a handler passed in by name, a node found by
-`querySelector`, nodes you created) is not flagged, so no warning does not mean no violation. The `tsc` plugin does
-not warn.
+`querySelector`, nodes you created) is not flagged, so no warning does not mean no violation. Each warning names the
+removal as `file:line:column`, and a `vite build` that reuses a module's cached result reports it again, so warm and
+cold builds warn alike. The `tsc` plugin does not warn.
 
 ### Direct Attach Events
 

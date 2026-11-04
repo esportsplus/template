@@ -2,14 +2,10 @@ import { plugin } from '@esportsplus/typescript/compiler';
 import type { SourceMapV3 } from '@esportsplus/typescript/compiler';
 import reactivity from '@esportsplus/reactivity/compiler';
 import { compiler } from '..';
-import type { Removal } from '..';
 import { apply, plugin as hmr } from '../hmr';
 import type { HmrState } from '../hmr';
 import { PACKAGE_NAME, UNCOMPILED } from '../constants';
 
-
-// The part of Rollup's transform context used here; absent when the hook is called directly
-type Context = { warn?: (message: string) => void } | undefined;
 
 type VitePlugin = {
     configResolved: (config: any) => void;
@@ -51,32 +47,14 @@ function isAsset(query: string): boolean {
     return false;
 }
 
-function warning(code: string, id: string, removal: Removal): string {
-    let offset = removal.start,
-        line = 1,
-        start = 0;
-
-    for (let at = code.indexOf('\n'); at !== -1 && at < offset; at = code.indexOf('\n', at + 1)) {
-        line++;
-        start = at + 1;
-    }
-
-    return `${PACKAGE_NAME}: ${id}:${line}:${offset - start + 1} \`${removal.text}\` removes or replaces ` +
-        `template-owned nodes by hand, so their lifecycle hooks and what they created stay alive until the content ` +
-        `that owns them is released. Change content through a slot, reactive array or render() disposer instead ` +
-        `(see README 'Removing template content').`;
-}
-
 
 export default ({ root }: { root?: string } = {}) => {
     let isDev = false,
         lastReload = 0,
-        // Set by the template compiler during the transform in progress, which runs synchronously
-        removals: Removal[] = [],
         state: HmrState = { id: null, plan: null, templates: new Set() },
         vitePlugin = plugin.vite({
             name: PACKAGE_NAME,
-            plugins: [hmr(state), reactivity, compiler((found) => { removals = found; })],
+            plugins: [hmr(state), reactivity, compiler(true)],
             uncompiled: [UNCOMPILED]
         })({ root });
 
@@ -142,20 +120,13 @@ export default ({ root }: { root?: string } = {}) => {
                 }
 
                 // The pipeline runs synchronously, so this handshake cannot interleave across modules. HMR wraps a
-                // module under its own id only. A build answered from the host's result cache runs no plugin: nothing
-                // is reported twice, and `state.templates` (dev only, where nothing is cached) is left as it was.
+                // module under its own id only. A build answered from the host's result cache runs no plugin, leaving
+                // `state.templates` (dev only, where nothing is cached) as it was; the host reports the compile's
+                // removal warnings through this context either way.
                 state.id = isDev && options?.ssr !== true && query === -1 ? path.replace(REGEX_PATH_SEPARATOR, '/') : null;
                 state.plan = null;
-                removals = [];
 
-                let context = this as Context,
-                    result = vitePlugin.transform.handler(code, path);
-
-                if (typeof context?.warn === 'function') {
-                    for (let i = 0, n = removals.length; i < n; i++) {
-                        context.warn(warning(code, path.replace(REGEX_PATH_SEPARATOR, '/'), removals[i]));
-                    }
-                }
+                let result = vitePlugin.transform.handler.call(this, code, path);
 
                 if (result === null || state.id === null || state.plan === null) {
                     return result;

@@ -185,19 +185,20 @@ describe('compiler removal reporting', () => {
         return { checker, code: SOURCE, program, shared: new Map(), sourceFile };
     }
 
-    it('reports removals to the callback it was given', () => {
-        let found: unknown[][] = [],
-            result = compiler((removals) => { found.push(removals); }).transform(context());
+    it('returns removals as warnings at their offset when asked to warn', () => {
+        let result = compiler(true).transform(context());
 
         expect(result.replacements?.length).toBeGreaterThan(0);
-        expect(found).toHaveLength(1);
-        expect(found[0]).toHaveLength(1);
+        expect(result.warnings).toHaveLength(1);
+        expect(result.warnings![0].position).toBe(SOURCE.indexOf('element.remove'));
+        expect(result.warnings![0].message).toMatch(/^`element\.remove` removes or replaces template-owned nodes/);
     });
 
-    it('compiles without looking for removals when given no callback, as the tsc path is', () => {
+    it('compiles without looking for removals when not asked to warn, as the tsc path is', () => {
         let result = transform.transform(context());
 
         expect(result.replacements?.length).toBeGreaterThan(0);
         expect(result.prepend?.length).toBeGreaterThan(0);
+        expect(result.warnings).toBeUndefined();
     });
 });
