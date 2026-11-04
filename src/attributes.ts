@@ -31,6 +31,14 @@ type Part = {
 };
 
 
+function append(list: string, tokens: string[], delimiter: string) {
+    for (let i = 0, n = tokens.length; i < n; i++) {
+        list += (list ? delimiter : '') + tokens[i];
+    }
+
+    return list;
+}
+
 function apply(element: Element, name: string, value: unknown) {
     if (name === 'class') {
         // An SVG element's className is a read-only SVGAnimatedString
@@ -45,7 +53,7 @@ function apply(element: Element, name: string, value: unknown) {
         element.style.cssText = value as string;
     }
     else if (attribute(name, element)) {
-        if (value == null || value === false || value === '') {
+        if (empty(value)) {
             element.removeAttribute(name);
         }
         else {
@@ -84,7 +92,7 @@ function bound(value: unknown): boolean {
 // entry, and a style object's entries as declarations. Null, undefined, false and empty values name
 // nothing, so a style object keeps one shape and drops a declaration by leaving it undefined.
 function collect(name: string, delimiter: string, value: unknown, into: string[]) {
-    if (value == null || value === false || value === '') {
+    if (empty(value)) {
         return;
     }
 
@@ -147,11 +155,8 @@ function list(ctx: Context, element: Element, part: Part | null, name: string, v
         let tokens: string[] = [];
 
         collect(name, delimiter, value, tokens);
-
-        for (let i = 0, n = tokens.length; i < n; i++) {
-            changed = true;
-            listState.static += (listState.static ? delimiter : '') + tokens[i];
-        }
+        changed = tokens.length > 0;
+        listState.static = append(listState.static, tokens, delimiter);
     }
     // An array or object is diffed whole each run: it may be the same instance with new contents
     else if (typeof value === 'object' || part.raw !== value) {
@@ -428,16 +433,13 @@ function write(element: Element, name: 'class' | 'style', parts: unknown[]) {
 
         if (i === n) {
             let delimiter = ATTRIBUTE_DELIMITERS[name],
-                joined = statics,
                 tokens: string[] = [];
 
             for (let j = 1; j < n; j++) {
                 collect(name, delimiter, parts[j], tokens);
             }
 
-            for (let j = 0, m = tokens.length; j < m; j++) {
-                joined += (joined ? delimiter : '') + tokens[j];
-            }
+            let joined = append(statics, tokens, delimiter);
 
             if (joined !== '') {
                 apply(element, name, joined);
@@ -518,14 +520,8 @@ const setList = (element: Element, name: 'class' | 'style', value: unknown) => {
             return;
         }
 
-        let joined = seed(element, name);
-
-        for (let i = 0, n = tokens.length; i < n; i++) {
-            joined += (joined ? delimiter : '') + tokens[i];
-        }
-
         store[name] = null;
-        apply(element, name, joined);
+        apply(element, name, append(seed(element, name), tokens, delimiter));
     }
 };
 
