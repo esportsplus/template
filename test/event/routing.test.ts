@@ -76,39 +76,26 @@ const PATHS: Path[] = ['attribute', 'runtime', 'spread'];
 const PASSIVE = new Set<string>(PASSIVE_EVENTS);
 
 
-function bind(path: Path, key: string, listener: Function): Element {
-    if (path === 'runtime') {
-        let element = document.createElement('div') as unknown as Element;
-
-        setProperties(element, { [key]: listener });
-
-        return element;
-    }
-
-    let fragment = compile(
-            path === 'attribute' ? 'let value = html`<div ' + key + '=${listener}></div>`;' : 'let value = html`<div ${{ ' + key + ': listener }}></div>`;',
-            { listener }
-        ).value as DocumentFragment;
-
-    return top(fragment) as unknown as Element;
+// A new element binding 'listener' through 'path'
+async function bind(path: Path, key: string, listener: Function): Promise<Element> {
+    return (await binder(path, key))(listener);
 }
 
-function compile(source: string, args: Record<string, unknown> = {}) {
-    let sourceFile = languageService.parse(process.cwd() + '/routing-fixture.ts', source),
-        result = generateCode(findTemplateArtifacts(sourceFile), sourceFile),
-        output = source;
+// What binds a listener to a new element through 'path', lowered up front so the binding can run inside an owner
+async function binder(path: Path, key: string): Promise<(listener: Function) => Element> {
+    if (path === 'runtime') {
+        return (listener) => {
+            let element = document.createElement('div') as unknown as Element;
 
-    for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
-        output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile, written) + output.slice(replacement.node.end);
+            setProperties(element, { [key]: listener });
+
+            return element;
+        };
     }
 
-    output = result.prepend.join('\n') + '\n' + output;
+    let lowered = await lower(path === 'attribute' ? 'let value = html`<div ' + key + '=${listener}></div>`;' : 'let value = html`<div ${{ ' + key + ': listener }}></div>`;');
 
-    return {
-        output,
-        // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
-        value: new Function(NAMESPACE, ...Object.keys(args), stripTypeScriptTypes(output) + '\nreturn value;')(namespace, ...Object.values(args))
-    };
+    return (listener) => top(run(lowered, { listener }).value as DocumentFragment) as unknown as Element;
 }
 
 function frame() {
@@ -132,6 +119,18 @@ function fire(host: Host, element: Element, event: string) {
     else {
         (element.firstChild ?? element).dispatchEvent(new Event(event, { bubbles: true }));
     }
+}
+
+async function lower(source: string) {
+    let sourceFile = await languageService.parse(process.cwd() + '/routing-fixture.ts', source),
+        result = await generateCode(await findTemplateArtifacts(sourceFile), sourceFile),
+        output = source;
+
+    for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
+        output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile, written) + output.slice(replacement.node.end);
+    }
+
+    return result.prepend.join('\n') + '\n' + output;
 }
 
 // Native listener calls made while running 'fn', by host, in call order
@@ -181,6 +180,14 @@ function natives(method: 'addEventListener' | 'removeEventListener', element: ()
     return calls.sort((a, b) => a.order - b.order).map(call => call.native);
 }
 
+function run(output: string, args: Record<string, unknown> = {}) {
+    return {
+        output,
+        // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
+        value: new Function(NAMESPACE, ...Object.keys(args), stripTypeScriptTypes(output) + '\nreturn value;')(namespace, ...Object.values(args))
+    };
+}
+
 
 describe('event routing', () => {
     let disposers: VoidFunction[] = [];
@@ -218,10 +225,11 @@ describe('event routing', () => {
     }
 
     describe.each(PATHS)('%s', (path) => {
-        it.each(KEYS)('%s registers one native listener on the %s for %s, released with its owner', (key, host, event) => {
-            let bound: { dispose: VoidFunction; element: Element } | null = null,
+        it.each(KEYS)('%s registers one native listener on the %s for %s, released with its owner', async (key, host, event) => {
+            let attach = await binder(path, key),
+                bound: { dispose: VoidFunction; element: Element } | null = null,
                 added = natives('addEventListener', () => bound?.element ?? null, () => {
-                    bound = owned(() => bind(path, key, () => {}));
+                    bound = owned(() => attach(() => {}));
                 });
 
             expect(added).toEqual([[host, event, { capture: false, passive: PASSIVE.has(event) }]]);
@@ -231,9 +239,10 @@ describe('event routing', () => {
             expect(removed).toEqual([[host, event, false]]);
         });
 
-        it.each(KEYS)('%s runs with its element, the event and a disposer, once for a once key', (key, host, event) => {
-            let calls: unknown[][] = [],
-                { element } = owned(() => bind(path, key, function (this: unknown, ...args: unknown[]) {
+        it.each(KEYS)('%s runs with its element, the event and a disposer, once for a once key', async (key, host, event) => {
+            let attach = await binder(path, key),
+                calls: unknown[][] = [],
+                { element } = owned(() => attach(function (this: unknown, ...args: unknown[]) {
                     calls.push([this, ...args]);
                 }));
 
@@ -249,11 +258,12 @@ describe('event routing', () => {
             expect(calls[0][2]).toBeTypeOf('function');
         });
 
-        it.each(['onclick', 'onfocus', 'ondocumentkeydown', 'onwindowresize'])('%s stops for good when its handler calls the disposer', (key) => {
+        it.each(['onclick', 'onfocus', 'ondocumentkeydown', 'onwindowresize'])('%s stops for good when its handler calls the disposer', async (key) => {
             let calls = 0,
                 host = KEYS.find(([k]) => k === key)![1],
                 event = KEYS.find(([k]) => k === key)![2],
-                { element } = owned(() => bind(path, key, (_e: Event, dispose: VoidFunction) => {
+                attach = await binder(path, key),
+                { element } = owned(() => attach((_e: Event, dispose: VoidFunction) => {
                     calls++;
                     dispose();
                 }));
@@ -270,17 +280,18 @@ describe('event routing', () => {
             expect(removed).toEqual([]);
         });
 
-        it.each(['onactivewheel', 'onceActiveTouchMove'])('rejects %s', (key) => {
-            expect(() => bind(path, key, () => {})).toThrow(`'${key}' is not an event attribute`);
+        it.each(['onactivewheel', 'onceActiveTouchMove'])('rejects %s', async (key) => {
+            await expect(bind(path, key, () => {})).rejects.toThrow(`'${key}' is not an event attribute`);
         });
 
-        it('rejects on', () => {
-            expect(() => bind(path, 'on', () => {})).toThrow(`'on' is not an attribute`);
+        it('rejects on', async () => {
+            await expect(bind(path, 'on', () => {})).rejects.toThrow(`'on' is not an attribute`);
         });
 
-        it.each(['onconnect', 'onConnect', 'onfirstpaint', 'ondisconnect', 'ontick'])('%s routes to its hook', (key) => {
-            let calls: unknown[][] = [],
-                { dispose, element } = owned(() => bind(path, key, (...args: unknown[]) => { calls.push(args); }));
+        it.each(['onconnect', 'onConnect', 'onfirstpaint', 'ondisconnect', 'ontick'])('%s routes to its hook', async (key) => {
+            let attach = await binder(path, key),
+                calls: unknown[][] = [],
+                { dispose, element } = owned(() => attach((...args: unknown[]) => { calls.push(args); }));
 
             document.body.append(element as unknown as Node);
             frame();
@@ -306,11 +317,12 @@ describe('event routing', () => {
     });
 
     describe('every direct-attach event', () => {
-        it.each([...DIRECT_ATTACH_EVENTS])('%s attaches to the element on every path', (event) => {
+        it.each([...DIRECT_ATTACH_EVENTS])('%s attaches to the element on every path', async (event) => {
             for (let path of PATHS) {
-                let bound: { dispose: VoidFunction; element: Element } | null = null,
+                let attach = await binder(path, 'on' + event),
+                    bound: { dispose: VoidFunction; element: Element } | null = null,
                     added = natives('addEventListener', () => bound?.element ?? null, () => {
-                        bound = owned(() => bind(path, 'on' + event, () => {}));
+                        bound = owned(() => attach(() => {}));
                     });
 
                 expect(added).toEqual([['element', event, { capture: false, passive: false }]]);
@@ -320,7 +332,7 @@ describe('event routing', () => {
     });
 
     describe('replacement', () => {
-        it.each(['onclick', 'onfocus', 'ondocumentkeydown', 'onwindowresize'])('a later %s replaces the earlier one on its element and releases it', (key) => {
+        it.each(['onclick', 'onfocus', 'ondocumentkeydown', 'onwindowresize'])('a later %s replaces the earlier one on its element and releases it', async (key) => {
             let [, host, event] = KEYS.find(([k]) => k === key)!,
                 calls: string[] = [],
                 { dispose, element } = owned(() => {
@@ -342,7 +354,7 @@ describe('event routing', () => {
             expect(natives('removeEventListener', () => element, dispose)).toEqual([[host, event, false]]);
         });
 
-        it('a once key replaces the plain key, and the reverse', () => {
+        it('a once key replaces the plain key, and the reverse', async () => {
             let calls: string[] = [],
                 { element } = owned(() => {
                     let element = document.createElement('button') as unknown as Element;
@@ -366,7 +378,7 @@ describe('event routing', () => {
             expect(calls).toEqual(['once', 'plain again']);
         });
 
-        it('does not cross elements, events or hosts', () => {
+        it('does not cross elements, events or hosts', async () => {
             let calls: string[] = [],
                 { element } = owned(() => {
                     let element = document.createElement('button') as unknown as Element,
@@ -389,7 +401,7 @@ describe('event routing', () => {
             expect(calls).toEqual(['click', 'document click', 'other document click', 'window click', 'mousedown']);
         });
 
-        it('leaves on() bindings beside it', () => {
+        it('leaves on() bindings beside it', async () => {
             let calls: string[] = [],
                 { element } = owned(() => {
                     let element = document.createElement('input') as unknown as Element;
@@ -413,7 +425,7 @@ describe('event routing', () => {
     });
 
     describe('shared native listeners', () => {
-        it('one per document event across delegated and document keys, one per element for direct ones', () => {
+        it('one per document event across delegated and document keys, one per element for direct ones', async () => {
             let elements: Element[] = [],
                 added = natives('addEventListener', () => elements[0] ?? null, () => {
                     owned(() => {
@@ -440,7 +452,7 @@ describe('event routing', () => {
             ]);
         });
 
-        it('keeps the document listener until the last delegated or document binding goes', () => {
+        it('keeps the document listener until the last delegated or document binding goes', async () => {
             let a = owned(() => {
                     let element = document.createElement('div') as unknown as Element;
 
@@ -462,10 +474,11 @@ describe('event routing', () => {
     });
 
     describe('guarding', () => {
-        it.each(['ondocumentkeydown', 'onwindowkeydown'])('%s does not run while its element is out of the document', (key) => {
+        it.each(['ondocumentkeydown', 'onwindowkeydown'])('%s does not run while its element is out of the document', async (key) => {
             let calls = 0,
                 target = key.startsWith('ondocument') ? document : window,
-                { element } = owned(() => bind('runtime', key, () => { calls++; }));
+                attach = await binder('runtime', key),
+                { element } = owned(() => attach(() => { calls++; }));
 
             target.dispatchEvent(new Event('keydown'));
 
@@ -480,7 +493,8 @@ describe('event routing', () => {
         it.each(['ondocumentkeydown', 'onwindowkeydown'])('%s is released once foreign code removed its element past the end of the task', async (key) => {
             let calls = 0,
                 target: Document | Window = key.startsWith('ondocument') ? document : window,
-                { element } = owned(() => bind('attribute', key, () => { calls++; }));
+                attach = await binder('attribute', key),
+                { element } = owned(() => attach(() => { calls++; }));
 
             using remove = vi.spyOn(target, 'removeEventListener');
 

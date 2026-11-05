@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { ts } from '@esportsplus/typescript';
 import { languageService, uid } from '@esportsplus/typescript/compiler';
 import type { Plugin, SourceMapV3, TransformContext } from '@esportsplus/typescript/compiler';
@@ -10,10 +11,13 @@ import { isFunctionType } from './ts-analyzer';
 import { findTemplateArtifacts, unwrap } from './ts-parser';
 
 
-// Per-plugin-instance handshake with the bundler integration: it sets `id` (null disables HMR,
-// e.g. for SSR or builds) before each transform, and applies the resulting `plan` after it
-// `templates` holds every module whose last dev transform found html sites
-type HmrState = { id: string | null; plan: Site[] | null; templates: Set<string> };
+// One transform's handshake with the bundler integration: it sets `id` (null disables HMR, e.g. for SSR or builds)
+// before the transform, and applies the resulting `plan` after it
+type Handshake = { id: string | null; plan: Site[] | null };
+
+// Per plugin instance: `transforms` holds the handshake of the transform running, which concurrent transforms each
+// keep across their awaits; `templates` holds every module whose last dev transform found html sites
+type HmrState = { templates: Set<string>; transforms: AsyncLocalStorage<Handshake> };
 
 // One entry per export site, in source order; `apply` re-finds the sites in the lowered code
 // The DOM types a renderable value can be assigned to, resolved once per program
@@ -35,19 +39,55 @@ const REGEX_FUNCTION = /\b(async\s+)?function\b/;
 
 const REGEX_JSX = /\.[jt]sx$/;
 
-const RENDERABLES = new WeakMap<ts.Program, Renderables>();
+const RENDERABLES = new WeakMap<ts.Program, Promise<Renderables>>();
 
 
 // Decides which exports to wrap, on the original source with the project's checker. Returns null
-// when any export or top-level statement makes the module unsafe to re-evaluate in place.
-function analyze(ctx: TransformContext): Site[] | null {
+// when any export or top-level statement makes the module unsafe to re-evaluate in place. The type of every export is
+// asked first, in one request.
+async function analyze(ctx: TransformContext): Promise<Site[] | null> {
     let checker = ctx.checker,
-        dom = renderables(checker, ctx.program),
         sites: Site[] = [],
         statements = ctx.sourceFile.statements;
 
     if (hasUnsafeSideEffects(ctx.sourceFile)) {
         return null;
+    }
+
+    let exported: ts.Node[] = [];
+
+    for (let i = 0, n = statements.length; i < n; i++) {
+        let statement = statements[i];
+
+        switch (siteKind(statement)) {
+            case 'assignment':
+                exported.push((statement as ts.ExportAssignment).expression);
+                break;
+
+            case 'function':
+                exported.push(statement);
+                break;
+
+            case 'list': {
+                let elements = ((statement as ts.ExportDeclaration).exportClause as ts.NamedExports).elements;
+
+                for (let j = 0, m = elements.length; j < m; j++) {
+                    exported.push(elements[j].propertyName ?? elements[j].name);
+                }
+
+                break;
+            }
+        }
+    }
+
+    let [dom, found] = await Promise.all([
+            renderables(checker, ctx.program),
+            exported.length > 0 ? checker.getTypeAtLocation(exported) : []
+        ]),
+        types = new Map<ts.Node, ts.Type | undefined>();
+
+    for (let i = 0, n = exported.length; i < n; i++) {
+        types.set(exported[i], found[i]);
     }
 
     for (let i = 0, n = statements.length; i < n; i++) {
@@ -56,16 +96,16 @@ function analyze(ctx: TransformContext): Site[] | null {
         switch (siteKind(statement)) {
             case 'assignment': {
                 let expression = (statement as ts.ExportAssignment).expression,
-                    type = checker.getTypeAtLocation(expression),
+                    type = types.get(expression),
                     unwrapped = unwrap(expression);
 
-                if (type !== undefined && isFunctionType(type, checker) && producesRenderable(type, checker, dom, 2)) {
+                if (type !== undefined && await isFunctionType(type, checker) && await producesRenderable(type, checker, dom, 2)) {
                     sites.push({ kind: 'assignment', wrapper: 'factory' });
                 }
                 else if (
                     type !== undefined &&
                     (ts.isCallExpression(unwrapped) || ts.isTaggedTemplateExpression(unwrapped)) &&
-                    isRenderableType(type, checker, dom)
+                    await isRenderableType(type, checker, dom)
                 ) {
                     sites.push({ kind: 'assignment', wrapper: 'eager' });
                 }
@@ -77,9 +117,9 @@ function analyze(ctx: TransformContext): Site[] | null {
             }
 
             case 'function': {
-                let type = checker.getTypeAtLocation(statement);
+                let type = types.get(statement);
 
-                if (type === undefined || !producesRenderable(type, checker, dom, 2)) {
+                if (type === undefined || !(await producesRenderable(type, checker, dom, 2))) {
                     return null;
                 }
 
@@ -94,9 +134,9 @@ function analyze(ctx: TransformContext): Site[] | null {
                 for (let j = 0, m = elements.length; j < m; j++) {
                     let exportId = elements[j].name.text,
                         local = elements[j].propertyName ?? elements[j].name,
-                        type = checker.getTypeAtLocation(local);
+                        type = types.get(local);
 
-                    if (type === undefined || !isFunctionType(type, checker) || !producesRenderable(type, checker, dom, 3)) {
+                    if (type === undefined || !(await isFunctionType(type, checker)) || !(await producesRenderable(type, checker, dom, 3))) {
                         return null;
                     }
 
@@ -172,34 +212,38 @@ function hotBlock(moduleId: string): string {
     ].join('\n');
 }
 
-function isRenderableType(type: ts.Type, checker: ts.Checker, dom: Renderables): boolean {
+async function isRenderableType(type: ts.Type, checker: ts.Checker, dom: Renderables): Promise<boolean> {
     // Inspect the outer type, not its printed signature: Router<Renderable<T>>
     // and (element: Element) => number are not renderable values.
     if (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.Never)) {
         return false;
     }
 
-    if (type.getAliasSymbol()?.name === 'Renderable' || type.getSymbol()?.name === 'ArraySlot') {
+    let [alias, symbol] = await Promise.all([type.getAliasSymbol(), type.getSymbol()]);
+
+    if (alias?.name === 'Renderable' || symbol?.name === 'ArraySlot') {
         return true;
     }
 
     if (type.isUnionType()) {
-        let types = type.getTypes().filter((member) => !(member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)));
+        let types = (await type.getTypes()).filter((member) => !(member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)));
 
-        return types.length > 0 && types.every((member) => isRenderableType(member, checker, dom));
+        return types.length > 0 && (await Promise.all(types.map((member) => isRenderableType(member, checker, dom)))).every(Boolean);
     }
 
-    if (type.isTypeReference() && type.getSymbol()?.name === 'Array') {
-        return checker.getTypeArguments(type).every((member) => isRenderableType(member, checker, dom));
+    if (type.isTypeReference() && symbol?.name === 'Array') {
+        let members = await checker.getTypeArguments(type);
+
+        return (await Promise.all(members.map((member) => isRenderableType(member, checker, dom)))).every(Boolean);
     }
 
-    return (dom.node !== undefined && checker.isTypeAssignableTo(type, dom.node)) ||
-        (dom.list !== undefined && checker.isTypeAssignableTo(type, dom.list));
+    return (dom.node !== undefined && await checker.isTypeAssignableTo(type, dom.node)) ||
+        (dom.list !== undefined && await checker.isTypeAssignableTo(type, dom.list));
 }
 
 // What scan() finds, read by the parser instead: for JSX, whose text the scanner cannot tell from code
-function parsed(id: string, code: string): Statement[] | null {
-    let sourceFile = languageService.parse(id, code),
+async function parsed(id: string, code: string): Promise<Statement[] | null> {
+    let sourceFile = await languageService.parse(id, code),
         statements: Statement[] = [];
 
     for (let i = 0, n = sourceFile.statements.length; i < n; i++) {
@@ -265,21 +309,22 @@ function pickName(code: string, base: string, taken: Set<string>): string {
 // Renderable — e.g. `(attributes) => html`` ` or `factory('checkbox')`. Route
 // registration factories like `(r) => r.get(...)` return a Router, not a
 // Renderable, so they must NOT be wrapped as HMR components.
-function producesRenderable(type: ts.Type, checker: ts.Checker, dom: Renderables, depth: number): boolean {
-    if (isRenderableType(type, checker, dom)) {
+async function producesRenderable(type: ts.Type, checker: ts.Checker, dom: Renderables, depth: number): Promise<boolean> {
+    if (await isRenderableType(type, checker, dom)) {
         return true;
     }
 
-    if (depth <= 0 || !isFunctionType(type, checker)) {
+    if (depth <= 0 || !(await isFunctionType(type, checker))) {
         return false;
     }
 
-    let signatures = checker.getSignaturesOfType(type, ts.SignatureKind.Call);
+    let signatures = await checker.getSignaturesOfType(type, ts.SignatureKind.Call),
+        returnTypes = await Promise.all(signatures.map((signature) => checker.getReturnTypeOfSignature(signature)));
 
-    for (let i = 0, n = signatures.length; i < n; i++) {
-        let returnType = checker.getReturnTypeOfSignature(signatures[i]);
+    for (let i = 0, n = returnTypes.length; i < n; i++) {
+        let returnType = returnTypes[i];
 
-        if (returnType !== undefined && producesRenderable(returnType, checker, dom, depth - 1)) {
+        if (returnType !== undefined && await producesRenderable(returnType, checker, dom, depth - 1)) {
             return true;
         }
     }
@@ -287,17 +332,14 @@ function producesRenderable(type: ts.Type, checker: ts.Checker, dom: Renderables
     return false;
 }
 
-function renderables(checker: ts.Checker, program: ts.Program): Renderables {
+// Concurrent transforms of a program await the one resolution
+function renderables(checker: ts.Checker, program: ts.Program): Promise<Renderables> {
     let dom = RENDERABLES.get(program);
 
     if (dom === undefined) {
-        let list = checker.resolveName('NodeList', ts.SymbolFlags.Type),
-            node = checker.resolveName('Node', ts.SymbolFlags.Type);
-
-        dom = {
-            list: list && checker.getDeclaredTypeOfSymbol(list),
-            node: node && checker.getDeclaredTypeOfSymbol(node)
-        };
+        dom = Promise.all([checker.resolveName('NodeList', ts.SymbolFlags.Type), checker.resolveName('Node', ts.SymbolFlags.Type)])
+            .then(([list, node]) => Promise.all([list && checker.getDeclaredTypeOfSymbol(list), node && checker.getDeclaredTypeOfSymbol(node)]))
+            .then(([list, node]) => ({ list, node }));
         RENDERABLES.set(program, dom);
     }
 
@@ -334,11 +376,11 @@ function siteKind(statement: ts.Statement): Site['kind'] | null {
 // Wraps each planned export site in the lowered code. Every edit stays on its line and every new
 // line goes after the last one, so the pipeline's sourcemap only needs its columns shifted.
 // Returns null (module keeps full-reload semantics) if the lowered code's sites no longer match.
-const apply = (code: string, map: SourceMapV3, id: string, plan: Site[]): { code: string; map: SourceMapV3 } | null => {
+const apply = async (code: string, map: SourceMapV3, id: string, plan: Site[]): Promise<{ code: string; map: SourceMapV3 } | null> => {
     let edits: Edit[] = [],
         index = 0,
         moduleId = JSON.stringify(id),
-        statements = REGEX_JSX.test(id) ? parsed(id, code) : scan(code),
+        statements = REGEX_JSX.test(id) ? await parsed(id, code) : scan(code),
         tail: string[] = [],
         taken = new Set<string>();
 
@@ -414,22 +456,27 @@ const apply = (code: string, map: SourceMapV3, id: string, plan: Site[]): { code
 // only for modules that use html (under any name), which are the ones HMR wraps.
 const plugin = (state: HmrState): Plugin => ({
     name: HMR_PACKAGE,
-    transform: (ctx) => {
-        if (state.id === null) {
-            state.plan = null;
+    transform: async (ctx) => {
+        let handshake = state.transforms.getStore();
+
+        if (handshake === undefined) {
+            return {};
+        }
+
+        handshake.plan = null;
+
+        if (handshake.id === null) {
+            return {};
+        }
+
+        if ((await findTemplateArtifacts(ctx.sourceFile, ctx.checker, ctx.program)).sites.size === 0) {
+            state.templates.delete(handshake.id);
 
             return {};
         }
 
-        if (findTemplateArtifacts(ctx.sourceFile, ctx.checker, ctx.program).sites.size === 0) {
-            state.templates.delete(state.id);
-            state.plan = null;
-
-            return {};
-        }
-
-        state.templates.add(state.id);
-        state.plan = analyze(ctx);
+        state.templates.add(handshake.id);
+        handshake.plan = await analyze(ctx);
 
         return {};
     }
@@ -437,4 +484,4 @@ const plugin = (state: HmrState): Plugin => ({
 
 
 export { apply, plugin };
-export type { HmrState };
+export type { Handshake, HmrState };

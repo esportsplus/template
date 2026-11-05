@@ -70,8 +70,8 @@ function warning(removal: Removal): Warning {
 // channel to report them through, so it does not look for them.
 const compiler = (warn = false): Plugin => ({
     name: PACKAGE_NAME,
-    transform: (ctx: TransformContext) => {
-        let artifacts = findTemplateArtifacts(ctx.sourceFile, ctx.checker, ctx.program);
+    transform: async (ctx: TransformContext) => {
+        let artifacts = await findTemplateArtifacts(ctx.sourceFile, ctx.checker, ctx.program);
 
         if (artifacts.escapes.length > 0) {
             throw escaped(ctx.sourceFile, artifacts.escapes);
@@ -80,7 +80,7 @@ const compiler = (warn = false): Plugin => ({
         let removals = warn ? findRemovals(artifacts, ctx.sourceFile) : [],
             warnings = removals.length > 0 ? removals.map(warning) : undefined;
 
-        let { nested, prepend, replacements, selectorFired } = generateCode(artifacts, ctx.sourceFile, ctx.checker, ctx.program);
+        let { nested, prepend, replacements, selectorFired } = await generateCode(artifacts, ctx.sourceFile, ctx.checker, ctx.program);
 
         if (replacements.length === 0 && prepend.length === 0) {
             return artifacts.dependencies.length > 0 ? { dependencies: artifacts.dependencies, warnings } : { warnings };

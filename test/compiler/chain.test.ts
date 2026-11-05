@@ -59,7 +59,7 @@ describe('compiler chain output', () => {
 
     it.each([...files.keys()])('compiles %s', async (name) => {
         let code = files.get(name)!,
-            result = plugin.transform.handler.call(undefined, code, directory + '/' + name);
+            result = await plugin.transform.handler.call(undefined, code, directory + '/' + name);
 
         await expect(result?.code ?? code).toMatchFileSnapshot(join(FIXTURES, 'output', name.replace(/\.ts$/, '.txt')));
     }, 60000);

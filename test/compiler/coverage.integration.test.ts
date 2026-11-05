@@ -54,7 +54,7 @@ function project(files: Record<string, string>): { directory: string; plugin: Re
 }
 
 // Runs a compiled module whose only imports are namespace imports of the runtime packages
-function render(code: string, label: string): string {
+async function render(code: string, label: string): Promise<string> {
     let js = stripTypeScriptTypes(code)
             .replace(/import\s+\*\s+as\s+(\w+)\s+from\s+['"]([^'"]+)['"];?/g, (_, name, source) => `const ${name} = modules[${JSON.stringify(source)}];`)
             .replace(/import[^;]*from\s+['"]\.\/barrel['"];?/g, '')
@@ -78,36 +78,36 @@ afterEach(() => {
 
 
 describe('compiler coverage', () => {
-    it.each(Object.keys(FILES).filter(name => name !== 'barrel.ts'))('compiles html reached through %s', (name) => {
+    it.each(Object.keys(FILES).filter(name => name !== 'barrel.ts'))('compiles html reached through %s', async (name) => {
         let { directory, plugin } = project(FILES),
-            output = plugin.transform.handler(FILES[name], directory + '/' + name)!.code;
+            output = (await plugin.transform.handler(FILES[name], directory + '/' + name))!.code;
 
         expect(output).not.toMatch(/\w`<p>/);
-        expect(render(output, name)).toBe(name);
+        expect(await render(output, name)).toBe(name);
     });
 
-    it('fails the build on a use of html that cannot be compiled, naming the location', () => {
+    it('fails the build on a use of html that cannot be compiled, naming the location', async () => {
         let files = {
                 'escape.ts': "import { html } from '@esportsplus/template';\ndeclare function take(value: unknown): void;\ntake(html);"
             },
             { directory, plugin } = project(files);
 
-        expect(() => plugin.transform.handler(files['escape.ts'], directory + '/escape.ts')).toThrow(/escape\.ts:3:6/);
+        await expect(plugin.transform.handler(files['escape.ts'], directory + '/escape.ts')).rejects.toThrow(/escape\.ts:3:6/);
     });
 
-    it('rejects a bundle chunk that still contains the uncompiled html runtime', () => {
+    it('rejects a bundle chunk that still contains the uncompiled html runtime', async () => {
         let { plugin } = project(FILES);
 
         expect(() => plugin.renderChunk(`throw new Error("html\`\` templates ${UNCOMPILED}")`, { fileName: 'app.js' })).toThrow(/app\.js/);
         expect(plugin.renderChunk('let compiled = template_u1.template(`<p>`);', { fileName: 'app.js' })).toBeNull();
     });
 
-    it('invalidates a consumer when the barrel it compiles through changes', () => {
+    it('invalidates a consumer when the barrel it compiles through changes', async () => {
         let { directory, plugin } = project(FILES),
             dependent = { id: directory + '/renamed.ts' },
             invalidated: unknown[] = [];
 
-        plugin.transform.handler(FILES['renamed.ts'], directory + '/renamed.ts');
+        await plugin.transform.handler(FILES['renamed.ts'], directory + '/renamed.ts');
 
         let result = plugin.handleHotUpdate({
             file: directory + '/barrel.ts',

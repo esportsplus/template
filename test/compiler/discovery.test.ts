@@ -133,8 +133,8 @@ async function render(code: string, label: string): Promise<string> {
     return element.textContent!;
 }
 
-function transform(plugin: Plugin, directory: string, name: string, code: string) {
-    return plugin.transform.handler(code, `${directory}/${name}`);
+async function transform(plugin: Plugin, directory: string, name: string, code: string) {
+    return await plugin.transform.handler(code, `${directory}/${name}`);
 }
 
 
@@ -148,11 +148,11 @@ afterEach(() => {
 
 
 describe('compiler site discovery', () => {
-    describe.each([['staged', true], ['unstaged', false]] as const)('%s programs', (_label, staged) => {
+    describe.each([['staged', true], ['unstaged', false]] as const)('%s programs', async (_label, staged) => {
         it.each(Object.keys(FORMS))('compiles html reached through %s', async (name) => {
             let files: Record<string, string> = { ...MODULES, [name + '.ts']: consumer(FORMS[name], staged) },
                 { directory, plugin } = project(files),
-                output = transform(plugin, directory, name + '.ts', files[name + '.ts'])!.code;
+                output = (await transform(plugin, directory, name + '.ts', files[name + '.ts']))!.code;
 
             expect(output).toContain('.template(');
             expect(output).not.toMatch(/(\w|\]|\))`<p>/);
@@ -174,21 +174,21 @@ describe('compiler site discovery', () => {
             let { directory, plugin } = project(files);
 
             for (let name of Object.keys(FORMS)) {
-                let output = transform(plugin, directory, name + '.ts', files[name + '.ts'])!.code;
+                let output = (await transform(plugin, directory, name + '.ts', files[name + '.ts']))!.code;
 
                 expect(await render(output, name)).toBe(name);
             }
         });
 
-        it('keeps the html import a surviving local alias reads, and removes it otherwise', () => {
+        it('keeps the html import a surviving local alias reads, and removes it otherwise', async () => {
             let files = { 'aliased.ts': consumer(FORMS['multi-hop'], staged), 'barrel.ts': BARREL, 'direct.ts': consumer(FORMS['direct'], staged) },
                 { directory, plugin } = project(files);
 
-            expect(transform(plugin, directory, 'aliased.ts', files['aliased.ts'])!.code).toMatch(/import \{ html \} from '@esportsplus\/template';/);
-            expect(transform(plugin, directory, 'direct.ts', files['direct.ts'])!.code).not.toMatch(/import \{[^}]*html[^}]*\}/);
+            expect((await transform(plugin, directory, 'aliased.ts', files['aliased.ts']))!.code).toMatch(/import \{ html \} from '@esportsplus\/template';/);
+            expect((await transform(plugin, directory, 'direct.ts', files['direct.ts']))!.code).not.toMatch(/import \{[^}]*html[^}]*\}/);
         });
 
-        it('reports a let alias as an escape', () => {
+        it('reports a let alias as an escape', async () => {
             let files = {
                     'escape.ts': [
                         "import { html } from '@esportsplus/template';",
@@ -200,23 +200,23 @@ describe('compiler site discovery', () => {
                 },
                 { directory, plugin } = project(files);
 
-            expect(() => transform(plugin, directory, 'escape.ts', files['escape.ts'])).toThrow(/escape\.ts:\d+:9/);
+            await expect(transform(plugin, directory, 'escape.ts', files['escape.ts'])).rejects.toThrow(/escape\.ts:\d+:9/);
         });
 
         it.each([
             ['a const', 'let h = html;\nexport default () => { const h2 = h; return h2`<p>x</p>`; };'],
             ['a property', 'export default { html };'],
             ['an argument', 'declare function take(value: unknown): void;\ntake(html);']
-        ])('reports html passed through %s as an escape', (_label, body) => {
+        ])('reports html passed through %s as an escape', async (_label, body) => {
             let files = {
                     'escape.ts': ["import { html } from '@esportsplus/template';", staged ? STAGE : '', body].join('\n')
                 },
                 { directory, plugin } = project(files);
 
-            expect(() => transform(plugin, directory, 'escape.ts', files['escape.ts'])).toThrow(/is compiled away/);
+            await expect(transform(plugin, directory, 'escape.ts', files['escape.ts'])).rejects.toThrow(/is compiled away/);
         });
 
-        it('leaves a tag that shadows html uncompiled', () => {
+        it('leaves a tag that shadows html uncompiled', async () => {
             let files = {
                     'shadow.ts': [
                         "import { html } from '@esportsplus/template';",
@@ -229,7 +229,7 @@ describe('compiler site discovery', () => {
                     ].join('\n')
                 },
                 { directory, plugin } = project(files),
-                output = transform(plugin, directory, 'shadow.ts', files['shadow.ts'])!.code;
+                output = (await transform(plugin, directory, 'shadow.ts', files['shadow.ts']))!.code;
 
             expect(output).toContain('html`<i>shadowed</i>`');
             expect(output).toContain('html`<i>local</i>`');
@@ -239,7 +239,7 @@ describe('compiler site discovery', () => {
         it('leaves html destructured from a module-typed parameter to the runtime', async () => {
             let files = { 'parameter.ts': consumer(DESTRUCTURED, staged) },
                 { directory, plugin } = project(files),
-                output = transform(plugin, directory, 'parameter.ts', files['parameter.ts'])?.code ?? files['parameter.ts'];
+                output = (await transform(plugin, directory, 'parameter.ts', files['parameter.ts']))?.code ?? files['parameter.ts'];
 
             expect(output).toContain('html`<p>');
             await expect(render(output, 'parameter')).rejects.toThrow(/must be compiled/);
@@ -247,7 +247,7 @@ describe('compiler site discovery', () => {
     });
 
     describe('dev edits', () => {
-        it('re-transforms an edited file and its dependent on the new snapshot', () => {
+        it('re-transforms an edited file and its dependent on the new snapshot', async () => {
             let files = {
                     'barrel.ts': BARREL,
                     'consumer.ts': consumer(FORMS['const-alias'], true)
@@ -255,33 +255,33 @@ describe('compiler site discovery', () => {
                 { directory, plugin } = project(files, 'serve'),
                 edited = BARREL.replace('export const alias = html;', 'export const alias = (strings: TemplateStringsArray, ...values: unknown[]) => strings.join(String(values));');
 
-            expect(transform(plugin, directory, 'consumer.ts', files['consumer.ts'])!.code).not.toContain('alias`');
+            expect((await transform(plugin, directory, 'consumer.ts', files['consumer.ts']))!.code).not.toContain('alias`');
 
             plugin.watchChange(`${directory}/barrel.ts`);
-            transform(plugin, directory, 'barrel.ts', edited);
+            await transform(plugin, directory, 'barrel.ts', edited);
 
             // No longer html, so nothing to compile and nothing to escape
-            let next = transform(plugin, directory, 'consumer.ts', files['consumer.ts']);
+            let next = await transform(plugin, directory, 'consumer.ts', files['consumer.ts']);
 
             expect(next === null || next.code.includes('alias`<p>')).toBe(true);
 
             plugin.watchChange(`${directory}/barrel.ts`);
-            transform(plugin, directory, 'barrel.ts', BARREL);
+            await transform(plugin, directory, 'barrel.ts', BARREL);
 
-            expect(transform(plugin, directory, 'consumer.ts', files['consumer.ts'])!.code).not.toContain('alias`');
+            expect((await transform(plugin, directory, 'consumer.ts', files['consumer.ts']))!.code).not.toContain('alias`');
         });
 
-        it('re-transforms an edited consumer, staged, and keeps its dependency tracked', () => {
+        it('re-transforms an edited consumer, staged, and keeps its dependency tracked', async () => {
             let files = {
                     'barrel.ts': BARREL,
                     'consumer.ts': consumer(FORMS['barrel-renamed'], true)
                 },
                 { directory, plugin } = project(files, 'serve');
 
-            transform(plugin, directory, 'consumer.ts', files['consumer.ts']);
+            await transform(plugin, directory, 'consumer.ts', files['consumer.ts']);
             plugin.watchChange(`${directory}/consumer.ts`);
 
-            let output = transform(plugin, directory, 'consumer.ts', files['consumer.ts'].replace('<p>', '<p data-edit="1">'))!.code;
+            let output = (await transform(plugin, directory, 'consumer.ts', files['consumer.ts'].replace('<p>', '<p data-edit="1">')))!.code;
 
             expect(output).toContain('data-edit');
             expect(output).not.toContain('tag`');
@@ -305,20 +305,20 @@ describe('compiler site discovery', () => {
     describe('vite ids', () => {
         let files = { 'common.cts': consumer(FORMS['direct'], false), 'direct.ts': consumer(FORMS['direct'], true), 'module.mts': consumer(FORMS['direct'], false) };
 
-        it('transforms an id with a ?worker_file query as the file it names', () => {
+        it('transforms an id with a ?worker_file query as the file it names', async () => {
             let { directory, plugin } = project(files);
 
-            expect(plugin.transform.handler(files['direct.ts'], `${directory}/direct.ts?worker_file&type=module`)!.code).toContain('.template(');
+            expect((await plugin.transform.handler(files['direct.ts'], `${directory}/direct.ts?worker_file&type=module`))!.code).toContain('.template(');
         });
 
-        it('does not wrap a queried module for HMR', () => {
+        it('does not wrap a queried module for HMR', async () => {
             let { directory, plugin } = project({ 'view.ts': "import { html } from '@esportsplus/template';\nexport default html`<p>x</p>`;" }, 'serve');
 
-            expect(plugin.transform.handler("import { html } from '@esportsplus/template';\nexport default html`<p>x</p>`;", `${directory}/view.ts`)!.code).toContain('import.meta.hot');
-            expect(plugin.transform.handler("import { html } from '@esportsplus/template';\nexport default html`<p>x</p>`;", `${directory}/view.ts?worker_file`)!.code).not.toContain('import.meta.hot');
+            expect((await plugin.transform.handler("import { html } from '@esportsplus/template';\nexport default html`<p>x</p>`;", `${directory}/view.ts`))!.code).toContain('import.meta.hot');
+            expect((await plugin.transform.handler("import { html } from '@esportsplus/template';\nexport default html`<p>x</p>`;", `${directory}/view.ts?worker_file`))!.code).not.toContain('import.meta.hot');
         });
 
-        it('filters ids for Vite before calling in', () => {
+        it('filters ids for Vite before calling in', async () => {
             let { plugin } = project(files),
                 { exclude, include } = plugin.transform.filter.id,
                 accepts = (id: string) => include.test(id) && !exclude.some(regex => regex.test(id));
@@ -338,16 +338,16 @@ describe('compiler site discovery', () => {
             ['a ?raw asset import', (directory: string) => `${directory}/direct.ts?raw`],
             ['a ?url asset import', (directory: string) => `${directory}/direct.ts?url`],
             ['a non-script id', (directory: string) => `${directory}/style.scss`]
-        ])('leaves %s alone', (_label, id) => {
+        ])('leaves %s alone', async (_label, id) => {
             let { directory, plugin } = project(files);
 
-            expect(plugin.transform.handler(files['direct.ts'], id(directory))).toBeNull();
+            expect(await plugin.transform.handler(files['direct.ts'], id(directory))).toBeNull();
         });
 
-        it.each(['module.mts', 'common.cts'])('compiles %s', (name) => {
+        it.each(['module.mts', 'common.cts'])('compiles %s', async (name) => {
             let { directory, plugin } = project(files);
 
-            expect(plugin.transform.handler(files[name as keyof typeof files], `${directory}/${name}`)!.code).toContain('.template(');
+            expect((await plugin.transform.handler(files[name as keyof typeof files], `${directory}/${name}`))!.code).toContain('.template(');
         });
     });
 });

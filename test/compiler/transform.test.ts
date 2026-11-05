@@ -7,12 +7,12 @@ import transform from '../../src/compiler';
 import { prepended, written } from './written';
 
 
-const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
+const EMPTY = await languageService.parse(process.cwd() + '/empty.ts', '');
 
 
 // Syntax only: no checker or program, which the compiler's analysis takes as optional
-function createContext(source: string) {
-    let sourceFile = languageService.parse(process.cwd() + '/test.ts', source);
+async function createContext(source: string) {
+    let sourceFile = await languageService.parse(process.cwd() + '/test.ts', source);
 
     return { code: source, shared: new Map(), sourceFile } as TransformContext;
 }
@@ -21,34 +21,34 @@ function createContext(source: string) {
 describe('compiler/transform', () => {
     describe('patterns', () => {
         // A file can reach html under any name, so no text prefilter may skip it
-        it('has no text patterns', () => {
+        it('has no text patterns', async () => {
             expect('patterns' in transform).toBe(false);
         });
     });
 
     describe('transform - no templates', () => {
-        it('returns empty result for code without templates', () => {
-            let result = transform.transform(createContext('let x = 1;'));
+        it('returns empty result for code without templates', async () => {
+            let result = await transform.transform(await createContext('let x = 1;'));
 
             expect(result).toEqual({});
         });
 
-        it('returns empty result for empty source', () => {
-            let result = transform.transform(createContext(''));
+        it('returns empty result for empty source', async () => {
+            let result = await transform.transform(await createContext(''));
 
             expect(result).toEqual({});
         });
 
-        it('returns empty result for non-html tagged template', () => {
-            let result = transform.transform(createContext('let x = css`div { color: red }`;'));
+        it('returns empty result for non-html tagged template', async () => {
+            let result = await transform.transform(await createContext('let x = css`div { color: red }`;'));
 
             expect(result).toEqual({});
         });
     });
 
     describe('transform - html templates', () => {
-        it('returns imports/prepend/replacements for html template', () => {
-            let result = transform.transform(createContext("let x = html`<div>hello</div>`;"));
+        it('returns imports/prepend/replacements for html template', async () => {
+            let result = await transform.transform(await createContext("let x = html`<div>hello</div>`;"));
 
             expect(result.imports).toBeDefined();
             expect(result.imports!.length).toBeGreaterThan(0);
@@ -58,31 +58,31 @@ describe('compiler/transform', () => {
             expect(result.replacements!.length).toBeGreaterThan(0);
         });
 
-        it('import references correct package', () => {
-            let result = transform.transform(createContext("let x = html`<div>hello</div>`;"));
+        it('import references correct package', async () => {
+            let result = await transform.transform(await createContext("let x = html`<div>hello</div>`;"));
             let imp = result.imports![0];
 
             expect(imp.namespace).toBe(NAMESPACE);
             expect(imp.remove).toContain(ENTRYPOINT);
         });
 
-        it('prepend contains template factory definition', () => {
-            let result = transform.transform(createContext("let x = html`<div>hello</div>`;"));
+        it('prepend contains template factory definition', async () => {
+            let result = await transform.transform(await createContext("let x = html`<div>hello</div>`;"));
             let hasTemplate = prepended(result).prepend.some(p => p.includes(NAMESPACE + '.template'));
 
             expect(hasTemplate).toBe(true);
         });
 
-        it('replacement generates code for template', () => {
-            let result = transform.transform(createContext("let x = html`<div>hello</div>`;"));
+        it('replacement generates code for template', async () => {
+            let result = await transform.transform(await createContext("let x = html`<div>hello</div>`;"));
             let sourceFile = EMPTY;
             let code = result.replacements![0].generate(sourceFile, written);
 
             expect(code).toBeTruthy();
         });
 
-        it('handles template with expression slot', () => {
-            let result = transform.transform(createContext("let x = html`<div>${value}</div>`;"));
+        it('handles template with expression slot', async () => {
+            let result = await transform.transform(await createContext("let x = html`<div>${value}</div>`;"));
             let sourceFile = EMPTY;
             let code = result.replacements![0].generate(sourceFile, written);
 
@@ -90,8 +90,8 @@ describe('compiler/transform', () => {
             expect(code).toContain('value');
         });
 
-        it('handles multiple templates in one file', () => {
-            let result = transform.transform(createContext(
+        it('handles multiple templates in one file', async () => {
+            let result = await transform.transform(await createContext(
                 "let a = html`<div>first</div>`;\nlet b = html`<span>second</span>`;"
             ));
 
@@ -101,8 +101,8 @@ describe('compiler/transform', () => {
     });
 
     describe('transform - html.reactive', () => {
-        it('handles standalone html.reactive call', () => {
-            let result = transform.transform(createContext(
+        it('handles standalone html.reactive call', async () => {
+            let result = await transform.transform(await createContext(
                 "let x = html.reactive(items, (item) => html`<li>${item}</li>`);"
             ));
 
@@ -110,8 +110,8 @@ describe('compiler/transform', () => {
             expect(result.replacements!.length).toBeGreaterThan(0);
         });
 
-        it('prepends template definitions from reactive call callbacks', () => {
-            let result = transform.transform(createContext(
+        it('prepends template definitions from reactive call callbacks', async () => {
+            let result = await transform.transform(await createContext(
                 "let x = html.reactive(items, (item) => html`<li>${item}</li>`);"
             ));
 
@@ -122,8 +122,8 @@ describe('compiler/transform', () => {
             expect(hasTemplate).toBe(true);
         });
 
-        it('generates ArraySlot in replacement for reactive call', () => {
-            let result = transform.transform(createContext(
+        it('generates ArraySlot in replacement for reactive call', async () => {
+            let result = await transform.transform(await createContext(
                 "let x = html.reactive(items, (item) => html`<li>${item}</li>`);"
             ));
             let sourceFile = EMPTY;
@@ -132,8 +132,8 @@ describe('compiler/transform', () => {
             expect(code).toContain(NAMESPACE + '.ArraySlot');
         });
 
-        it('html.reactive inside html template is excluded from top-level calls', () => {
-            let result = transform.transform(createContext(
+        it('html.reactive inside html template is excluded from top-level calls', async () => {
+            let result = await transform.transform(await createContext(
                 "let x = html`<div>${html.reactive(items, (item) => html`<li>${item}</li>`)}</div>`;"
             ));
 
@@ -144,8 +144,8 @@ describe('compiler/transform', () => {
     });
 
     describe('transform - mixed content', () => {
-        it('handles both html templates and standalone reactive calls', () => {
-            let result = transform.transform(createContext(
+        it('handles both html templates and standalone reactive calls', async () => {
+            let result = await transform.transform(await createContext(
                 "let a = html`<div>static</div>`;\nlet b = html.reactive(items, (item) => html`<li>${item}</li>`);"
             ));
 

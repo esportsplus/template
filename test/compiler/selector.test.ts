@@ -2,24 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { ts } from '@esportsplus/typescript';
 import { languageService } from '@esportsplus/typescript/compiler';
 import type { TransformContext } from '@esportsplus/typescript/compiler';
-import { selectorComparison } from '../../src/compiler/ts-analyzer';
+import { readCalls, selectorComparison } from '../../src/compiler/ts-analyzer';
 
 import transform from '../../src/compiler';
 import { written } from './written';
 
 
-const EMPTY = languageService.parse(process.cwd() + '/empty.ts', '');
+const EMPTY = await languageService.parse(process.cwd() + '/empty.ts', '');
 
 
-function createCheckerContext(source: string) {
-    let { checker, sourceFile } = languageService.scratch(process.cwd() + '/selector-test.ts', source);
+async function createCheckerContext(source: string) {
+    let { checker, sourceFile } = await languageService.scratch(process.cwd() + '/selector-test.ts', source);
 
     return { checker, sourceFile };
 }
 
 // Syntax only: no checker or program, which the compiler's analysis takes as optional
-function createContext(source: string) {
-    let sourceFile = languageService.parse(process.cwd() + '/test.ts', source);
+async function createContext(source: string) {
+    let sourceFile = await languageService.parse(process.cwd() + '/test.ts', source);
 
     return { code: source, shared: new Map(), sourceFile } as TransformContext;
 }
@@ -44,14 +44,14 @@ function findBinary(node: ts.Node): ts.BinaryExpression | undefined {
     return found;
 }
 
-function generatedCode(source: string): string {
-    let result = transform.transform(createContext(source));
+async function generatedCode(source: string): Promise<string> {
+    let result = await transform.transform(await createContext(source));
 
     return (result.replacements || []).map((r) => r.generate(EMPTY, written)).join('\n');
 }
 
-function signalIntent(source: string) {
-    let result = transform.transform(createContext(source));
+async function signalIntent(source: string) {
+    let result = await transform.transform(await createContext(source));
 
     return (result.imports || []).find(
         (imp) => imp.package === '@esportsplus/reactivity' && (imp.add || []).includes('signal')
@@ -61,8 +61,8 @@ function signalIntent(source: string) {
 
 describe('compiler/selector', () => {
     describe('rewrite', () => {
-        it('rewrites read(sel) === key inside a class binding to signal.selector', () => {
-            let code = generatedCode(
+        it('rewrites read(sel) === key inside a class binding to signal.selector', async () => {
+            let code = await generatedCode(
                 "let x = html`<div class=${() => read(sel) === row.id ? 'danger' : ''}></div>`;"
             );
 
@@ -70,8 +70,8 @@ describe('compiler/selector', () => {
             expect(code).not.toContain('read(sel) === row.id');
         });
 
-        it('emits a negated selector for !==', () => {
-            let code = generatedCode(
+        it('emits a negated selector for !==', async () => {
+            let code = await generatedCode(
                 "let x = html`<div class=${() => read(sel) !== row.id ? 'danger' : ''}></div>`;"
             );
 
@@ -79,8 +79,8 @@ describe('compiler/selector', () => {
             expect(code).not.toContain('read(sel) !== row.id');
         });
 
-        it('matches the lowered read(obj.key) form', () => {
-            let code = generatedCode(
+        it('matches the lowered read(obj.key) form', async () => {
+            let code = await generatedCode(
                 "let x = html`<div class=${() => read(obj.key) === row.id ? 'x' : ''}></div>`;"
             );
 
@@ -88,8 +88,8 @@ describe('compiler/selector', () => {
             expect(code).not.toContain('read(obj.key) === row.id');
         });
 
-        it('leaves read(sel) === key untouched outside an observer arrow', () => {
-            let code = generatedCode('let x = html`<div>${read(sel) === row.id}</div>`;');
+        it('leaves read(sel) === key untouched outside an observer arrow', async () => {
+            let code = await generatedCode('let x = html`<div>${read(sel) === row.id}</div>`;');
 
             expect(code).not.toContain('signal.selector');
             expect(code).toContain('read(sel) === row.id');
@@ -97,19 +97,19 @@ describe('compiler/selector', () => {
     });
 
     describe('import intent', () => {
-        it('adds a signal import from @esportsplus/reactivity when a rewrite fired', () => {
+        it('adds a signal import from @esportsplus/reactivity when a rewrite fired', async () => {
             expect(
-                signalIntent("let x = html`<div class=${() => read(sel) === row.id ? 'x' : ''}></div>`;")
+                await signalIntent("let x = html`<div class=${() => read(sel) === row.id ? 'x' : ''}></div>`;")
             ).toBeDefined();
         });
 
-        it('does not add a signal import when no rewrite fired', () => {
-            expect(signalIntent('let x = html`<div>hello</div>`;')).toBeUndefined();
+        it('does not add a signal import when no rewrite fired', async () => {
+            expect(await signalIntent('let x = html`<div>hello</div>`;')).toBeUndefined();
         });
 
-        it('does not add a signal import when the source already imports signal', () => {
+        it('does not add a signal import when the source already imports signal', async () => {
             expect(
-                signalIntent(
+                await signalIntent(
                     "import { signal } from '@esportsplus/reactivity';\nlet x = html`<div class=${() => read(sel) === row.id ? 'x' : ''}></div>`;"
                 )
             ).toBeUndefined();
@@ -117,14 +117,14 @@ describe('compiler/selector', () => {
     });
 
     describe('read identity (checker-gated)', () => {
-        it('does not match a shadowed local read under a checker', () => {
-            let { checker, sourceFile } = createCheckerContext(
+        it('does not match a shadowed local read under a checker', async () => {
+            let { checker, sourceFile } = await createCheckerContext(
                     'function read(x) { return x; }\nlet x = read(sel) === row.id;'
                 ),
                 binary = findBinary(sourceFile);
 
             expect(binary).toBeDefined();
-            expect(selectorComparison(binary!, checker)).toBeNull();
+            expect(selectorComparison(binary!, await readCalls(checker, sourceFile))).toBeNull();
         });
     });
 });

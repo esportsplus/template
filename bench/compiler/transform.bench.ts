@@ -27,19 +27,19 @@ function build(n: number): string {
 const SOURCE = build(COMPONENTS);
 
 
-let { checker, sourceFile } = languageService.scratch(process.cwd() + '/bench.ts', SOURCE);
+let { checker, sourceFile } = await languageService.scratch(process.cwd() + '/bench.ts', SOURCE);
 
 
 test('compiler — transform (100 components, nested templates + reactive calls)', async ({ bench }) => {
     await bench.compare(
-        bench('findTemplateArtifacts + generateCode', () => {
-            generateCode(findTemplateArtifacts(sourceFile), sourceFile);
+        bench('findTemplateArtifacts + generateCode', async () => {
+            await generateCode(await findTemplateArtifacts(sourceFile), sourceFile);
         }),
-        bench('findTemplateArtifacts + generateCode (with checker)', () => {
-            generateCode(findTemplateArtifacts(sourceFile, checker), sourceFile, checker);
+        bench('findTemplateArtifacts + generateCode (with checker)', async () => {
+            await generateCode(await findTemplateArtifacts(sourceFile, checker), sourceFile, checker);
         }),
-        bench('discovery (findTemplateArtifacts)', () => {
-            findTemplateArtifacts(sourceFile);
+        bench('discovery (findTemplateArtifacts)', async () => {
+            await findTemplateArtifacts(sourceFile);
         })
     );
 });

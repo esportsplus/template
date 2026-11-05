@@ -4,21 +4,21 @@ import { languageService } from '@esportsplus/typescript/compiler';
 import { extractTemplateParts, findTemplateArtifacts } from '../../src/compiler/ts-parser';
 
 
-function createSourceFile(code: string): ts.SourceFile {
-    return languageService.parse(process.cwd() + '/test.ts', code);
+async function createSourceFile(code: string): Promise<ts.SourceFile> {
+    return await languageService.parse(process.cwd() + '/test.ts', code);
 }
 
 
 describe('compiler/ts-parser', () => {
     describe('findTemplateArtifacts - import identity (checker)', () => {
-        function artifacts(code: string) {
-            let { checker, program, sourceFile } = languageService.scratch(process.cwd() + '/identity.ts', code);
+        async function artifacts(code: string) {
+            let { checker, program, sourceFile } = await languageService.scratch(process.cwd() + '/identity.ts', code);
 
-            return findTemplateArtifacts(sourceFile, checker, program);
+            return await findTemplateArtifacts(sourceFile, checker, program);
         }
 
-        it('accepts every use of an unshadowed package import', () => {
-            let { calls, templates } = artifacts([
+        it('accepts every use of an unshadowed package import', async () => {
+            let { calls, templates } = await artifacts([
                 `import { html } from '@esportsplus/template';`,
                 `declare let items: string[];`,
                 `let a = html\`<a></a>\`;`,
@@ -30,17 +30,17 @@ describe('compiler/ts-parser', () => {
             expect(calls.length).toBe(1);
         });
 
-        it('skips a file that imports nothing, and walks one that imports', () => {
+        it('skips a file that imports nothing, and walks one that imports', async () => {
             let body = 'const a = 1; let b = 0; b = a; declare const el: HTMLElement; el.remove();',
-                skipped = artifacts(body),
-                walked = artifacts(`import { x } from './x';\n${body}`);
+                skipped = await artifacts(body),
+                walked = await artifacts(`import { x } from './x';\n${body}`);
 
             expect([skipped.assigned.size, skipped.constants.size, skipped.removals.length]).toEqual([0, 0, 0]);
             expect([walked.assigned.size, walked.constants.size, walked.removals.length]).toEqual([1, 2, 1]);
         });
 
-        it('rejects a template tagged by a parameter that shadows the import', () => {
-            let { templates } = artifacts([
+        it('rejects a template tagged by a parameter that shadows the import', async () => {
+            let { templates } = await artifacts([
                 `import { html } from '@esportsplus/template';`,
                 `let a = html\`<a></a>\`;`,
                 `function other(html: (strings: TemplateStringsArray) => string) { return html\`<b></b>\`; }`
@@ -49,8 +49,8 @@ describe('compiler/ts-parser', () => {
             expect(templates.map(t => t.literals[0])).toEqual(['<a></a>']);
         });
 
-        it('rejects a template tagged by a local const that shadows the import', () => {
-            let { templates } = artifacts([
+        it('rejects a template tagged by a local const that shadows the import', async () => {
+            let { templates } = await artifacts([
                 `import { html } from '@esportsplus/template';`,
                 `let a = html\`<a></a>\`;`,
                 `{ const html = (strings: TemplateStringsArray) => strings[0]; html\`<b></b>\`; }`
@@ -59,8 +59,8 @@ describe('compiler/ts-parser', () => {
             expect(templates.map(t => t.literals[0])).toEqual(['<a></a>']);
         });
 
-        it('rejects html imported from another package', () => {
-            let { templates } = artifacts([
+        it('rejects html imported from another package', async () => {
+            let { templates } = await artifacts([
                 `import { html } from 'lit';`,
                 `let a = html\`<a></a>\`;`
             ].join('\n'));
@@ -68,8 +68,8 @@ describe('compiler/ts-parser', () => {
             expect(templates.length).toBe(0);
         });
 
-        it('accepts templates and calls through an aliased import', () => {
-            let { calls, templates } = artifacts([
+        it('accepts templates and calls through an aliased import', async () => {
+            let { calls, templates } = await artifacts([
                 `import { html as h } from '@esportsplus/template';`,
                 `declare let items: string[];`,
                 `let a = h\`<a></a>\`;`,
@@ -80,8 +80,8 @@ describe('compiler/ts-parser', () => {
             expect(calls.map(call => call.entrypoint)).toEqual(['reactive']);
         });
 
-        it('accepts templates and calls through a namespace import', () => {
-            let { calls, templates } = artifacts([
+        it('accepts templates and calls through a namespace import', async () => {
+            let { calls, templates } = await artifacts([
                 `import * as t from '@esportsplus/template';`,
                 `declare let items: string[];`,
                 `let a = t.html\`<a></a>\`;`,
@@ -92,8 +92,8 @@ describe('compiler/ts-parser', () => {
             expect(calls.map(call => call.entrypoint)).toEqual(['virtual']);
         });
 
-        it('rejects a parameter that shadows an alias', () => {
-            let { templates } = artifacts([
+        it('rejects a parameter that shadows an alias', async () => {
+            let { templates } = await artifacts([
                 `import { html as h } from '@esportsplus/template';`,
                 `let a = h\`<a></a>\`;`,
                 `function other(h: (strings: TemplateStringsArray) => string) { return h\`<b></b>\`; }`
@@ -102,8 +102,8 @@ describe('compiler/ts-parser', () => {
             expect(templates.map(t => t.literals[0])).toEqual(['<a></a>']);
         });
 
-        it('ignores a different export imported under an alias', () => {
-            let { templates } = artifacts([
+        it('ignores a different export imported under an alias', async () => {
+            let { templates } = await artifacts([
                 `import { svg as h } from '@esportsplus/template';`,
                 `let a = h\`<a></a>\`;`
             ].join('\n'));
@@ -111,8 +111,8 @@ describe('compiler/ts-parser', () => {
             expect(templates.length).toBe(0);
         });
 
-        it('ignores a different export imported under the name html', () => {
-            let { templates } = artifacts([
+        it('ignores a different export imported under the name html', async () => {
+            let { templates } = await artifacts([
                 `import { svg as html } from '@esportsplus/template';`,
                 `let a = html\`<a></a>\`;`
             ].join('\n'));
@@ -120,8 +120,8 @@ describe('compiler/ts-parser', () => {
             expect(templates.length).toBe(0);
         });
 
-        it('treats a type position as neither a site nor an escape', () => {
-            let { escapes, templates } = artifacts([
+        it('treats a type position as neither a site nor an escape', async () => {
+            let { escapes, templates } = await artifacts([
                 `import { html } from '@esportsplus/template';`,
                 `type Tag = typeof html;`,
                 `let a = html\`<a></a>\`;`
@@ -131,8 +131,8 @@ describe('compiler/ts-parser', () => {
             expect(escapes).toEqual([]);
         });
 
-        it('follows a const alias and a destructured namespace member', () => {
-            let { escapes, templates } = artifacts([
+        it('follows a const alias and a destructured namespace member', async () => {
+            let { escapes, templates } = await artifacts([
                 `import { html } from '@esportsplus/template';`,
                 `import * as t from '@esportsplus/template';`,
                 `const h = html;`,
@@ -145,8 +145,8 @@ describe('compiler/ts-parser', () => {
             expect(escapes).toEqual([]);
         });
 
-        it('reports every use that cannot be compiled', () => {
-            let { escapes } = artifacts([
+        it('reports every use that cannot be compiled', async () => {
+            let { escapes } = await artifacts([
                 `import { html } from '@esportsplus/template';`,
                 `declare function take(value: unknown): void;`,
                 `let h = html;`,
@@ -168,8 +168,8 @@ describe('compiler/ts-parser', () => {
     });
 
     describe('extractTemplateParts', () => {
-        it('NoSubstitutionTemplateLiteral → single literal, empty expressions', () => {
-            let sourceFile = createSourceFile('let x = `hello world`;');
+        it('NoSubstitutionTemplateLiteral → single literal, empty expressions', async () => {
+            let sourceFile = await createSourceFile('let x = `hello world`;');
             let statement = sourceFile.statements[0] as ts.VariableStatement,
                 declaration = statement.declarationList.declarations[0],
                 template = declaration.initializer! as ts.NoSubstitutionTemplateLiteral;
@@ -179,8 +179,8 @@ describe('compiler/ts-parser', () => {
             expect(result.expressions).toEqual([]);
         });
 
-        it('TemplateExpression → correct literals + expressions', () => {
-            let sourceFile = createSourceFile('let x = `a${1}b${2}c`;');
+        it('TemplateExpression → correct literals + expressions', async () => {
+            let sourceFile = await createSourceFile('let x = `a${1}b${2}c`;');
             let statement = sourceFile.statements[0] as ts.VariableStatement,
                 declaration = statement.declarationList.declarations[0],
                 template = declaration.initializer! as ts.TemplateExpression;
@@ -191,11 +191,11 @@ describe('compiler/ts-parser', () => {
         });
     });
 
-    describe('findTemplateArtifacts().templates', () => {
-        it('single html`` call → returns 1 TemplateInfo with correct literals/expressions', () => {
+    describe('(await findTemplateArtifacts()).templates', () => {
+        it('single html`` call → returns 1 TemplateInfo with correct literals/expressions', async () => {
             let source = `import { html } from '@esportsplus/template';\nlet x = html\`<div>\${value}</div>\`;`;
-            let sourceFile = createSourceFile(source);
-            let templates = findTemplateArtifacts(sourceFile).templates;
+            let sourceFile = await createSourceFile(source);
+            let templates = (await findTemplateArtifacts(sourceFile)).templates;
 
             expect(templates.length).toBe(1);
             expect(templates[0].literals).toEqual(['<div>', '</div>']);
@@ -203,80 +203,80 @@ describe('compiler/ts-parser', () => {
             expect(templates[0].depth).toBe(0);
         });
 
-        it('template with no expressions → single literal, no expressions', () => {
+        it('template with no expressions → single literal, no expressions', async () => {
             let source = `import { html } from '@esportsplus/template';\nlet x = html\`<div>hello</div>\`;`;
-            let sourceFile = createSourceFile(source);
-            let templates = findTemplateArtifacts(sourceFile).templates;
+            let sourceFile = await createSourceFile(source);
+            let templates = (await findTemplateArtifacts(sourceFile)).templates;
 
             expect(templates.length).toBe(1);
             expect(templates[0].literals).toEqual(['<div>hello</div>']);
             expect(templates[0].expressions).toEqual([]);
         });
 
-        it('no html import → still matched by tag name (no checker)', () => {
+        it('no html import → still matched by tag name (no checker)', async () => {
             let source = `let x = html\`<div>hello</div>\`;`;
-            let sourceFile = createSourceFile(source);
-            let templates = findTemplateArtifacts(sourceFile).templates;
+            let sourceFile = await createSourceFile(source);
+            let templates = (await findTemplateArtifacts(sourceFile)).templates;
 
             expect(templates.length).toBe(1);
         });
 
-        it('no html tagged templates at all → returns empty array', () => {
+        it('no html tagged templates at all → returns empty array', async () => {
             let source = `let x = 'hello';`;
-            let sourceFile = createSourceFile(source);
-            let templates = findTemplateArtifacts(sourceFile).templates;
+            let sourceFile = await createSourceFile(source);
+            let templates = (await findTemplateArtifacts(sourceFile)).templates;
 
             expect(templates.length).toBe(0);
         });
 
-        it('multiple html`` calls in same file → all found', () => {
+        it('multiple html`` calls in same file → all found', async () => {
             let source = [
                 `import { html } from '@esportsplus/template';`,
                 `let a = html\`<div>one</div>\`;`,
                 `let b = html\`<span>two</span>\`;`,
                 `let c = html\`<p>\${x}</p>\`;`
             ].join('\n');
-            let sourceFile = createSourceFile(source);
-            let templates = findTemplateArtifacts(sourceFile).templates;
+            let sourceFile = await createSourceFile(source);
+            let templates = (await findTemplateArtifacts(sourceFile)).templates;
 
             expect(templates.length).toBe(3);
         });
 
-        it('html`` inside function body → found correctly', () => {
+        it('html`` inside function body → found correctly', async () => {
             let source = [
                 `import { html } from '@esportsplus/template';`,
                 `function render() {`,
                 `    return html\`<div>\${value}</div>\`;`,
                 `}`
             ].join('\n');
-            let sourceFile = createSourceFile(source);
-            let templates = findTemplateArtifacts(sourceFile).templates;
+            let sourceFile = await createSourceFile(source);
+            let templates = (await findTemplateArtifacts(sourceFile)).templates;
 
             expect(templates.length).toBe(1);
             expect(templates[0].depth).toBe(1);
             expect(templates[0].expressions.length).toBe(1);
         });
 
-        it('nested html`` → returns both with correct depths', () => {
+        it('nested html`` → returns both with correct depths', async () => {
             let source = [
                 `import { html } from '@esportsplus/template';`,
                 `let outer = html\`<div>\${() => html\`<span>inner</span>\`}</div>\`;`
             ].join('\n');
-            let sourceFile = createSourceFile(source);
-            let templates = findTemplateArtifacts(sourceFile).templates;
+            let sourceFile = await createSourceFile(source);
+            let templates = (await findTemplateArtifacts(sourceFile)).templates;
 
             expect(templates.length).toBe(2);
             expect(templates[0].depth).toBeGreaterThanOrEqual(templates[1].depth);
         });
 
-        it('depth ordering: deepest first, then by position ascending', () => {
+        it('depth ordering: deepest first, then by position ascending', async () => {
             let source = [
                 `import { html } from '@esportsplus/template';`,
                 `let a = html\`<div>\${() => html\`<span>deep1</span>\`}</div>\`;`,
                 `let b = html\`<p>shallow</p>\`;`
             ].join('\n');
-            let sourceFile = createSourceFile(source);
-            let templates = findTemplateArtifacts(sourceFile).templates;
+            let sourceFile = await createSourceFile(source);
+            let templates = (await findTemplateArtifacts(sourceFile)).templates;
 
             expect(templates.length).toBe(3);
             expect(templates[0].depth).toBeGreaterThan(templates[1].depth);
@@ -289,14 +289,14 @@ describe('compiler/ts-parser', () => {
         });
     });
 
-    describe('findTemplateArtifacts().calls', () => {
-        it('html.reactive() → returns ReactiveCallInfo with entrypoint and call node', () => {
+    describe('(await findTemplateArtifacts()).calls', () => {
+        it('html.reactive() → returns ReactiveCallInfo with entrypoint and call node', async () => {
             let source = [
                 `import { html } from '@esportsplus/template';`,
                 `let x = html.reactive(items, (item) => html\`<li>\${item}</li>\`);`
             ].join('\n');
-            let sourceFile = createSourceFile(source);
-            let calls = findTemplateArtifacts(sourceFile).calls;
+            let sourceFile = await createSourceFile(source);
+            let calls = (await findTemplateArtifacts(sourceFile)).calls;
 
             expect(calls.length).toBe(1);
             expect(calls[0].entrypoint).toBe('reactive');
@@ -304,10 +304,10 @@ describe('compiler/ts-parser', () => {
             expect(calls[0].start).toBeLessThan(calls[0].end);
         });
 
-        it('no reactive calls → empty array', () => {
+        it('no reactive calls → empty array', async () => {
             let source = `import { html } from '@esportsplus/template';\nlet x = html\`<div>hello</div>\`;`;
-            let sourceFile = createSourceFile(source);
-            let calls = findTemplateArtifacts(sourceFile).calls;
+            let sourceFile = await createSourceFile(source);
+            let calls = (await findTemplateArtifacts(sourceFile)).calls;
 
             expect(calls.length).toBe(0);
         });

@@ -133,12 +133,12 @@ describe('compiler site discovery through tsc', () => {
             built = build(files);
         }, 60000);
 
-        it('builds', () => {
+        it('builds', async () => {
             expect(built.result.error).toBeUndefined();
             expect(built.result.status, built.result.stdout + built.result.stderr).toBe(0);
         });
 
-        it.each(Object.keys(FORMS))('compiles html reached through %s', (name) => {
+        it.each(Object.keys(FORMS))('compiles html reached through %s', async (name) => {
             let output = built.output(name + '.ts');
 
             expect(output).toContain('.template(');
@@ -146,7 +146,7 @@ describe('compiler site discovery through tsc', () => {
             expect(output).not.toContain('reactive({');
         });
 
-        it('leaves html destructured from a module-typed parameter to the runtime', () => {
+        it('leaves html destructured from a module-typed parameter to the runtime', async () => {
             let output = built.output('parameter-destructured.ts');
 
             expect(output).toMatch(/html\s*`<p>/);
@@ -154,7 +154,7 @@ describe('compiler site discovery through tsc', () => {
         });
     });
 
-    it('fails the build on a use of html that cannot be compiled, naming the location', () => {
+    it('fails the build on a use of html that cannot be compiled, naming the location', async () => {
         let { result } = build({
                 'escape.ts': [
                     "import { html } from '@esportsplus/template';",
@@ -179,14 +179,14 @@ describe('compiler removal reporting', () => {
         '}}></div>`;'
     ].join('\n');
 
-    function context(): TransformContext {
-        let { checker, program, sourceFile } = languageService.scratch(root + '/removal-report.ts', SOURCE);
+    async function context(): Promise<TransformContext> {
+        let { checker, program, sourceFile } = await languageService.scratch(root + '/removal-report.ts', SOURCE);
 
         return { checker, code: SOURCE, program, shared: new Map(), sourceFile };
     }
 
-    it('returns removals as warnings at their offset when asked to warn', () => {
-        let result = compiler(true).transform(context());
+    it('returns removals as warnings at their offset when asked to warn', async () => {
+        let result = await compiler(true).transform(await context());
 
         expect(result.replacements?.length).toBeGreaterThan(0);
         expect(result.warnings).toHaveLength(1);
@@ -194,8 +194,8 @@ describe('compiler removal reporting', () => {
         expect(result.warnings![0].message).toMatch(/^`element\.remove` removes or replaces template-owned nodes/);
     });
 
-    it('compiles without looking for removals when not asked to warn, as the tsc path is', () => {
-        let result = transform.transform(context());
+    it('compiles without looking for removals when not asked to warn, as the tsc path is', async () => {
+        let result = await transform.transform(await context());
 
         expect(result.replacements?.length).toBeGreaterThan(0);
         expect(result.prepend?.length).toBeGreaterThan(0);

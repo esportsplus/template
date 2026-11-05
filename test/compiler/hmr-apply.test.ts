@@ -19,9 +19,9 @@ const MAP = { mappings: '', names: [], sources: [], version: 3 };
 
 // The lowered code without the appended tail, the HMR namespace's generated name replaced by NS; null if apply()
 // declined. Every case also runs as JSX, read by the parser rather than the scanner, which must agree.
-function run(code: string, plan: Plan) {
-    let normalize = (id: string) => {
-            let result = apply(code, MAP as unknown as Parameters<typeof apply>[1], id, plan);
+async function run(code: string, plan: Plan) {
+    let normalize = async (id: string) => {
+            let result = await apply(code, MAP as unknown as Parameters<typeof apply>[1], id, plan);
 
             if (result === null) {
                 return null;
@@ -32,9 +32,9 @@ function run(code: string, plan: Plan) {
 
             return result.code.slice(0, tail).replaceAll(namespace, 'NS').replaceAll(JSON.stringify(id), JSON.stringify(ID));
         },
-        scanned = normalize(ID);
+        scanned = await normalize(ID);
 
-    expect(normalize(ID.replace(/\.ts$/, '.tsx'))).toBe(scanned);
+    expect(await normalize(ID.replace(/\.ts$/, '.tsx'))).toBe(scanned);
 
     return scanned;
 }
@@ -58,56 +58,56 @@ describe('compiler/hmr apply', () => {
             ['a regex holding a slash in a class', 'let r = /[/`]export default/;\n'],
             ['a member named export', 'let o = { a: 1 };\no.export = 1;\nlet x = o\n    .export, y = o?.export;\n'],
             ['an unicode line separator in a string', "let s = 'a\\u2028b';\n"]
-        ])('ignores export text in %s', (_label, prefix) => {
-            expect(run(prefix + 'export default value;\n', EAGER)).toBe(
+        ])('ignores export text in %s', async (_label, prefix) => {
+            expect(await run(prefix + 'export default value;\n', EAGER)).toBe(
                 prefix + 'export default NS.eager("/src/module.ts", "default", () => (value));\n'
             );
         });
 
-        it('returns null when a planned site is missing', () => {
-            expect(run('// export default value;\nconst value = 1;\n', EAGER)).toBeNull();
+        it('returns null when a planned site is missing', async () => {
+            expect(await run('// export default value;\nconst value = 1;\n', EAGER)).toBeNull();
         });
     });
 
     describe('assignment', () => {
-        it('wraps the whole expression, up to the semicolon', () => {
-            expect(run('export default factory(a, b) / 2;\n', FACTORY)).toBe(
+        it('wraps the whole expression, up to the semicolon', async () => {
+            expect(await run('export default factory(a, b) / 2;\n', FACTORY)).toBe(
                 'export default NS.factory("/src/module.ts", "default", () => (factory(a, b) / 2));\n'
             );
         });
 
-        it('wraps an expression without a semicolon, ended by the next statement', () => {
-            expect(run('export default value\nexport { other };\n', [...EAGER, { exports: [{ exportId: 'other', local: 'other', wrapper: 'callable' }], kind: 'list' }])).toBe(
+        it('wraps an expression without a semicolon, ended by the next statement', async () => {
+            expect(await run('export default value\nexport { other };\n', [...EAGER, { exports: [{ exportId: 'other', local: 'other', wrapper: 'callable' }], kind: 'list' }])).toBe(
                 'export default NS.eager("/src/module.ts", "default", () => (value))\nexport { __hmr_other as other };\n'
             );
         });
 
-        it('wraps a multi-line expression on its first and last line', () => {
-            expect(run('export default (\n    value\n) as unknown;\n', EAGER)).toBe(
+        it('wraps a multi-line expression on its first and last line', async () => {
+            expect(await run('export default (\n    value\n) as unknown;\n', EAGER)).toBe(
                 'export default NS.eager("/src/module.ts", "default", () => ((\n    value\n) as unknown));\n'
             );
         });
 
-        it('leaves a trailing comment outside the wrapper', () => {
-            expect(run('export default value; // export default\n', EAGER)).toBe(
+        it('leaves a trailing comment outside the wrapper', async () => {
+            expect(await run('export default value; // export default\n', EAGER)).toBe(
                 'export default NS.eager("/src/module.ts", "default", () => (value)); // export default\n'
             );
         });
 
-        it('wraps an async arrow', () => {
-            expect(run('export default async () => value;\n', FACTORY)).toBe(
+        it('wraps an async arrow', async () => {
+            expect(await run('export default async () => value;\n', FACTORY)).toBe(
                 'export default NS.factory("/src/module.ts", "default", () => (async () => value));\n'
             );
         });
 
-        it('wraps an expression holding a template literal and a regex', () => {
-            expect(run('export default `a ${b ? "}" : `${c}`}`.replace(/;/g, \'\');\n', EAGER)).toBe(
+        it('wraps an expression holding a template literal and a regex', async () => {
+            expect(await run('export default `a ${b ? "}" : `${c}`}`.replace(/;/g, \'\');\n', EAGER)).toBe(
                 'export default NS.eager("/src/module.ts", "default", () => (`a ${b ? "}" : `${c}`}`.replace(/;/g, \'\')));\n'
             );
         });
 
-        it('is not matched by a function plan', () => {
-            expect(run('export default value;\n', FUNCTION)).toBeNull();
+        it('is not matched by a function plan', async () => {
+            expect(await run('export default value;\n', FUNCTION)).toBeNull();
         });
     });
 
@@ -120,22 +120,22 @@ describe('compiler/hmr apply', () => {
             ['a function returning a union of object types', 'export default function view(): { a: 1 } | Map<string, { b: 2 }> {\n    return { a: 1 };\n}\n', 'function view(): { a: 1 } | Map<string, { b: 2 }> {\n    return { a: 1 };\n}'],
             ['a function returning a function type', 'export default function view(): (a: { b: 1 }) => void {\n    return () => {};\n}\n', 'function view(): (a: { b: 1 }) => void {\n    return () => {};\n}'],
             ['a generic generator', 'export default function* view<T extends { a: 1 }>(a: T) {\n    yield a;\n}\n', 'function* view<T extends { a: 1 }>(a: T) {\n    yield a;\n}']
-        ])('wraps %s', (_label, code, body) => {
-            expect(run(code, FUNCTION)).toBe(`export default NS.factory("/src/module.ts", "default", () => (${body}));\n`);
+        ])('wraps %s', async (_label, code, body) => {
+            expect(await run(code, FUNCTION)).toBe(`export default NS.factory("/src/module.ts", "default", () => (${body}));\n`);
         });
 
-        it('is not matched by an assignment plan', () => {
-            expect(run('export default async function view() {}\n', FACTORY)).toBeNull();
+        it('is not matched by an assignment plan', async () => {
+            expect(await run('export default async function view() {}\n', FACTORY)).toBeNull();
         });
 
-        it('does not take a default class for a site', () => {
-            expect(run('export default class View {}\n', FACTORY)).toBeNull();
+        it('does not take a default class for a site', async () => {
+            expect(await run('export default class View {}\n', FACTORY)).toBeNull();
         });
     });
 
     describe('list', () => {
-        it('wraps a default and a named export in one list', () => {
-            expect(run('function a() {}\nfunction b() {}\nexport { a as default, b };\n', [{
+        it('wraps a default and a named export in one list', async () => {
+            expect(await run('function a() {}\nfunction b() {}\nexport { a as default, b };\n', [{
                 exports: [
                     { exportId: 'default', local: 'a', wrapper: 'factory' },
                     { exportId: 'b', local: 'b', wrapper: 'callable' }
@@ -144,8 +144,8 @@ describe('compiler/hmr apply', () => {
             }])).toBe('function a() {}\nfunction b() {}\nexport { __hmr_a as default, __hmr_b as b };\n');
         });
 
-        it('wraps a multi-line list', () => {
-            expect(run('export {\n    a,\n    // b\n    c as d\n};\n', [{
+        it('wraps a multi-line list', async () => {
+            expect(await run('export {\n    a,\n    // b\n    c as d\n};\n', [{
                 exports: [
                     { exportId: 'a', local: 'a', wrapper: 'callable' },
                     { exportId: 'd', local: 'c', wrapper: 'callable' }
@@ -154,20 +154,20 @@ describe('compiler/hmr apply', () => {
             }])).toBe('export {\n    __hmr_a as a,\n    // b\n    __hmr_c as d\n};\n');
         });
 
-        it('takes a type-only list for a list, as the parser does', () => {
-            expect(run('export type { a };\n', [{ exports: [{ exportId: 'a', local: 'a', wrapper: 'callable' }], kind: 'list' }])).toBe(
+        it('takes a type-only list for a list, as the parser does', async () => {
+            expect(await run('export type { a };\n', [{ exports: [{ exportId: 'a', local: 'a', wrapper: 'callable' }], kind: 'list' }])).toBe(
                 'export type { __hmr_a as a };\n'
             );
         });
 
-        it('appends a wrapper per export', () => {
-            let result = apply('export { a as default, b };\n', MAP as unknown as Parameters<typeof apply>[1], ID, [{
+        it('appends a wrapper per export', async () => {
+            let result = (await apply('export { a as default, b };\n', MAP as unknown as Parameters<typeof apply>[1], ID, [{
                     exports: [
                         { exportId: 'default', local: 'a', wrapper: 'factory' },
                         { exportId: 'b', local: 'b', wrapper: 'callable' }
                     ],
                     kind: 'list'
-                }])!;
+                }]))!;
 
             expect(result.code).toMatch(/const __hmr_a = \w+\.factory\("\/src\/module\.ts", "default", \(\) => a\);/);
             expect(result.code).toMatch(/const __hmr_b = \w+\.callable\("\/src\/module\.ts", "b", \(\) => b\);/);
@@ -179,8 +179,8 @@ describe('compiler/hmr apply', () => {
             ['a star re-export', "export * from './a';\n"],
             ['an exported const', 'export const a = 1;\n'],
             ['an exported function', 'export function a() {}\n']
-        ])('does not take %s for a site', (_label, code) => {
-            expect(run(code + 'export default value;\n', EAGER)).toBe(
+        ])('does not take %s for a site', async (_label, code) => {
+            expect(await run(code + 'export default value;\n', EAGER)).toBe(
                 code + 'export default NS.eager("/src/module.ts", "default", () => (value));\n'
             );
         });
@@ -188,21 +188,21 @@ describe('compiler/hmr apply', () => {
         it.each([
             ['a different export name', [{ exportId: 'c', local: 'a', wrapper: 'callable' }]],
             ['a different export count', [{ exportId: 'a', local: 'a', wrapper: 'callable' }, { exportId: 'b', local: 'b', wrapper: 'callable' }]]
-        ] as const)('returns null on %s', (_label, exports) => {
-            expect(run('export { a };\n', [{ exports: [...exports], kind: 'list' }])).toBeNull();
+        ] as const)('returns null on %s', async (_label, exports) => {
+            expect(await run('export { a };\n', [{ exports: [...exports], kind: 'list' }])).toBeNull();
         });
     });
 
-    it('returns null when the code has more sites than the plan', () => {
-        expect(run('export default value;\nexport { a };\n', EAGER)).toBeNull();
+    it('returns null when the code has more sites than the plan', async () => {
+        expect(await run('export default value;\nexport { a };\n', EAGER)).toBeNull();
     });
 
-    it('keeps sites in source order', () => {
-        expect(run('export { a };\nexport default value;\n', EAGER)).toBeNull();
+    it('keeps sites in source order', async () => {
+        expect(await run('export { a };\nexport default value;\n', EAGER)).toBeNull();
     });
 
-    it('picks wrapper names the code does not use', () => {
-        expect(run('const __hmr_a = 1;\nexport { a };\n', [{ exports: [{ exportId: 'a', local: 'a', wrapper: 'callable' }], kind: 'list' }])).toBe(
+    it('picks wrapper names the code does not use', async () => {
+        expect(await run('const __hmr_a = 1;\nexport { a };\n', [{ exports: [{ exportId: 'a', local: 'a', wrapper: 'callable' }], kind: 'list' }])).toBe(
             'const __hmr_a = 1;\nexport { __hmr_a_1 as a };\n'
         );
     });

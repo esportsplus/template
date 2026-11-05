@@ -15,12 +15,17 @@ const tick = () => Promise.resolve();
 // A compiled template's root element: the result itself for a single-root template, else its fragment's first child
 const top = (node: any) => node.nodeType === 11 ? node.firstChild : node;
 
-function compile(source: string, args: Record<string, unknown> = {}, checked = true) {
+async function compile(source: string, args: Record<string, unknown> = {}, checked = true) {
+    return run(await lower(source, checked), args);
+}
+
+// Lowers 'source' to the code run() evaluates, so a caller can evaluate it inside a reactive root
+async function lower(source: string, checked = true) {
     let parsed = checked
-            ? languageService.scratch(process.cwd() + '/mixed-fixture.ts', source)
-            : { checker: undefined, sourceFile: languageService.parse(process.cwd() + '/mixed-fixture.ts', source) },
+            ? await languageService.scratch(process.cwd() + '/mixed-fixture.ts', source)
+            : { checker: undefined, sourceFile: await languageService.parse(process.cwd() + '/mixed-fixture.ts', source) },
         { sourceFile, checker } = parsed,
-        result = prepended(generateCode(findTemplateArtifacts(sourceFile), sourceFile, checker)),
+        result = prepended(await generateCode(await findTemplateArtifacts(sourceFile), sourceFile, checker)),
         output = source;
 
     for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
@@ -28,8 +33,11 @@ function compile(source: string, args: Record<string, unknown> = {}, checked = t
     }
 
     output = result.prepend.join('\n') + '\n' + output;
-    let js = stripTypeScriptTypes(output);
 
+    return { js: stripTypeScriptTypes(output), output, result };
+}
+
+function run({ js, output, result }: Awaited<ReturnType<typeof lower>>, args: Record<string, unknown> = {}) {
     return {
         output,
         result,
@@ -41,12 +49,12 @@ function compile(source: string, args: Record<string, unknown> = {}, checked = t
 afterEach(() => document.body.replaceChildren());
 
 describe('compiled regressions', () => {
-    it('lowers an html.reactive nested in another html.reactive callback exactly once', () => {
+    it('lowers an html.reactive nested in another html.reactive callback exactly once', async () => {
         let a = reactive(['a', 'b']),
             c = reactive(['c']),
             rows = reactive([a, c]);
 
-        let { output, value } = compile(
+        let { output, value } = await compile(
             'let value = html`<table>${html.reactive(rows, (r) => html`<tr>${html.reactive(r, (c) => html`<td>${c}</td>`)}</tr>`)}</table>`;',
             { rows },
             false
@@ -56,12 +64,12 @@ describe('compiled regressions', () => {
         expect(top(value).textContent).toBe('abc');
     });
 
-    it('lowers top-level nested html.reactive calls without overlapping replacements', () => {
+    it('lowers top-level nested html.reactive calls without overlapping replacements', async () => {
         let a = reactive(['a', 'b']),
             c = reactive(['c']),
             rows = reactive([a, c]);
 
-        let { output, value } = compile(
+        let { output, value } = await compile(
             'let value = html.reactive(rows, (r) => html.reactive(r, (c) => html`<i>${c}</i>`).fragment).fragment;',
             { rows },
             false
@@ -71,11 +79,11 @@ describe('compiled regressions', () => {
         expect(value.textContent).toBe('abc');
     });
 
-    it('renders a conditional between two html.reactive calls', () => {
+    it('renders a conditional between two html.reactive calls', async () => {
         let a = reactive(['x', 'y']),
             b = reactive(['z']);
 
-        let { output, value } = compile(
+        let { output, value } = await compile(
             'let value = html`<ul>${flag ? html.reactive(a, (v) => html`<li>${v}</li>`) : html.reactive(b, (v) => html`<li>${v}</li>`)}</ul>`;',
             { a, b, flag: true },
             false
@@ -85,15 +93,15 @@ describe('compiled regressions', () => {
         expect(top(value).textContent).toBe('xy');
     });
 
-    it('does not bake false into a static attribute', () => {
-        let { result, value } = compile('let value = html`<input disabled=${false}>`;');
+    it('does not bake false into a static attribute', async () => {
+        let { result, value } = await compile('let value = html`<input disabled=${false}>`;');
 
         expect([...result.templates.keys()].join('')).not.toContain('disabled');
         expect(top(value).disabled).toBe(false);
     });
 
-    it('keeps nested arrow templates as block bodies inside a specialized template', () => {
-        let { output, value } = compile(
+    it('keeps nested arrow templates as block bodies inside a specialized template', async () => {
+        let { output, value } = await compile(
             'const factory = (kind: "a" | "b", xs: string[]) => html`<ul class="${kind}">${xs.map((x) => html`<li>${x}</li>`)}</ul>`; let value = factory("a", ["1", "2"]);'
         );
 
@@ -102,8 +110,8 @@ describe('compiled regressions', () => {
         expect(top(value).textContent).toBe('12');
     });
 
-    it('specializes a parameter whose name is also a property name', () => {
-        let { output, result, value } = compile('const factory = (kind: "a" | "b", o: { kind: string }) => html`<div class="${o.kind} ${kind}"></div>`; let value = factory("b", { kind: "x" });');
+    it('specializes a parameter whose name is also a property name', async () => {
+        let { output, result, value } = await compile('const factory = (kind: "a" | "b", o: { kind: string }) => html`<div class="${o.kind} ${kind}"></div>`; let value = factory("b", { kind: "x" });');
 
         // The folded token is a compile-time static of the class call, so every variant clones one template
         expect(result.templates.size).toBe(1);
@@ -113,8 +121,8 @@ describe('compiled regressions', () => {
         expect([...top(value).classList].sort((a, b) => a.localeCompare(b))).toEqual(['b', 'x']);
     });
 
-    it('keeps falsy folds out of whole attribute values', () => {
-        let { result, value } = compile('const EMPTY = ""; const ZERO = 0; let value = html`<div hidden=${ZERO} title="${EMPTY}" data-a=${EMPTY}>${ZERO}${EMPTY}</div>`;');
+    it('keeps falsy folds out of whole attribute values', async () => {
+        let { result, value } = await compile('const EMPTY = ""; const ZERO = 0; let value = html`<div hidden=${ZERO} title="${EMPTY}" data-a=${EMPTY}>${ZERO}${EMPTY}</div>`;');
         let html = [...result.templates.keys()].join('');
 
         expect(html).not.toContain('hidden');
@@ -126,22 +134,22 @@ describe('compiled regressions', () => {
         expect(top(value).textContent).toBe('0');
     });
 
-    it('still folds falsy values into partial attribute values', () => {
-        let { result } = compile('const ZERO = 0; let value = html`<div title="n${ZERO}"></div>`;');
+    it('still folds falsy values into partial attribute values', async () => {
+        let { result } = await compile('const ZERO = 0; let value = html`<div title="n${ZERO}"></div>`;');
 
         expect([...result.templates.keys()].join('')).toContain('title=n0');
     });
 
-    it('rejects html.reactive with an options argument', () => {
-        expect(() => compile('let value = html`<ul>${html.reactive(a, (v) => html`<li>${v}</li>`, {})}</ul>`;', {}, false))
-            .toThrow('html.reactive() expects 2 arguments');
+    it('rejects html.reactive with an options argument', async () => {
+        await expect(compile('let value = html`<ul>${html.reactive(a, (v) => html`<li>${v}</li>`, {})}</ul>`;', {}, false))
+            .rejects.toThrow('html.reactive() expects 2 arguments');
     });
 });
 
 describe('compiled mixed attribute values', () => {
     it('keeps neighboring class effects separate from a runtime base', async () => {
         let active = signal(false),
-            { value: node } = compile('let value = html`<div class="${base} ${() => active() && "--active"}"></div>`;', {
+            { value: node } = await compile('let value = html`<div class="${base} ${() => active() && "--active"}"></div>`;', {
                 active: () => read(active), base: 'checkbox checkbox--radio'
             });
         let element = top(node) as HTMLElement;
@@ -154,15 +162,15 @@ describe('compiled mixed attribute values', () => {
         expect(document.body.firstChild).toBe(element);
     });
 
-    it('preserves quoted spaces and concatenates numeric values as text', () => {
-        let { value } = compile('let value = html`<div title="${first}  ${last}" data-pair="${first}${last}"></div>`;', { first: 1, last: 2 });
+    it('preserves quoted spaces and concatenates numeric values as text', async () => {
+        let { value } = await compile('let value = html`<div title="${first}  ${last}" data-pair="${first}${last}"></div>`;', { first: 1, last: 2 });
         expect(top(value).title).toBe('1  2');
         expect(top(value).getAttribute('data-pair')).toBe('12');
     });
 
     it('resolves callback identifiers in prefixed classes and styles reactively', async () => {
         let size = signal(12),
-            { value } = compile('let value = html`<div class="item-${getter}" style="width: ${getter}px" title="size ${getter}"></div>`;', { getter: () => read(size) });
+            { value } = await compile('let value = html`<div class="item-${getter}" style="width: ${getter}px" title="size ${getter}"></div>`;', { getter: () => read(size) });
         let element = top(value) as HTMLElement;
         expect(element.className).toBe('item-12');
         expect(element.style.width).toBe('12px');
@@ -172,13 +180,13 @@ describe('compiled mixed attribute values', () => {
         expect(element.title).toBe('size 24');
     });
 
-    it('preserves whitespace in static quoted attributes', () => {
-        let { value } = compile('let value = html`<div title="first  last" data-value="a\tb"></div>`;');
+    it('preserves whitespace in static quoted attributes', async () => {
+        let { value } = await compile('let value = html`<div title="first  last" data-value="a\tb"></div>`;');
         expect(top(value).title).toBe('first  last');
         expect(top(value).getAttribute('data-value')).toBe('a\tb');
     });
 
-    it.each([' ', '\t', '\n'])('separates class marker groups on %j', whitespace => {
+    it.each([' ', '\t', '\n'])('separates class marker groups on %j', async whitespace => {
         let parsed = parser.parse(['<div class="', whitespace, '"></div>']);
         let slot = parsed.slots![0];
         if (slot.type !== 'attribute') throw new Error('Expected attribute');
@@ -195,7 +203,7 @@ describe('compiled mixed attribute values', () => {
                 '};',
                 "let value = ['checkbox', 'radio', 'switch'].map(type => factory(type)());"
             ].join('\n'),
-            { output, value } = compile(source, { active: () => read(active) });
+            { output, value } = await compile(source, { active: () => read(active) });
         for (let name of ['checkbox', 'checkbox checkbox--radio', 'switch']) {
             expect(output).toContain(`["${name}", `);
         }
@@ -209,7 +217,7 @@ describe('compiled mixed attribute values', () => {
 
     it.each([true, false])('supports two independent class callbacks (checker: %s)', async checked => {
         let first = signal(false), second = signal(false), firstRuns = 0, secondRuns = 0;
-        let { value } = compile('let value = html`<div class="fixed ${one} ${two}"></div>`;', {
+        let { value } = await compile('let value = html`<div class="fixed ${one} ${two}"></div>`;', {
             one: () => { firstRuns++; return read(first) && 'one'; },
             two: () => { secondRuns++; return read(second) && 'two'; }
         }, checked);
@@ -224,9 +232,11 @@ describe('compiled mixed attribute values', () => {
 
     it('captures factories once, passes the element, and disposes composed effects', async () => {
         let state = signal('a'), calls: string[] = [], element: HTMLElement | undefined, dispose = () => {};
+        let lowered = await lower('let value = html`<div title="before ${make()} after ${suffix()}"></div>`;');
+
         let { value } = root(stop => {
             dispose = stop;
-            return compile('let value = html`<div title="before ${make()} after ${suffix()}"></div>`;', {
+            return run(lowered, {
                 make: () => { calls.push('make'); return (el: HTMLElement) => { element = el; calls.push('read'); return read(state); }; },
                 suffix: () => { calls.push('suffix'); return '!'; }
             });
@@ -242,7 +252,7 @@ describe('compiled mixed attribute values', () => {
 
     it('normalizes absent callback fragments without losing zero or standalone arrays', async () => {
         let state = signal<unknown>(false),
-            { value } = compile('let value = html`<div title="[${getter}]" class="base ${classes}"></div>`;', {
+            { value } = await compile('let value = html`<div title="[${getter}]" class="base ${classes}"></div>`;', {
                 classes: ['one', () => 'two'], getter: () => read(state)
             });
         expect(top(value).title).toBe('[]');
@@ -253,9 +263,9 @@ describe('compiled mixed attribute values', () => {
         }
     });
 
-    it('does not invoke event callbacks as interpolation getters', () => {
+    it('does not invoke event callbacks as interpolation getters', async () => {
         let calls = 0;
-        let { value } = compile('let value = html`<button class="${base} ${() => "ready"}" onclick=${handler}></button>`;', {
+        let { value } = await compile('let value = html`<button class="${base} ${() => "ready"}" onclick=${handler}></button>`;', {
             base: 'button', handler: () => calls++
         });
         document.body.append(value);
@@ -264,15 +274,15 @@ describe('compiled mixed attribute values', () => {
         expect(calls).toBe(1);
     });
 
-    it('keeps literal-returning effects as runtime callbacks while folding constants', () => {
-        let { value, output } = compile('const base = "static"; let value = html`<div class="${base} ${() => "dynamic"}"></div>`;');
+    it('keeps literal-returning effects as runtime callbacks while folding constants', async () => {
+        let { value, output } = await compile('const base = "static"; let value = html`<div class="${base} ${() => "dynamic"}"></div>`;');
         expect(output).toContain('["static", () => "dynamic"]');
         expect(output).toContain('() => "dynamic"');
         expect(top(value).className).toBe('static dynamic');
     });
 
-    it('retains generic behavior for unexpected runtime factory values', () => {
-        let { value } = compile('const factory = (type: "checkbox" | "radio") => () => html`<div class="${type} ${() => "ready"}"></div>`; let value = factory(actual)();', { actual: 'other' });
+    it('retains generic behavior for unexpected runtime factory values', async () => {
+        let { value } = await compile('const factory = (type: "checkbox" | "radio") => () => html`<div class="${type} ${() => "ready"}"></div>`; let value = factory(actual)();', { actual: 'other' });
         expect(top(value).className).toBe('other ready');
     });
 
@@ -281,57 +291,57 @@ describe('compiled mixed attribute values', () => {
         'const mutate = () => { type = "radio"; }; mutate();',
         '({ type } = { type: "radio" });',
         'for (type of ["radio"] as const) {}'
-    ])('does not specialize a mutated parameter: %s', mutation => {
-        let { value, result } = compile('const factory = (type: "checkbox" | "radio") => { ' + mutation + ' return () => html`<div class="${type} ${() => "ready"}"></div>`; }; let value = factory("checkbox")();');
+    ])('does not specialize a mutated parameter: %s', async mutation => {
+        let { value, result } = await compile('const factory = (type: "checkbox" | "radio") => { ' + mutation + ' return () => html`<div class="${type} ${() => "ready"}"></div>`; }; let value = factory("checkbox")();');
         expect(result.templates.size).toBe(1);
         expect(top(value).className).toBe('radio ready');
     });
 
-    it('caps finite variant expansion', () => {
+    it('caps finite variant expansion', async () => {
         let types = Array.from({ length: 17 }, (_, index) => JSON.stringify('t' + index)).join(' | ');
-        let { value, result } = compile('const factory = (type: ' + types + ') => () => html`<div class="${type} ${() => "ready"}"></div>`; let value = factory("t0")();');
+        let { value, result } = await compile('const factory = (type: ' + types + ') => () => html`<div class="${type} ${() => "ready"}"></div>`; let value = factory("t0")();');
         expect(result.templates.size).toBe(1);
         expect(top(value).className).toBe('t0 ready');
     });
 
-    it('does not eliminate getter reads because their return type is a literal', () => {
-        let { value } = compile('let calls = 0; const data = { get value(): "a" { calls++; return "a"; } }; let node = html`<div title="${data.value}"></div>`; let value = { node, calls };');
+    it('does not eliminate getter reads because their return type is a literal', async () => {
+        let { value } = await compile('let calls = 0; const data = { get value(): "a" { calls++; return "a"; } }; let node = html`<div title="${data.value}"></div>`; let value = { node, calls };');
         expect(value.calls).toBe(1);
         expect(top(value.node).title).toBe('a');
     });
 
-    it('does not freeze mutable literal-typed values', () => {
-        let { value } = compile('let type = "a" as "a" | "b"; const render = () => html`<div class="${type} ${() => "ready"}"></div>`; type = "b"; let value = render();');
+    it('does not freeze mutable literal-typed values', async () => {
+        let { value } = await compile('let type = "a" as "a" | "b"; const render = () => html`<div class="${type} ${() => "ready"}"></div>`; type = "b"; let value = render();');
         expect(top(value).className).toBe('b ready');
     });
 
-    it('keeps specialization caches isolated across nested factory templates', () => {
-        let { output, value } = compile('const factory = (type: "checkbox" | "radio") => () => html`<section>${html`<div class="${type} ${() => "ready"}"></div>`}</section>`; let value = [factory("checkbox")(), factory("radio")()];');
+    it('keeps specialization caches isolated across nested factory templates', async () => {
+        let { output, value } = await compile('const factory = (type: "checkbox" | "radio") => () => html`<section>${html`<div class="${type} ${() => "ready"}"></div>`}</section>`; let value = [factory("checkbox")(), factory("radio")()];');
         expect(value.map((fragment: DocumentFragment) => fragment.querySelector('div')!.className)).toEqual(['checkbox ready', 'radio ready']);
         expect(output).toContain('["checkbox", () => "ready"]');
         expect(output).toContain('["radio", () => "ready"]');
     });
 
-    it('specializes multiple immutable parameters without sharing the wrong clone', () => {
-        let { output, value } = compile('const factory = (type: "a" | "b", size: 1 | 2) => () => html`<div class="${type + size} ${() => "ready"}"></div>`; let value = [factory("a", 1)(), factory("b", 2)()];');
+    it('specializes multiple immutable parameters without sharing the wrong clone', async () => {
+        let { output, value } = await compile('const factory = (type: "a" | "b", size: 1 | 2) => () => html`<div class="${type + size} ${() => "ready"}"></div>`; let value = [factory("a", 1)(), factory("b", 2)()];');
         expect(value.map((fragment: DocumentFragment) => top(fragment).className)).toEqual(['a1 ready', 'b2 ready']);
         for (let name of ['a1', 'a2', 'b1', 'b2']) expect(output).toContain(`["${name}", `);
     });
 
-    it('retains runtime calls even when their declared result is a literal', () => {
-        let { value } = compile('let calls = 0; const get = (): "a" => { calls++; return actual; }; const type = get(); let node = html`<div class="${type} ${() => "ready"}"></div>`; let value = { node, calls };', { actual: 'runtime' });
+    it('retains runtime calls even when their declared result is a literal', async () => {
+        let { value } = await compile('let calls = 0; const get = (): "a" => { calls++; return actual; }; const type = get(); let node = html`<div class="${type} ${() => "ready"}"></div>`; let value = { node, calls };', { actual: 'runtime' });
         expect(value.calls).toBe(1);
         expect(top(value.node).className).toBe('runtime ready');
     });
 
-    it('does not eliminate object-producing calls when reading literal-typed properties', () => {
-        let { value } = compile('let calls = 0; const get = () => { calls++; return { type: "a" as const }; }; let node = html`<div title="${get().type}"></div>`; let value = { node, calls };');
+    it('does not eliminate object-producing calls when reading literal-typed properties', async () => {
+        let { value } = await compile('let calls = 0; const get = () => { calls++; return { type: "a" as const }; }; let node = html`<div title="${get().type}"></div>`; let value = { node, calls };');
         expect(value.calls).toBe(1);
         expect(top(value.node).title).toBe('a');
     });
 
-    it('folds pure constant conditionals without folding the following callback', () => {
-        let { output, value } = compile('const type = "radio"; let value = html`<div class="${type === "radio" ? "checkbox checkbox--radio" : type} ${() => "ready"}"></div>`;');
+    it('folds pure constant conditionals without folding the following callback', async () => {
+        let { output, value } = await compile('const type = "radio"; let value = html`<div class="${type === "radio" ? "checkbox checkbox--radio" : type} ${() => "ready"}"></div>`;');
         expect(output).toContain('["checkbox checkbox--radio", () => "ready"]');
         expect(top(value).className).toBe('checkbox checkbox--radio ready');
     });
@@ -343,17 +353,16 @@ describe('compiled host bindings and unquoted attributes', () => {
         '<button ondocumentkeydown="${handler}" aria-label=${label} data-state=${() => "ready"}></button>',
         '<button ${{ ondocumentkeydown: handler }} aria-label=${label} data-state=${() => "ready"}></button>',
         '<button ${properties} aria-label=${label} data-state=${() => "ready"}></button>'
-    ])('registers and releases with its owner %s', markup => {
+    ])('registers and releases with its owner %s', async markup => {
+        let lowered = await lower('let value = html`' + markup + '`;');
+
         let calls = 0,
             dispose = () => {},
             handler = () => { calls++; },
             { value, result } = root(stop => {
                 dispose = stop;
 
-                return compile(
-                    'let value = html`' + markup + '`;',
-                    { handler, label: 'Search', properties: { ondocumentkeydown: handler } }
-                );
+                return run(lowered, { handler, label: 'Search', properties: { ondocumentkeydown: handler } });
             }),
             element = top(value) as runtime.Element;
 
@@ -391,8 +400,8 @@ describe('compiled host bindings and unquoted attributes', () => {
         ['onwindowresize', 'onwindow', "'resize', handler);"],
         ['onDocumentKeyDown', 'ondocument', "'keydown', handler);"],
         ['onDOMContentLoaded', 'delegate', "'domcontentloaded', handler);"]
-    ])('compiles %s through %s', (name, route, tail) => {
-        let { output, result } = compile('let value = html`<button ' + name + '=${handler}></button>`;', { handler: () => {} }),
+    ])('compiles %s through %s', async (name, route, tail) => {
+        let { output, result } = await compile('let value = html`<button ' + name + '=${handler}></button>`;', { handler: () => {} }),
             hoisted = result.prepend.find(line => line.endsWith('= { once: true };'));
 
         expect(hoisted === undefined).toBe(!tail.includes('ONCE'));
@@ -400,7 +409,9 @@ describe('compiled host bindings and unquoted attributes', () => {
         expect(output).toContain(hoisted ? tail.replace('ONCE', hoisted.slice('const '.length, hoisted.indexOf(' ='))) : tail);
     });
 
-    it('once bindings fire a single time and window bindings receive the owner', () => {
+    it('once bindings fire a single time and window bindings receive the owner', async () => {
+        let lowered = await lower('let value = html`<button onceclick=${click} onwindowresize=${resize}></button>`;');
+
         let clicks = 0,
             dispose = () => {},
             resizes = 0,
@@ -408,11 +419,8 @@ describe('compiled host bindings and unquoted attributes', () => {
             { value } = root(stop => {
                 dispose = stop;
 
-                return compile(
-                    'let value = html`<button onceclick=${click} onwindowresize=${resize}></button>`;',
-                    // oxlint-disable-next-line typescript/no-this-alias -- captures the receiver the runtime binds
-                    { click: () => { clicks++; }, resize: function (this: unknown) { resizes++; self = this; } }
-                );
+                return run(lowered, // oxlint-disable-next-line typescript/no-this-alias -- captures the receiver the runtime binds
+                    { click: () => { clicks++; }, resize: function (this: unknown) { resizes++; self = this; } });
             }),
             element = top(value) as HTMLElement;
 
@@ -433,15 +441,14 @@ describe('compiled host bindings and unquoted attributes', () => {
     });
 
     it('unquoted aria effects update without swallowing the next attribute', async () => {
+        let lowered = await lower('let value = html`<button aria-label=${() => state()} type="button" data-static="kept"></button>`;');
+
         let dispose = () => {},
             state = signal('first'),
             { value } = root(stop => {
                 dispose = stop;
 
-                return compile(
-                    'let value = html`<button aria-label=${() => state()} type="button" data-static="kept"></button>`;',
-                    { state: () => read(state) }
-                );
+                return run(lowered, { state: () => read(state) });
             }),
             element = top(value) as HTMLElement;
 

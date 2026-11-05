@@ -63,7 +63,7 @@ describe('mixed attributes through compiler plugins', () => {
             let plugin = vite({ root: fixture });
             plugin.configResolved({ command: 'build', root: fixture });
             for (let [name, source] of Object.entries(sources)) {
-                outputs[name] = plugin.transform.handler(source, join(fixture, name + '.ts').replace(/\\/g, '/'))?.code ?? source;
+                outputs[name] = (await plugin.transform.handler(source, join(fixture, name + '.ts').replace(/\\/g, '/')))?.code ?? source;
             }
         }
         else {
@@ -120,7 +120,7 @@ describe('mixed attributes through compiler plugins', () => {
         }
     }, 30000);
 
-    it('preserves Vite HMR wrapping for a specialized factory export', () => {
+    it('preserves Vite HMR wrapping for a specialized factory export', async () => {
         let fixture = mkdtempSync(join(root, '.fixture-mixed-'));
         fixtures.push(fixture);
         let path = join(fixture, 'factory.ts'),
@@ -129,7 +129,7 @@ describe('mixed attributes through compiler plugins', () => {
         writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, target: 'esnext', types: [] }, files: ['./factory.ts'] }));
         let plugin = vite({ root: fixture });
         plugin.configResolved({ command: 'serve', root: fixture, server: {} });
-        let output = plugin.transform.handler(source, path.replace(/\\/g, '/'))!.code;
+        let output = (await plugin.transform.handler(source, path.replace(/\\/g, '/')))!.code;
         expect(output).toContain('import.meta.hot.accept(');
         expect(output).toContain('.factory(');
         expect(output).toContain('["checkbox checkbox--radio", ');
@@ -155,7 +155,7 @@ describe('mixed attributes through compiler plugins', () => {
         writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, target: 'esnext', types: [] }, files: ['./lists.ts'] }));
         let plugin = vite({ root: fixture });
         plugin.configResolved({ command: 'build', root: fixture });
-        let output = plugin.transform.handler(source, path.replace(/\\/g, '/'))!.code,
+        let output = (await plugin.transform.handler(source, path.replace(/\\/g, '/')))!.code,
             { state, view } = execute(output, { '@esportsplus/reactivity': reactivity, '@esportsplus/template': runtime })();
         document.body.append(view);
         let element = document.body.firstElementChild as HTMLElement;
@@ -177,7 +177,7 @@ describe('mixed attributes through compiler plugins', () => {
         expect(element.style.opacity).toBe('0');
     });
 
-    it('compiles templates written through an alias and a namespace import', () => {
+    it('compiles templates written through an alias and a namespace import', async () => {
         let fixture = mkdtempSync(join(root, '.fixture-mixed-'));
         fixtures.push(fixture);
         let path = join(fixture, 'alias.ts'),
@@ -190,7 +190,7 @@ describe('mixed attributes through compiler plugins', () => {
         writeFileSync(join(fixture, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, target: 'esnext', types: [] }, files: ['./alias.ts'] }));
         let plugin = vite({ root: fixture });
         plugin.configResolved({ command: 'build', root: fixture });
-        let output = plugin.transform.handler(source, path.replace(/\\/g, '/'))!.code;
+        let output = (await plugin.transform.handler(source, path.replace(/\\/g, '/')))!.code;
         expect(output).not.toContain('h`');
         expect(output).not.toContain('html`');
         document.body.append(execute(output, { '@esportsplus/reactivity': reactivity, '@esportsplus/template': runtime })('hi'));

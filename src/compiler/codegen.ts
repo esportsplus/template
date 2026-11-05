@@ -5,26 +5,25 @@ import { ANCHOR_SOLE } from '../constants';
 import parse from '../event/parse';
 import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, PART, SIGNAL, TYPES } from './constants';
 import type { Entrypoint } from './constants';
-import { analyze, fold, measure, partOf, selectorComparison } from './ts-analyzer';
+import { analyze, fold, measure, partOf, readCalls, selectorComparison } from './ts-analyzer';
 import { entrypointOf, extractTemplateParts, isHtmlTemplate } from './ts-parser';
 import type { Artifacts } from './ts-parser';
 import parser from './parser';
-import { parametersOf, specialize } from './specialize';
+import { specialize } from './specialize';
 
 
 type CodegenContext = {
     // Whether each spread is an attributes object, by attributesObjects() (see prefetch())
     attributes?: Map<ts.Expression, boolean>;
-    checker?: ts.Checker;
     constants?: Set<string>;
     // What each token in generated code stands for; see resolve()
     deferred?: Deferred[];
     // Root of a specialized variant: it must lower to an expression, never an arrow block body
     expression?: ts.Node;
+    // What each template expression folds to, by fold() (see prefetch())
+    folds?: Map<ts.Expression, string | null>;
     // Module-level constants by their code with source copied as it was written (see hoist()), shared by every variant
     hoisted?: Map<string, { code: string; id: string }>;
-    // Whether each parameter is never reassigned, by its symbol; see specialize()
-    immutables?: Map<ts.Symbol, boolean>;
     // Target nodes of the rewrites in `nested`
     markers?: Set<ts.Node>;
     // One intent per rewrite nested in copied source, generating its marker; see mark()
@@ -32,6 +31,11 @@ type CodegenContext = {
     // What each expression is, by measure() (see prefetch())
     parts?: Map<ts.Expression, PART>;
     prefoldCache?: WeakMap<ts.Node, Prefolded>;
+    // The file's read() calls that are @esportsplus/reactivity's, by readCalls() (see prefetch()); without a checker,
+    // every read() call is taken at its name
+    reads?: Set<ts.Node>;
+    // Event handlers that close over nothing of the instance, by isModuleScoped() (see prefetch())
+    scoped?: Set<ts.Expression>;
     selectorFired?: boolean;
     // Template html whose clone is its one root element (see parser's single())
     singles: Set<string>;
@@ -40,6 +44,8 @@ type CodegenContext = {
     sites: Set<ts.Node>;
     staticValues?: Map<ts.Expression, string>;
     templates: Map<string, string>;
+    // Each template's specialized variants, by specialize() (see prefetch())
+    variants?: Map<ts.Node, Variant[]>;
 };
 
 type CodegenResult = {
@@ -62,6 +68,8 @@ type ParseResult = ReturnType<typeof parser.parse>;
 type Prefolded = { expressions: ts.Expression[]; literals: string[] };
 
 type Range = { end: number; start: number };
+
+type Variant = Awaited<ReturnType<typeof specialize>>[number];
 
 
 // Neither occurs in source text: a marker is what the coordinator's composed text holds where a nested rewrite goes,
@@ -90,10 +98,17 @@ const TOKEN = '\u0000T';
 // Whether each spread is typed as an object that is never an array and declares both class and style, as Attributes
 // does: `value?.class` and `value?.style` are then sound to read, so they join the element's merged list calls. Each
 // step asks about every spread's member types in one request.
-function attributesObjects(checker: ts.Checker, exprs: ts.Expression[], types: (ts.Type | undefined)[]): Map<ts.Expression, boolean> {
+async function attributesObjects(checker: ts.Checker, exprs: ts.Expression[]): Promise<Map<ts.Expression, boolean>> {
     let members: (ts.Type[] | null)[] = [],
         objects = new Map<number, ts.Type>(),
         result = new Map<ts.Expression, boolean>();
+
+    if (exprs.length === 0) {
+        return result;
+    }
+
+    let types = await checker.getTypeAtLocation(exprs) as (ts.Type | undefined)[],
+        unions = await Promise.all(types.map(async type => type?.isUnionType() ? type.getTypes() : undefined));
 
     for (let i = 0, n = exprs.length; i < n; i++) {
         let type = types[i],
@@ -104,7 +119,7 @@ function attributesObjects(checker: ts.Checker, exprs: ts.Expression[], types: (
             continue;
         }
 
-        let all = type.isUnionType() ? type.getTypes() : [type];
+        let all = unions[i] ?? [type];
 
         for (let j = 0, m = all.length; j < m; j++) {
             let member = all[j];
@@ -134,7 +149,7 @@ function attributesObjects(checker: ts.Checker, exprs: ts.Expression[], types: (
         declares = new Map<number, boolean>();
 
     if (candidates.length > 0) {
-        let arrays = checkers.batch(checker, 'isArrayLikeType', candidates.map(type => [type] as [ts.Type])),
+        let arrays = await Promise.all(candidates.map(type => checker.isArrayLikeType(type))),
             plain = candidates.filter((_, i) => !arrays[i]),
             properties: [ts.Type, string][] = [];
 
@@ -142,7 +157,7 @@ function attributesObjects(checker: ts.Checker, exprs: ts.Expression[], types: (
             properties.push([plain[i], 'class'], [plain[i], 'style']);
         }
 
-        let found = properties.length > 0 ? checkers.batch(checker, 'getPropertyOfType', properties) : [];
+        let found = await Promise.all(properties.map(([type, name]) => checker.getPropertyOfType(type, name)));
 
         for (let i = 0, n = plain.length; i < n; i++) {
             declares.set(plain[i].id, !!found[2 * i] && !!found[2 * i + 1]);
@@ -176,7 +191,7 @@ function classify(ctx: CodegenContext, expr: ts.Expression | undefined): PART {
         return PART.Text;
     }
 
-    return partOf(expr, ctx.checker, ctx.parts);
+    return partOf(expr, ctx.parts);
 }
 
 function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: Nested[], inObserver: boolean): void {
@@ -199,7 +214,7 @@ function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replaceme
     }
 
     if (inObserver) {
-        let selector = selectorComparison(node as ts.Expression, ctx.checker);
+        let selector = selectorComparison(node as ts.Expression, ctx.reads);
 
         if (selector !== null) {
             // SIG/KEY are rewritten recursively so nested templates/reactive calls inside them still lower; the
@@ -413,7 +428,7 @@ function generateNestedTemplateCode(ctx: CodegenContext, node: ts.TaggedTemplate
     let parts = extractTemplateParts(node.template);
 
     if (!ctx.staticValues) {
-        let variants = specialize(parts.expressions, ctx.immutables ??= new Map(), ctx.checker, ctx.constants);
+        let variants = ctx.variants?.get(node) ?? [];
 
         if (variants.length) {
             let code = '(';
@@ -444,7 +459,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, expr: ts.Expre
     let flag = mode ? ', ' + ANCHOR_SOLE : '',
         node: string;
 
-    switch (expr ? analyze(expr, ctx.sites, ctx.checker, ctx.parts) : TYPES.Unknown) {
+    switch (expr ? analyze(expr, ctx.sites, ctx.parts) : TYPES.Unknown) {
         case TYPES.ArraySlot:
         case TYPES.VirtualSlot: {
             let call = expr!;
@@ -618,7 +633,7 @@ function generateTemplateCode(ctx: CodegenContext, { html, single, slots }: Pars
                         }
                     }
                 }
-                else if (expr && ctx.checker && isAttributesObject(ctx, expr)) {
+                else if (expr && ctx.attributes?.get(expr) === true) {
                     let id = uid('attributes');
 
                     code.push(`let ${id} = ${text(index)};`, `${NAMESPACE}.setProperties(${element}, ${id}, true);`);
@@ -636,7 +651,7 @@ function generateTemplateCode(ctx: CodegenContext, { html, single, slots }: Pars
                     handler = text(index++);
 
                 // A handler that closes over nothing of the instance is one closure per module, not one per instance
-                if (expr && ctx.checker && isModuleScoped(ctx.checker, expr)) {
+                if (expr && ctx.scoped?.has(expr)) {
                     handler = hoist(ctx, handler, 'handler');
                 }
 
@@ -745,8 +760,9 @@ function replaced(node: ts.Node, code: string): ts.Node {
 }
 
 // An arrow or function expression whose every free identifier, value or type, is declared by a statement at the top of
-// a module (its own, through an import, or an ambient global): hoisted to module scope it means the same thing
-function isModuleScoped(checker: ts.Checker, expr: ts.Expression): boolean {
+// a module (its own, through an import, or an ambient global): hoisted to module scope it means the same thing. What every
+// identifier resolves to is asked first, in one request.
+async function isModuleScoped(checker: ts.Checker, expr: ts.Expression): Promise<boolean> {
     while (ts.isParenthesizedExpression(expr)) {
         expr = expr.expression;
     }
@@ -756,7 +772,31 @@ function isModuleScoped(checker: ts.Checker, expr: ts.Expression): boolean {
     }
 
     let fn: ts.Node = expr,
-        scoped = true;
+        identifiers: ts.Identifier[] = [],
+        scoped = true,
+        shorthands: ts.Identifier[] = [];
+
+    let collect = (node: ts.Node): void => {
+        if (isRead(node)) {
+            (ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node ? shorthands : identifiers).push(node);
+        }
+
+        node.forEachChild(collect);
+    };
+
+    expr.forEachChild(collect);
+
+    let [symbols, values] = await Promise.all([
+            identifiers.length > 0 ? checker.getSymbolAtLocation(identifiers) : [],
+            Promise.all(shorthands.map(node => checker.getShorthandAssignmentValueSymbol(node.parent as ts.ShorthandPropertyAssignment)))
+        ]),
+        declarations = new Map<ts.Node, ts.Node | undefined>(),
+        resolved = await Promise.all([...symbols, ...values].map(async symbol => symbol?.declarations?.[0]?.resolve())),
+        nodes = [...identifiers, ...shorthands];
+
+    for (let i = 0, n = nodes.length; i < n; i++) {
+        declarations.set(nodes[i], resolved[i]);
+    }
 
     let visit = (node: ts.Node): void => {
         if (!scoped) {
@@ -773,17 +813,9 @@ function isModuleScoped(checker: ts.Checker, expr: ts.Expression): boolean {
             return;
         }
 
-        if (
-            ts.isIdentifier(node) &&
-            !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) &&
-            !(ts.isPropertyAssignment(node.parent) && node.parent.name === node) &&
-            !(ts.isQualifiedName(node.parent) && node.parent.right === node)
-        ) {
+        if (isRead(node)) {
             // A shorthand property's own symbol is the property, declared inside the handler; the value it reads is not
-            let symbol = ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node
-                    ? checker.getShorthandAssignmentValueSymbol(node.parent)
-                    : checker.getSymbolAtLocation(node),
-                declaration = symbol?.declarations?.[0]?.resolve();
+            let declaration = declarations.get(node);
 
             if (!declaration) {
                 scoped = false;
@@ -839,15 +871,12 @@ function isLiteral(expr: ts.Expression): boolean {
     return ts.isStringLiteral(expr) || ts.isNumericLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr);
 }
 
-function isAttributesObject(ctx: CodegenContext, expr: ts.Expression): boolean {
-    let found = ctx.attributes?.get(expr);
-
-    if (found === undefined) {
-        found = attributesObjects(ctx.checker!, [expr], ctx.checker!.getTypeAtLocation([expr])).get(expr)!;
-        ctx.attributes?.set(expr, found);
-    }
-
-    return found;
+// An identifier read as a value: not a member, property or qualified name
+function isRead(node: ts.Node): node is ts.Identifier {
+    return ts.isIdentifier(node) &&
+        !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) &&
+        !(ts.isPropertyAssignment(node.parent) && node.parent.name === node) &&
+        !(ts.isQualifiedName(node.parent) && node.parent.right === node);
 }
 
 // A spread object literal expands into per-property bindings only when every member is a
@@ -943,12 +972,25 @@ function parseCached(literals: string[]): ParseResult {
     return result;
 }
 
-// What generateTemplateCode() asks of the checker for every template of the file, answered for all of them at once:
-// analyze() about a node slot, classify() about each part of a composed attribute value, isAttributesObject() about a
-// spread and specialize() about the parameters a template reads. Folding only turns expressions into text, never moves one into another role, so the template's own parse
-// tells each expression's role; a template that fails to parse has every expression asked about both ways.
-function prefetch(ctx: CodegenContext, checker: ts.Checker, templates: Artifacts['templates']): void {
-    let nodes: ts.Expression[] = [],
+// Everything generateTemplateCode() asks of the checker for every template of the file, answered for all of them at once
+// so the walk only reads answers: what each expression folds to, analyze() about a node slot, classify() about each part
+// of a composed attribute value, whether a spread is an attributes object and an event handler module-scoped, each
+// template's specialized variants and which read() calls are reactivity's. Every question starts in the same turn, so
+// each round of them is one request. Folding only turns expressions into text, never moves one into another role, so
+// the template's own parse tells each expression's role; a template that fails to parse has every expression asked
+// about both ways.
+async function prefetch(ctx: CodegenContext, templates: Artifacts['templates'], checker?: ts.Checker): Promise<void> {
+    let expressions = templates.flatMap(template => template.expressions),
+        folds = Promise.all(expressions.map(expr => fold(expr, checker, ctx.constants)));
+
+    if (!checker) {
+        ctx.folds = zip(expressions, await folds);
+
+        return;
+    }
+
+    let handlers: ts.Expression[] = [],
+        nodes: ts.Expression[] = [],
         sites = ctx.sites,
         spreads: ts.Expression[] = [];
 
@@ -1022,6 +1064,10 @@ function prefetch(ctx: CodegenContext, checker: ts.Checker, templates: Artifacts
                 }
 
                 if (name.startsWith('on')) {
+                    if (expr) {
+                        handlers.push(expr);
+                    }
+
                     index++;
                     continue;
                 }
@@ -1048,13 +1094,22 @@ function prefetch(ctx: CodegenContext, checker: ts.Checker, templates: Artifacts
         }
     }
 
-    // specialize() reads the parameters' types from the checker's memo
-    let parameters = parametersOf(checker, templates.map(template => template.expressions)),
-        queried = [...nodes, ...spreads, ...parameters],
-        types: (ts.Type | undefined)[] = queried.length > 0 ? checker.getTypeAtLocation(queried) : [];
+    let immutables = new Map<ts.Symbol, Promise<boolean>>(),
+        [attributes, folded, parts, reads, scoped, variants] = await Promise.all([
+            attributesObjects(checker, spreads),
+            folds,
+            measure(checker, nodes),
+            readCalls(checker, ctx.sourceFile),
+            Promise.all(handlers.map(handler => isModuleScoped(checker, handler))),
+            Promise.all(templates.map(template => specialize(template.expressions, immutables, checker, ctx.constants)))
+        ]);
 
-    ctx.parts = measure(checker, nodes, types.slice(0, nodes.length));
-    ctx.attributes = attributesObjects(checker, spreads, types.slice(nodes.length, nodes.length + spreads.length));
+    ctx.attributes = attributes;
+    ctx.folds = zip(expressions, folded);
+    ctx.parts = parts;
+    ctx.reads = reads;
+    ctx.scoped = new Set(handlers.filter((_, i) => scoped[i]));
+    ctx.variants = zip(templates.map(template => template.node), variants);
 }
 
 // Merge every foldable expression into the surrounding literals BEFORE parse: the folded value
@@ -1070,7 +1125,7 @@ function prefold(ctx: CodegenContext, literals: string[], expressions: ts.Expres
         foldedLiterals: string[] = [literals[0]];
 
     for (let i = 0, n = expressions.length; i < n; i++) {
-        let folded = ctx.staticValues?.get(expressions[i]) ?? fold(expressions[i], ctx.checker, ctx.constants);
+        let folded = ctx.staticValues?.get(expressions[i]) ?? ctx.folds?.get(expressions[i]) ?? null;
 
         // A whole attribute value binds through the element's property when one exists, where
         // '' and 0 coerce to false (`disabled`, `hidden`); a static `disabled=""` would set it.
@@ -1117,15 +1172,24 @@ function written(ctx: CodegenContext): Text {
     return (node) => node.getText(ctx.sourceFile);
 }
 
+function zip<K, V>(keys: K[], values: V[]): Map<K, V> {
+    let map = new Map<K, V>();
+
+    for (let i = 0, n = keys.length; i < n; i++) {
+        map.set(keys[i], values[i]);
+    }
+
+    return map;
+}
+
 
 // Top-level reactive calls lower first, then root templates. A call nested in a template or
 // in an already-lowered call, and a template nested in either, is emitted by its enclosing
 // rewrite — emitting it separately would produce overlapping replacements.
 // Code is generated here, in source order, so ids and template factories come out the same whatever the
 // coordinator composes; the source it copies is composed when the coordinator generates each replacement.
-const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): CodegenResult => {
+const generateCode = async ({ calls, constants, sites, templates }: Artifacts, sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): Promise<CodegenResult> => {
     let ctx: CodegenContext = {
-            checker: checker && checkers.cached(checker, program),
             constants,
             deferred: [],
             hoisted: new Map(),
@@ -1141,9 +1205,7 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
         replacements: ReplacementIntent[] = [],
         templateRanges: Range[] = [];
 
-    if (ctx.checker) {
-        prefetch(ctx, ctx.checker, templates);
-    }
+    await prefetch(ctx, templates, checker && checkers.cached(checker, program));
 
     for (let i = 0, n = templates.length; i < n; i++) {
         let { end, expressions, start } = templates[i];

@@ -14,10 +14,10 @@ type TransformResult = {
 };
 
 
-function pipeline(source: string): TransformResult {
-    let sourceFile = languageService.parse(process.cwd() + '/test.ts', source),
-        artifacts = findTemplateArtifacts(sourceFile),
-        result = prepended(generateCode(artifacts, sourceFile)),
+async function pipeline(source: string): Promise<TransformResult> {
+    let sourceFile = await languageService.parse(process.cwd() + '/test.ts', source),
+        artifacts = await findTemplateArtifacts(sourceFile),
+        result = prepended(await generateCode(artifacts, sourceFile)),
         imports: string[] = artifacts.templates.length > 0 ? ['html'] : [],
         prepend = result.prepend,
         replacements: { code: string; end: number; start: number }[] = [];
@@ -53,9 +53,9 @@ function pipeline(source: string): TransformResult {
 
 describe('compiler/integration', () => {
     describe('static template - full pipeline', () => {
-        it('produces correct replacement code for static template', () => {
+        it('produces correct replacement code for static template', async () => {
             let source = `import { html } from '@esportsplus/template';\nlet el = html\`<div>hello</div>\`;`,
-                { imports, output, prepend } = pipeline(source);
+                { imports, output, prepend } = await pipeline(source);
 
             expect(imports).toContain('html');
             expect(prepend.length).toBe(1);
@@ -66,9 +66,9 @@ describe('compiler/integration', () => {
     });
 
     describe('template with expressions - full pipeline', () => {
-        it('produces slot bindings for expressions', () => {
+        it('produces slot bindings for expressions', async () => {
             let source = `import { html } from '@esportsplus/template';\nlet el = html\`<div>\${value}</div>\`;`,
-                { output, prepend } = pipeline(source);
+                { output, prepend } = await pipeline(source);
 
             expect(prepend.length).toBe(1);
             expect(output).toContain(`${NAMESPACE}.slot(`);
@@ -78,9 +78,9 @@ describe('compiler/integration', () => {
     });
 
     describe('template with events - full pipeline', () => {
-        it('removes events from HTML and generates delegation code', () => {
+        it('removes events from HTML and generates delegation code', async () => {
             let source = `import { html } from '@esportsplus/template';\nlet el = html\`<button onclick=\${handler}>click</button>\`;`,
-                { output, prepend } = pipeline(source);
+                { output, prepend } = await pipeline(source);
 
             expect(prepend.length).toBe(1);
             expect(prepend[0]).not.toContain('onclick');
@@ -93,13 +93,13 @@ describe('compiler/integration', () => {
     });
 
     describe('multiple templates in one file - full pipeline', () => {
-        it('compiles all templates correctly', () => {
+        it('compiles all templates correctly', async () => {
             let source = [
                     `import { html } from '@esportsplus/template';`,
                     `let a = html\`<div>first</div>\`;`,
                     `let b = html\`<span>second</span>\`;`
                 ].join('\n'),
-                { output, prepend, replacements } = pipeline(source);
+                { output, prepend, replacements } = await pipeline(source);
 
             expect(prepend.length).toBe(2);
             expect(replacements.length).toBe(2);
@@ -114,9 +114,9 @@ describe('compiler/integration', () => {
     });
 
     describe('nested templates - full pipeline', () => {
-        it('compiles outer and inner templates', () => {
+        it('compiles outer and inner templates', async () => {
             let source = `import { html } from '@esportsplus/template';\nlet el = html\`<div>\${html\`<span>inner</span>\`}</div>\`;`,
-                { output, prepend } = pipeline(source);
+                { output, prepend } = await pipeline(source);
 
             expect(prepend.length).toBe(2);
 
@@ -133,9 +133,9 @@ describe('compiler/integration', () => {
     });
 
     describe('html.reactive() - full pipeline', () => {
-        it('generates ArraySlot binding', () => {
+        it('generates ArraySlot binding', async () => {
             let source = `import { html } from '@esportsplus/template';\nlet el = html.reactive(items, (item) => html\`<li>\${item}</li>\`);`,
-                { output, prepend } = pipeline(source);
+                { output, prepend } = await pipeline(source);
 
             expect(prepend.length).toBeGreaterThanOrEqual(1);
 
@@ -149,9 +149,9 @@ describe('compiler/integration', () => {
     });
 
     describe('no html templates - full pipeline', () => {
-        it('produces no changes for source without templates', () => {
+        it('produces no changes for source without templates', async () => {
             let source = `let x = 1;\nlet y = 'hello';\nconsole.log(x + y);`,
-                { imports, output, prepend, replacements } = pipeline(source);
+                { imports, output, prepend, replacements } = await pipeline(source);
 
             expect(imports).toHaveLength(0);
             expect(prepend).toHaveLength(0);
@@ -161,7 +161,7 @@ describe('compiler/integration', () => {
     });
 
     describe('mixed content - full pipeline', () => {
-        it('only rewrites templates, preserves surrounding code', () => {
+        it('only rewrites templates, preserves surrounding code', async () => {
             let source = [
                     `import { html } from '@esportsplus/template';`,
                     `import { signal } from '@esportsplus/reactivity';`,
@@ -173,7 +173,7 @@ describe('compiler/integration', () => {
                     ``,
                     `console.log('done');`
                 ].join('\n'),
-                { output, prepend } = pipeline(source);
+                { output, prepend } = await pipeline(source);
 
             expect(prepend.length).toBe(1);
 

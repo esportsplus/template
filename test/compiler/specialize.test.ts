@@ -14,32 +14,32 @@ const SOURCE = [
 ].join('\n');
 
 
-function setup(source: string) {
-    let { checker, sourceFile } = languageService.scratch(process.cwd() + '/specialize-fixture.ts', source);
+async function setup(source: string) {
+    let { checker, sourceFile } = await languageService.scratch(process.cwd() + '/specialize-fixture.ts', source);
 
-    return { checker, templates: findTemplateArtifacts(sourceFile).templates };
+    return { checker, templates: (await findTemplateArtifacts(sourceFile)).templates };
 }
 
 
 describe('compiler/specialize', () => {
-    it('remembers per parameter whether it is reassigned, for the next template under the function', () => {
-        let { checker, templates } = setup(SOURCE),
-            immutables = new Map<ts.Symbol, boolean>();
+    it('remembers per parameter whether it is reassigned, for the next template under the function', async () => {
+        let { checker, templates } = await setup(SOURCE),
+            immutables = new Map<ts.Symbol, Promise<boolean>>();
 
-        expect(specialize(templates[0].expressions, immutables, checker)).toHaveLength(2);
-        expect([...immutables.values()]).toEqual([true]);
+        expect(await specialize(templates[0].expressions, immutables, checker)).toHaveLength(2);
+        expect(await Promise.all(immutables.values())).toEqual([true]);
 
         // The answer is taken from the map, not found again by walking the function
-        immutables.set([...immutables.keys()][0], false);
+        immutables.set([...immutables.keys()][0], Promise.resolve(false));
 
-        expect(specialize(templates[1].expressions, immutables, checker)).toEqual([]);
+        expect(await specialize(templates[1].expressions, immutables, checker)).toEqual([]);
     });
 
-    it('does not specialize a parameter the function reassigns', () => {
-        let { checker, templates } = setup(SOURCE.replace('let first', "type = 'b';\n    let first")),
-            immutables = new Map<ts.Symbol, boolean>();
+    it('does not specialize a parameter the function reassigns', async () => {
+        let { checker, templates } = await setup(SOURCE.replace('let first', "type = 'b';\n    let first")),
+            immutables = new Map<ts.Symbol, Promise<boolean>>();
 
-        expect(specialize(templates[0].expressions, immutables, checker)).toEqual([]);
-        expect([...immutables.values()]).toEqual([false]);
+        expect(await specialize(templates[0].expressions, immutables, checker)).toEqual([]);
+        expect(await Promise.all(immutables.values())).toEqual([false]);
     });
 });

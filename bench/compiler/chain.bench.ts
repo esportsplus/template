@@ -43,8 +43,9 @@ writeFileSync(config, JSON.stringify({
 
 
 // Every pass edits every module, so each runs against a program no checker cache has seen: the
-// cost a production build pays per module, tsgo round-trips included
-function pass(): void {
+// cost a production build pays per module, tsgo round-trips included, its modules transformed
+// concurrently as a build transforms them
+async function pass(): Promise<void> {
     let updates = new Map<string, string>();
 
     revision++;
@@ -53,17 +54,22 @@ function pass(): void {
         updates.set(path, code + '\n// ' + revision + '\n');
     }
 
-    let { checker, program } = languageService.updateMany(config, updates),
+    let { checker, program, release } = await languageService.updateMany(config, updates),
         shared = new Map();
 
-    for (let [path, code] of updates) {
-        coordinator.transform([reactivity, template], code, program.getSourceFile(path)!, { checker, program }, WORKSPACE, shared);
+    try {
+        await Promise.all([...updates].map(async ([path, code]) => {
+            await coordinator.transform([reactivity, template], code, (await program.getSourceFile(path))!, { checker, program }, WORKSPACE, shared);
+        }));
+    }
+    finally {
+        release();
     }
 }
 
 
-afterAll(() => {
-    languageService.dispose(config);
+afterAll(async () => {
+    await languageService.dispose(config);
     rmSync(WORKSPACE, { force: true, recursive: true });
 });
 

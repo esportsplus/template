@@ -2,6 +2,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { ts } from '@esportsplus/typescript';
 import { coordinator, languageService } from '@esportsplus/typescript/compiler';
 import type { Plugin, TransformResult } from '@esportsplus/typescript/compiler';
 import reactivity from '@esportsplus/reactivity/compiler';
@@ -17,17 +18,26 @@ let fixtures: string[] = [];
 
 // Runs reactivity then a probe over every file the way the tsc build does, comparing the site search with the
 // full origins search on the program each file is compiled against, staged or not
-function compare(root: string, tsconfig: string) {
-    let opened = languageService.open(tsconfig),
-        { fileNames } = opened.api.parseConfigFile(tsconfig),
+async function compare(root: string, tsconfig: string) {
+    let api = new ts.API({ cwd: root }),
+        fileNames: readonly string[];
+
+    try {
+        ({ fileNames } = await api.parseConfigFile(tsconfig));
+    }
+    finally {
+        await api.close();
+    }
+
+    let lease = await languageService.updateMany(tsconfig, new Map()),
         mismatches: Mismatch[] = [],
         shared = new Map(),
         staged = false,
         totals = { escapes: 0, files: 0, sites: 0, staged: 0 },
         plugins: Plugin[] = [
             {
-                transform: (ctx) => {
-                    let result: TransformResult = reactivity.transform(ctx);
+                transform: async (ctx) => {
+                    let result: TransformResult = await reactivity.transform(ctx);
 
                     staged = !!(result.replacements?.length || result.prepend?.length || result.imports?.length);
 
@@ -35,9 +45,9 @@ function compare(root: string, tsconfig: string) {
                 }
             },
             {
-                transform: (ctx) => {
-                    let actual = found(ctx.sourceFile, ctx.checker, ctx.program),
-                        expected = reference(ctx.sourceFile, ctx.checker, ctx.program);
+                transform: async (ctx) => {
+                    let actual = await found(ctx.sourceFile, ctx.checker, ctx.program),
+                        expected = await reference(ctx.sourceFile, ctx.checker, ctx.program);
 
                     totals.escapes += expected.escapes.length;
                     totals.files++;
@@ -55,20 +65,19 @@ function compare(root: string, tsconfig: string) {
 
     try {
         for (let fileName of fileNames) {
-            let project = opened.project,
-                sourceFile = project.program.getSourceFile(fileName);
+            let sourceFile = await lease.program.getSourceFile(fileName);
 
             if (!sourceFile || fileName.endsWith('.d.ts')) {
                 continue;
             }
 
             staged = false;
-            coordinator.transform(plugins, sourceFile.getFullText(), sourceFile, { checker: project.checker, program: project.program }, root, shared);
+            await coordinator.transform(plugins, sourceFile.getFullText(), sourceFile, { checker: lease.checker, program: lease.program }, root, shared);
         }
     }
     finally {
-        opened.dispose();
-        languageService.dispose(tsconfig);
+        lease.release();
+        await languageService.dispose(tsconfig);
     }
 
     return { mismatches, totals };
@@ -83,7 +92,7 @@ afterAll(() => {
 
 
 describe('compiler site discovery, against the full origins search', () => {
-    it('agrees on sites, escapes and dependencies over the corpus, staged and not', () => {
+    it('agrees on sites, escapes and dependencies over the corpus, staged and not', async () => {
         let directory = mkdtempSync(join(process.cwd(), '.fixture-discovery-diff-')).replace(/\\/g, '/'),
             names: string[] = [];
 
@@ -100,7 +109,7 @@ describe('compiler site discovery, against the full origins search', () => {
             files: names
         }));
 
-        let { mismatches, totals } = compare(directory, directory + '/tsconfig.json');
+        let { mismatches, totals } = await compare(directory, directory + '/tsconfig.json');
 
         expect(mismatches).toEqual([]);
         expect(totals.files).toBe(names.length);
@@ -110,9 +119,9 @@ describe('compiler site discovery, against the full origins search', () => {
     }, 120000);
 
     // Opt in with DISCOVERY_ROOT=<directory holding a tsconfig.json>, e.g. the UI library; DISCOVERY_OUT=<file> keeps the totals
-    it.runIf(process.env.DISCOVERY_ROOT)('agrees over DISCOVERY_ROOT', () => {
+    it.runIf(process.env.DISCOVERY_ROOT)('agrees over DISCOVERY_ROOT', async () => {
         let root = process.env.DISCOVERY_ROOT!.replace(/\\/g, '/'),
-            { mismatches, totals } = compare(root, root + '/tsconfig.json');
+            { mismatches, totals } = await compare(root, root + '/tsconfig.json');
 
         if (process.env.DISCOVERY_OUT) {
             writeFileSync(process.env.DISCOVERY_OUT, JSON.stringify(totals));

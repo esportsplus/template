@@ -1,5 +1,5 @@
 import { ts } from '@esportsplus/typescript';
-import { checker as checkers, imports } from '@esportsplus/typescript/compiler';
+import { imports } from '@esportsplus/typescript/compiler';
 import { ENTRYPOINT_REACTIVITY, PACKAGE_NAME, PACKAGE_REACTIVITY, PART, TYPES } from './constants';
 import { constant, isConstDeclaration } from './specialize';
 import { entrypointOf, isHtmlTemplate, unwrap } from './ts-parser';
@@ -17,24 +17,23 @@ const READ = 'read';
 
 // A readonly literal property (`CONFIG.size`) folds only when its owner is a local const
 // bound directly to an object literal: never an object-producing call or getter chain
-function foldProperty(expr: ts.PropertyAccessExpression, checker: ts.Checker, names?: Set<string>): string | null {
+async function foldProperty(expr: ts.PropertyAccessExpression, checker: ts.Checker, names?: Set<string>): Promise<string | null> {
     if (!ts.isIdentifier(expr.expression) || (names && !names.has(expr.expression.text))) {
         return null;
     }
 
-    let declaration = checker.getSymbolAtLocation(expr.name)?.valueDeclaration?.resolve();
+    let [property, receiver] = await checker.getSymbolAtLocation([expr.name, expr.expression]),
+        [declaration, owner] = await Promise.all([property?.valueDeclaration?.resolve(), receiver?.valueDeclaration?.resolve()]);
 
     if (!declaration || !ts.isPropertyAssignment(declaration)) {
         return null;
     }
 
-    let owner = checker.getSymbolAtLocation(expr.expression)?.valueDeclaration?.resolve();
-
     if (!owner || !isConstDeclaration(owner) || !ts.isObjectLiteralExpression(unwrap(owner.initializer))) {
         return null;
     }
 
-    let type = checker.getTypeAtLocation(expr);
+    let type = await checker.getTypeAtLocation(expr);
 
     if (!type || (!type.isStringLiteralType() && !type.isNumberLiteralType())) {
         return null;
@@ -43,17 +42,15 @@ function foldProperty(expr: ts.PropertyAccessExpression, checker: ts.Checker, na
     return constant(declaration.initializer, checker, names);
 }
 
-// A `read(sig)` call from @esportsplus/reactivity: exactly one argument, and — when a
-// checker is available — an identity match against the reactivity import; without a checker
-// (the checker-less transform harness) the guard degrades to a plain name match on `read`
-function isReadCall(expr: ts.Expression, checker?: ts.Checker): expr is ts.CallExpression {
-    return (
-        ts.isCallExpression(expr) &&
-        ts.isIdentifier(expr.expression) &&
-        expr.expression.text === READ &&
-        expr.arguments.length === 1 &&
-        (!checker || imports.includes(checker, expr.expression, PACKAGE_REACTIVITY, READ))
-    );
+// A `read(sig)` call: exactly one argument; `reads`, when given, holds the calls proven to be
+// @esportsplus/reactivity's (see readCalls()), and without it (the checker-less transform harness)
+// the guard degrades to a plain name match on `read`
+function isReadCall(expr: ts.Expression, reads?: Set<ts.Node>): expr is ts.CallExpression {
+    return isReadSyntax(expr) && (!reads || reads.has(expr));
+}
+
+function isReadSyntax(expr: ts.Node): expr is ts.CallExpression & { expression: ts.Identifier } {
+    return ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) && expr.expression.text === READ && expr.arguments.length === 1;
 }
 
 // Callable members make a function only when every member is one; a member that is neither callable nor a string or
@@ -88,16 +85,18 @@ function judge(type: ts.Type | undefined, members: readonly ts.Type[], callable:
     return text === members.length ? PART.Text : PART.Value;
 }
 
-function membersOf(type: ts.Type | undefined): readonly ts.Type[] {
+async function membersOf(type: ts.Type | undefined): Promise<readonly ts.Type[]> {
     if (!type || type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) {
         return [];
     }
 
-    return type.isUnionType() ? type.getTypes() : [type];
+    return type.isUnionType() ? await type.getTypes() : [type];
 }
 
-// `parts` holds what measure() already answered (see codegen's prefetch)
-const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker, parts?: Map<ts.Expression, PART>): TYPES => {
+
+// `parts` holds what measure() answered for the file (see codegen's prefetch()); an expression it
+// does not hold is left to the runtime
+const analyze = (expr: ts.Expression, sites: Set<ts.Node>, parts?: Map<ts.Expression, PART>): TYPES => {
     while (ts.isParenthesizedExpression(expr)) {
         expr = expr.expression;
     }
@@ -134,8 +133,8 @@ const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker,
     }
 
     if (ts.isConditionalExpression(expr)) {
-        let whenFalse = analyze(expr.whenFalse, sites, checker, parts),
-            whenTrue = analyze(expr.whenTrue, sites, checker, parts);
+        let whenFalse = analyze(expr.whenFalse, sites, parts),
+            whenTrue = analyze(expr.whenTrue, sites, parts);
 
         if (whenTrue === whenFalse) {
             return whenTrue;
@@ -148,22 +147,15 @@ const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker,
         return TYPES.Unknown;
     }
 
-    if (checker && (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr) || ts.isCallExpression(expr))) {
-        try {
-            if (partOf(expr, checker, parts) === PART.Function) {
-                return TYPES.Effect;
-            }
-        }
-        catch (error) {
-            console.warn(`${PACKAGE_NAME}: type analysis failed for '${expr.getText()}', classified as Unknown — ${error instanceof Error ? error.message : String(error)}`);
-        }
+    if ((ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr) || ts.isCallExpression(expr)) && partOf(expr, parts) === PART.Function) {
+        return TYPES.Effect;
     }
 
     return TYPES.Unknown;
 };
 
 // `names` narrows which identifiers are worth resolving (see Artifacts.constants)
-const fold = (expr: ts.Expression, checker?: ts.Checker, names?: Set<string>): string | null => {
+const fold = async (expr: ts.Expression, checker?: ts.Checker, names?: Set<string>): Promise<string | null> => {
     expr = unwrap(expr);
 
     if (ts.isPropertyAccessExpression(expr)) {
@@ -175,72 +167,107 @@ const fold = (expr: ts.Expression, checker?: ts.Checker, names?: Set<string>): s
 
 // Union types that mix functions with non-functions (e.g., Renderable) are not functions,
 // so they fall through to runtime slot dispatch
-const isFunctionType = (type: ts.Type, checker: ts.Checker): boolean => {
+const isFunctionType = async (type: ts.Type, checker: ts.Checker): Promise<boolean> => {
     if (type.isUnionType()) {
-        let types = type.getTypes();
+        let types = await type.getTypes(),
+            functions = await Promise.all(types.map((member) => isFunctionType(member, checker)));
 
-        for (let i = 0, n = types.length; i < n; i++) {
-            if (!isFunctionType(types[i], checker)) {
-                return false;
-            }
-        }
-
-        return types.length > 0;
+        return types.length > 0 && functions.every(Boolean);
     }
 
-    return checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0;
+    return (await checker.getSignaturesOfType(type, ts.SignatureKind.Call)).length > 0;
 };
 
-// What each expression is (see PART), from its type: whether each union member is callable is asked in one request
-const measure = (checker: ts.Checker, nodes: ts.Expression[], types: (ts.Type | undefined)[]): Map<ts.Expression, PART> => {
-    let members: (readonly ts.Type[])[] = [],
-        result = new Map<ts.Expression, PART>(),
-        unique = new Map<number, ts.Type>();
+// What each expression is (see PART), from its type: the types, then every union's members, then whether each member is
+// callable, each step one request. A checker that fails classifies every expression as Unknown, never the build.
+const measure = async (checker: ts.Checker, nodes: ts.Expression[]): Promise<Map<ts.Expression, PART>> => {
+    let result = new Map<ts.Expression, PART>();
 
-    for (let i = 0, n = types.length; i < n; i++) {
-        members[i] = membersOf(types[i]);
+    if (nodes.length === 0) {
+        return result;
+    }
 
-        for (let j = 0, m = members[i].length; j < m; j++) {
-            let member = members[i][j];
+    try {
+        let types = await checker.getTypeAtLocation(nodes) as (ts.Type | undefined)[],
+            members = await Promise.all(types.map(membersOf)),
+            unique = new Map<number, ts.Type>();
 
-            // No global interface stands behind these, so no declaration merging can make them callable
-            if ((member.flags & (ts.TypeFlags.Never | ts.TypeFlags.Null | ts.TypeFlags.Undefined | ts.TypeFlags.Void)) === 0) {
-                unique.set(member.id, member);
+        for (let i = 0, n = members.length; i < n; i++) {
+            for (let j = 0, m = members[i].length; j < m; j++) {
+                let member = members[i][j];
+
+                // No global interface stands behind these, so no declaration merging can make them callable
+                if ((member.flags & (ts.TypeFlags.Never | ts.TypeFlags.Null | ts.TypeFlags.Undefined | ts.TypeFlags.Void)) === 0) {
+                    unique.set(member.id, member);
+                }
             }
         }
-    }
 
-    let callable = new Map<number, boolean>(),
-        candidates = [...unique.values()];
-
-    if (candidates.length > 0) {
-        let found = checkers.batch(checker, 'getSignaturesOfType', candidates.map(type => [type, ts.SignatureKind.Call] as [ts.Type, ts.SignatureKind]));
+        let callable = new Map<number, boolean>(),
+            candidates = [...unique.values()],
+            signatures = await Promise.all(candidates.map(type => checker.getSignaturesOfType(type, ts.SignatureKind.Call)));
 
         for (let i = 0, n = candidates.length; i < n; i++) {
-            callable.set(candidates[i].id, found[i].length > 0);
+            callable.set(candidates[i].id, signatures[i].length > 0);
+        }
+
+        for (let i = 0, n = nodes.length; i < n; i++) {
+            result.set(nodes[i], judge(types[i], members[i], callable));
         }
     }
-
-    for (let i = 0, n = nodes.length; i < n; i++) {
-        result.set(nodes[i], judge(types[i], members[i], callable));
+    catch (error) {
+        console.warn(
+            `${PACKAGE_NAME}: type analysis failed for ${nodes.map(node => `'${node.getText()}'`).join(', ')}, classified as Unknown — ` +
+            (error instanceof Error ? error.message : String(error))
+        );
+        result.clear();
     }
 
     return result;
 };
 
-// What measure() answers for one expression, from `parts` when it is there
-const partOf = (expr: ts.Expression, checker?: ts.Checker, parts?: Map<ts.Expression, PART>): PART => {
-    let part = parts?.get(expr);
-
-    if (part === undefined) {
-        part = checker ? measure(checker, [expr], checker.getTypeAtLocation([expr])).get(expr)! : PART.Unknown;
-        parts?.set(expr, part);
-    }
-
-    return part;
+// What measure() answered for one expression; Unknown when it was not asked
+const partOf = (expr: ts.Expression, parts?: Map<ts.Expression, PART>): PART => {
+    return parts?.get(expr) ?? PART.Unknown;
 };
 
-const selectorComparison = (expr: ts.Expression, checker?: ts.Checker): SelectorComparison | null => {
+// The `read(x)` calls compared with `===`/`!==` anywhere in the file that are @esportsplus/reactivity's, resolved
+// together for selectorComparison()
+const readCalls = async (checker: ts.Checker, sourceFile: ts.SourceFile): Promise<Set<ts.Node>> => {
+    let candidates: (ts.CallExpression & { expression: ts.Identifier })[] = [];
+
+    let visit = (node: ts.Node): void => {
+        if (
+            ts.isBinaryExpression(node) &&
+            (node.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken || node.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken)
+        ) {
+            if (isReadSyntax(node.left)) {
+                candidates.push(node.left);
+            }
+
+            if (isReadSyntax(node.right)) {
+                candidates.push(node.right);
+            }
+        }
+
+        node.forEachChild(visit);
+    };
+
+    visit(sourceFile);
+
+    let reads = new Set<ts.Node>(),
+        included = await Promise.all(candidates.map(call => imports.includes(checker, call.expression, PACKAGE_REACTIVITY, READ)));
+
+    for (let i = 0, n = candidates.length; i < n; i++) {
+        if (included[i]) {
+            reads.add(candidates[i]);
+        }
+    }
+
+    return reads;
+};
+
+const selectorComparison = (expr: ts.Expression, reads?: Set<ts.Node>): SelectorComparison | null => {
     if (
         !ts.isBinaryExpression(expr) ||
         (expr.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken &&
@@ -251,11 +278,11 @@ const selectorComparison = (expr: ts.Expression, checker?: ts.Checker): Selector
 
     let negated = expr.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken;
 
-    if (isReadCall(expr.left, checker)) {
+    if (isReadCall(expr.left, reads)) {
         return { key: expr.right, negated, node: expr.left.arguments[0] };
     }
 
-    if (isReadCall(expr.right, checker)) {
+    if (isReadCall(expr.right, reads)) {
         return { key: expr.left, negated, node: expr.right.arguments[0] };
     }
 
@@ -263,5 +290,5 @@ const selectorComparison = (expr: ts.Expression, checker?: ts.Checker): Selector
 };
 
 
-export { analyze, fold, isFunctionType, measure, partOf, selectorComparison };
+export { analyze, fold, isFunctionType, measure, partOf, readCalls, selectorComparison };
 export type { SelectorComparison };

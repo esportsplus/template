@@ -10,9 +10,9 @@ import { prepended, written } from './written';
 
 
 // Lowers 'source' with a checker for folding and specialization, then runs it; 'value' is what it returns
-function compile(source: string, args: Record<string, unknown> = {}) {
-    let { checker, sourceFile } = languageService.scratch(process.cwd() + '/emission-fixture.ts', source),
-        result = prepended(generateCode(findTemplateArtifacts(sourceFile), sourceFile, checker)),
+async function compile(source: string, args: Record<string, unknown> = {}) {
+    let { checker, sourceFile } = await languageService.scratch(process.cwd() + '/emission-fixture.ts', source),
+        result = prepended(await generateCode(await findTemplateArtifacts(sourceFile), sourceFile, checker)),
         output = source;
 
     for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
@@ -44,26 +44,26 @@ afterEach(() => document.body.replaceChildren());
 
 describe('compiler emission', () => {
     describe('template text', () => {
-        it('keeps a backslash in text', () => {
-            let { value } = compile(String.raw`let value = html` + '`<code>C:\\\\temp</code>`;');
+        it('keeps a backslash in text', async () => {
+            let { value } = await compile(String.raw`let value = html` + '`<code>C:\\\\temp</code>`;');
 
             expect(mount(value).textContent).toBe('C:\\temp');
         });
 
-        it('keeps an escaped backtick', () => {
-            let { value } = compile('let value = html`<code>\\`tick\\`</code>`;');
+        it('keeps an escaped backtick', async () => {
+            let { value } = await compile('let value = html`<code>\\`tick\\`</code>`;');
 
             expect(mount(value).textContent).toBe('`tick`');
         });
 
-        it('keeps an escaped interpolation as text beside a real slot', () => {
-            let { value } = compile('let value = html`<p>${label}</p><code>\\${not}</code>`;', { label: 'yes' });
+        it('keeps an escaped interpolation as text beside a real slot', async () => {
+            let { value } = await compile('let value = html`<p>${label}</p><code>\\${not}</code>`;', { label: 'yes' });
 
             expect(mount(value).textContent).toBe('yes${not}');
         });
 
-        it('keeps a backslash before a real slot', () => {
-            let { value } = compile('let value = html`<p>\\\\${label}</p>`;', { label: 'x' });
+        it('keeps a backslash before a real slot', async () => {
+            let { value } = await compile('let value = html`<p>\\\\${label}</p>`;', { label: 'x' });
 
             expect(mount(value).textContent).toBe('\\x');
         });
@@ -74,16 +74,16 @@ describe('compiler emission', () => {
             ['an escaped interpolation', '`<p>\\${a}</p>`', '<p>${a}'],
             ['a carriage return', '`<p title="a\\rb">x</p>`', '<p title="a\rb">x'],
             ['a line break', '`<p title="a\nb">x</p>`', '<p title="a\nb">x']
-        ])('emits template text holding %s as a literal that reads back unchanged', (_label, template, html) => {
-            let { result } = compile('let value = html' + template + ';'),
+        ])('emits template text holding %s as a literal that reads back unchanged', async (_label, template, html) => {
+            let { result } = await compile('let value = html' + template + ';'),
                 literal = /\.template\((`.*`)(?:, true)?\);$/s.exec(result.prepend[0])![1];
 
             // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
             expect(new Function('return ' + literal)()).toBe(html);
         });
 
-        it('keeps unicode escapes and quotes', () => {
-            let { value } = compile('let value = html`<p title="a\'b">\\u00e9 "q" ${label}</p>`;', { label: 'x' });
+        it('keeps unicode escapes and quotes', async () => {
+            let { value } = await compile('let value = html`<p title="a\'b">\\u00e9 "q" ${label}</p>`;', { label: 'x' });
 
             let host = mount(value);
 
@@ -93,8 +93,8 @@ describe('compiler emission', () => {
     });
 
     describe('element paths', () => {
-        it('binds three or more slots under a deep shared ancestor', () => {
-            let { value } = compile(
+        it('binds three or more slots under a deep shared ancestor', async () => {
+            let { value } = await compile(
                 'let value = html`<div><section><ul><li><a>${a}</a><b>${b}</b><i class=${c}></i><em title=${d}></em></li></ul></section></div>`;',
                 { a: 'A', b: 'B', c: 'C', d: 'D' }
             );
@@ -107,8 +107,8 @@ describe('compiler emission', () => {
             expect(host.querySelector('em')!.title).toBe('D');
         });
 
-        it('binds slots in sibling subtrees and at different depths', () => {
-            let { value } = compile(
+        it('binds slots in sibling subtrees and at different depths', async () => {
+            let { value } = await compile(
                 'let value = html`<div><p><span>${a}</span><span>${b}</span></p><p><span>${c}</span></p>${d}<p title=${e}><b><i>${f}</i></b></p></div>`;',
                 { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6 }
             );
@@ -119,8 +119,8 @@ describe('compiler emission', () => {
             expect(host.querySelectorAll('p')[2].title).toBe('5');
         });
 
-        it('binds an element slot and a node slot sharing a parent', () => {
-            let { value } = compile('let value = html`<ul><li class=${a}>${b}</li><li>${c}</li></ul>`;', { a: 'x', b: 'y', c: 'z' });
+        it('binds an element slot and a node slot sharing a parent', async () => {
+            let { value } = await compile('let value = html`<ul><li class=${a}>${b}</li><li>${c}</li></ul>`;', { a: 'x', b: 'y', c: 'z' });
 
             let host = mount(value);
 
@@ -130,8 +130,8 @@ describe('compiler emission', () => {
     });
 
     describe('templates in return position', () => {
-        it('inside try/finally', () => {
-            let { value } = compile([
+        it('inside try/finally', async () => {
+            let { value } = await compile([
                 'let log: string[] = [];',
                 'function view(label: string) {',
                 '    try {',
@@ -148,8 +148,8 @@ describe('compiler emission', () => {
             expect(value[1]).toEqual(['finally']);
         });
 
-        it('inside a switch', () => {
-            let { value } = compile([
+        it('inside a switch', async () => {
+            let { value } = await compile([
                 'function view(kind: string, label: string) {',
                 '    switch (kind) {',
                 "        case 'a':",
@@ -167,8 +167,8 @@ describe('compiler emission', () => {
             expect(value.map((node: Node) => mount(node).innerHTML)).toEqual(['<i>1</i>', '<u>2</u>', '<s>3</s>']);
         });
 
-        it('inside labelled loops', () => {
-            let { value } = compile([
+        it('inside labelled loops', async () => {
+            let { value } = await compile([
                 'function view(rows: string[][]) {',
                 '    outer: for (let row of rows) {',
                 '        inner: for (let cell of row) {',
@@ -189,8 +189,8 @@ describe('compiler emission', () => {
             expect(value.map((node: Node) => mount(node).textContent)).toEqual(['y', 'none']);
         });
 
-        it('lowers a returned template to statements, braced where the return stood alone', () => {
-            let { output, value } = compile([
+        it('lowers a returned template to statements, braced where the return stood alone', async () => {
+            let { output, value } = await compile([
                 'function view(flag: boolean, label: string) {',
                 '    if (flag) return html`<b>${label}</b>`;',
                 '    else return html`<i>${label}</i>`;',
@@ -202,8 +202,8 @@ describe('compiler emission', () => {
             expect(value.map((node: Node) => mount(node).innerHTML)).toEqual(['<b>a</b>', '<i>b</i>']);
         });
 
-        it('inside a callback nested in a template', () => {
-            let { output, value } = compile([
+        it('inside a callback nested in a template', async () => {
+            let { output, value } = await compile([
                 'function view(items: string[]) {',
                 '    return html`<ul>${items.map((item) => { if (!item) { return html`<li>-</li>`; } return html`<li>${item}</li>`; })}</ul>`;',
                 '}',
@@ -215,7 +215,7 @@ describe('compiler emission', () => {
         });
 
         it('awaiting inside the template of an async function', async () => {
-            let { value } = compile([
+            let { value } = await compile([
                 'async function view(label: Promise<string>) {',
                 '    return html`<b>${await label}</b>`;',
                 '}',
@@ -225,8 +225,8 @@ describe('compiler emission', () => {
             expect(mount(await value).innerHTML).toBe('<b>a</b>');
         });
 
-        it('keeps a specialized return an expression', () => {
-            let { output, value } = compile([
+        it('keeps a specialized return an expression', async () => {
+            let { output, value } = await compile([
                 "function view(type: 'a' | 'b', label: string) {",
                 '    return html`<p class="${type}">${label}</p>`;',
                 '}',
@@ -237,8 +237,8 @@ describe('compiler emission', () => {
             expect(mount(value).innerHTML).toBe('<p class="b">x</p>');
         });
 
-        it('as an arrow body and as an arrow block return', () => {
-            let { value } = compile([
+        it('as an arrow body and as an arrow block return', async () => {
+            let { value } = await compile([
                 'let a = (label: string) => html`<p>${label}</p>`,',
                 '    b = (label: string) => { return html`<p>${label}</p>`; };',
                 "let value = [a('x'), b('y')];"
@@ -249,8 +249,8 @@ describe('compiler emission', () => {
     });
 
     describe('module-scoped handlers', () => {
-        it('hoists a handler that closes over nothing of the instance, and keeps one that does', () => {
-            let { output } = compile([
+        it('hoists a handler that closes over nothing of the instance, and keeps one that does', async () => {
+            let { output } = await compile([
                     'const log = (s: unknown) => calls.push(s);',
                     'function row(id: number) {',
                     '    return html`<li><a onclick=${() => log("static")}>a</a><b onclick=${() => log(id)}>b</b></li>`;',
@@ -262,8 +262,8 @@ describe('compiler emission', () => {
             expect(output).toContain(`'click', () => log(id)`);
         });
 
-        it('keeps a handler whose shorthand property reads an instance local', () => {
-            let { output } = compile([
+        it('keeps a handler whose shorthand property reads an instance local', async () => {
+            let { output } = await compile([
                     'declare const emit: (value: unknown) => void;',
                     'const row = (data: string) => html`<div onclick=${() => emit({ data })}>t</div>`;',
                     "let value = row('x');"
@@ -273,8 +273,8 @@ describe('compiler emission', () => {
             expect(output).toContain(`'click', () => emit({ data })`);
         });
 
-        it('hoists a handler passing only a literal', () => {
-            let { output } = compile([
+        it('hoists a handler passing only a literal', async () => {
+            let { output } = await compile([
                     'declare const emit: (value: unknown) => void;',
                     'const row = (data: string) => html`<div onclick=${() => emit(1)}>${data}</div>`;',
                     "let value = row('x');"
@@ -283,9 +283,9 @@ describe('compiler emission', () => {
             expect(output).toMatch(/const handler_\w+ = \(\) => emit\(1\);/);
         });
 
-        it('runs a hoisted handler for every instance, each disposing its own binding', () => {
+        it('runs a hoisted handler for every instance, each disposing its own binding', async () => {
             let calls: string[] = [],
-                { output, value } = compile([
+                { output, value } = await compile([
                     'declare const calls: string[];',
                     'function row(id: string) {',
                     '    return html`<li><a onclick=${(e: Event, dispose: VoidFunction) => { calls.push((e.currentTarget as HTMLElement).id); dispose(); }} id=${id}>a</a></li>`;',
@@ -311,8 +311,8 @@ describe('compiler emission', () => {
     });
 
     describe('single-root templates', () => {
-        it('evaluates to the root element, its bindings on the element itself', () => {
-            let { value } = compile('let value = html`<p class="a ${() => "b"}" title=${t}>${label}</p>`;', { label: 'x', t: 'tip' });
+        it('evaluates to the root element, its bindings on the element itself', async () => {
+            let { value } = await compile('let value = html`<p class="a ${() => "b"}" title=${t}>${label}</p>`;', { label: 'x', t: 'tip' });
 
             expect(value.nodeType).toBe(1);
             expect(value.className).toBe('a b');
@@ -320,8 +320,8 @@ describe('compiler emission', () => {
             expect(value.textContent).toBe('x');
         });
 
-        it('keeps a fragment for several roots', () => {
-            let { value } = compile('let value = html`<p>${label}</p><b>y</b>`;', { label: 'x' });
+        it('keeps a fragment for several roots', async () => {
+            let { value } = await compile('let value = html`<p>${label}</p><b>y</b>`;', { label: 'x' });
 
             expect(value.nodeType).toBe(11);
             expect(mount(value).innerHTML).toBe('<p>x</p><b>y</b>');
@@ -329,7 +329,7 @@ describe('compiler emission', () => {
 
         it('renders array rows that are their own element', async () => {
             let items = reactive(['a', 'b']),
-                { value } = compile('let value = html`<ul>${html.reactive(items, (item) => html`<li class="row">${item}</li>`)}</ul>`;', { items });
+                { value } = await compile('let value = html`<ul>${html.reactive(items, (item) => html`<li class="row">${item}</li>`)}</ul>`;', { items });
 
             let host = mount(value);
 
@@ -345,8 +345,8 @@ describe('compiler emission', () => {
     });
 
     describe('interpolated attributes', () => {
-        it('drops null and false parts and keeps 0', () => {
-            let { value } = compile(
+        it('drops null and false parts and keeps 0', async () => {
+            let { value } = await compile(
                 'let value = html`<p title="a${n}b${f}c${z}d" data-x="${z}${n}${f}">x</p>`;',
                 { f: false, n: null, z: 0 }
             );
@@ -357,8 +357,8 @@ describe('compiler emission', () => {
             expect(p.getAttribute('data-x')).toBe('0');
         });
 
-        it('joins two numbers as text, never adding them', () => {
-            let { value } = compile([
+        it('joins two numbers as text, never adding them', async () => {
+            let { value } = await compile([
                 'let a: number = 1, b: number = 2;',
                 'let value = html`<p data-x="${a}${b}" title="${a} ${b}">x</p>`;'
             ].join('\n'));
@@ -369,8 +369,8 @@ describe('compiler emission', () => {
             expect(p.title).toBe('1 2');
         });
 
-        it('joins strings and numbers with their literal text', () => {
-            let { value } = compile([
+        it('joins strings and numbers with their literal text', async () => {
+            let { value } = await compile([
                 'function view(label: string, count: number) {',
                 '    return html`<p title="${label}: ${count}" class="a ${label}-${count}">x</p>`;',
                 '}',
@@ -391,8 +391,8 @@ describe('compiler emission', () => {
             ['a boolean part', 'label: string, count: boolean', 'stripped'],
             ['an unknown part', 'label: string, count: unknown', 'reactive'],
             ['a callback part', 'label: string, count: () => number', 'reactive']
-        ])('joins %s with %s', (_label, parameters, form) => {
-            let { output } = compile([
+        ])('joins %s with %s', async (_label, parameters, form) => {
+            let { output } = await compile([
                     `function view(${parameters}) {`,
                     '    return html`<p title="${label}: ${count}">x</p>`;',
                     '}',
@@ -407,7 +407,7 @@ describe('compiler emission', () => {
 
         it('keeps a callback part reactive', async () => {
             let count = signal(0),
-                { value } = compile('let value = html`<p title="n${() => read(count)}" data-x="${0}${() => read(count)}">x</p>`;', { count, read });
+                { value } = await compile('let value = html`<p title="n${() => read(count)}" data-x="${0}${() => read(count)}">x</p>`;', { count, read });
 
             let p = mount(value).querySelector('p')!;
 
@@ -421,8 +421,8 @@ describe('compiler emission', () => {
     });
 
     describe('specialization', () => {
-        it('renders every variant, each folding a different subset of expressions', () => {
-            let { output, value } = compile([
+        it('renders every variant, each folding a different subset of expressions', async () => {
+            let { output, value } = await compile([
                 "function view(type: 'a' | 'b', size: 1 | 2, label: string) {",
                 '    return html`<p class="${type}" data-size="${size}" title="${type === \'a\' ? \'fixed\' : label}">${size === 1 ? \'one\' : label}</p>`;',
                 '}',
@@ -445,8 +445,8 @@ describe('compiler emission', () => {
             ]);
         });
 
-        it('falls back to the generic template for a value outside the union', () => {
-            let { value } = compile([
+        it('falls back to the generic template for a value outside the union', async () => {
+            let { value } = await compile([
                 "function view(type: 'a' | 'b') {",
                 '    return html`<p class="${type}">${type}</p>`;',
                 '}',

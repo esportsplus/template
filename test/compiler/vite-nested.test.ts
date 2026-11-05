@@ -13,7 +13,7 @@ const SOURCE = [
 ].join('\n');
 
 
-function build(root: string) {
+async function build(root: string) {
     let instance = vite({ root });
 
     instance.configResolved({ command: 'build', root, server: {} });
@@ -28,12 +28,12 @@ describe('compiler/vite nested builds', () => {
     it('answers a nested build from the outer build, warning in both, and keeps compiling after it closes', async () => {
         let root = process.cwd().replace(/\\/g, '/'),
             id = root + '/src/__nested_panel.ts',
-            outer = build(root),
-            nested = build(root),
+            outer = await build(root),
+            nested = await build(root),
             warnings = { nested: vi.fn(), outer: vi.fn() };
 
-        let first = outer.transform.handler.call({ warn: warnings.outer }, SOURCE, id),
-            second = nested.transform.handler.call({ warn: warnings.nested }, SOURCE, id);
+        let first = await outer.transform.handler.call({ warn: warnings.outer }, SOURCE, id),
+            second = await nested.transform.handler.call({ warn: warnings.nested }, SOURCE, id);
 
         expect(first!.code).toContain('.template(');
         expect(second!.code).toBe(first!.code);
@@ -44,7 +44,7 @@ describe('compiler/vite nested builds', () => {
 
         await nested.closeBundle();
 
-        expect(outer.transform.handler.call({ warn: warnings.outer }, OTHER, root + '/src/__nested_other.ts')!.code).toContain('.template(');
+        expect((await outer.transform.handler.call({ warn: warnings.outer }, OTHER, root + '/src/__nested_other.ts'))!.code).toContain('.template(');
 
         await outer.closeBundle();
     });

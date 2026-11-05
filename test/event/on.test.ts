@@ -40,23 +40,28 @@ function frame() {
     }
 }
 
-// Lowers 'source' and runs it against the runtime this file mocks; 'value' is what it returns
-function compile(source: string, args: Record<string, unknown>) {
-    let { sourceFile } = languageService.scratch(process.cwd() + '/on-fixture.ts', source),
-        result = generateCode(findTemplateArtifacts(sourceFile), sourceFile),
+// Lowers 'source' to the code run() evaluates against the runtime this file mocks, so a caller can evaluate it inside
+// a reactive root
+async function lower(source: string) {
+    let { sourceFile } = await languageService.scratch(process.cwd() + '/on-fixture.ts', source),
+        result = await generateCode(await findTemplateArtifacts(sourceFile), sourceFile),
         output = source;
 
     for (let replacement of [...result.replacements].sort((a, b) => b.node.getStart(sourceFile) - a.node.getStart(sourceFile))) {
         output = output.slice(0, replacement.node.getStart(sourceFile)) + replacement.generate(sourceFile, written) + output.slice(replacement.node.end);
     }
 
-    // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
-    return new Function(NAMESPACE, ...Object.keys(args), stripTypeScriptTypes(result.prepend.join('\n') + '\n' + output) + '\nreturn value;')(namespace, ...Object.values(args));
+    return stripTypeScriptTypes(result.prepend.join('\n') + '\n' + output);
 }
 
 // How many of the spied calls were for 'event'
 function registered(spy: { mock: { calls: unknown[][] } }, event: string) {
     return spy.mock.calls.filter(([name]) => name === event).length;
+}
+
+function run(js: string, args: Record<string, unknown>) {
+    // oxlint-disable-next-line typescript/no-implied-eval -- runs compiled output
+    return new Function(NAMESPACE, ...Object.keys(args), js + '\nreturn value;')(namespace, ...Object.values(args));
 }
 
 
@@ -100,7 +105,7 @@ describe('event/on', () => {
     });
 
     describe('targets', () => {
-        it('an element: delegated, called with the element, the event and a disposer', () => {
+        it('an element: delegated, called with the element, the event and a disposer', async () => {
             let args: unknown[] = [],
                 node = element('button'),
                 self: unknown = null;
@@ -119,7 +124,7 @@ describe('event/on', () => {
             expect(args[1]).toBeTypeOf('function');
         });
 
-        it('document and window, called with the target', () => {
+        it('document and window, called with the target', async () => {
             let selves: unknown[] = [];
 
             track(on(document, 'keydown', function () { selves.push(this); }));
@@ -131,7 +136,7 @@ describe('event/on', () => {
             expect(selves).toEqual([document, window]);
         });
 
-        it('any EventTarget', () => {
+        it('any EventTarget', async () => {
             let calls = 0,
                 target = new EventTarget();
 
@@ -141,7 +146,7 @@ describe('event/on', () => {
             expect(calls).toBe(1);
         });
 
-        it('a node that has left the DOM, attached directly', () => {
+        it('a node that has left the DOM, attached directly', async () => {
             let calls = 0,
                 node = element();
 
@@ -152,7 +157,7 @@ describe('event/on', () => {
             expect(calls).toBe(1);
         });
 
-        it('a delegated binding on a detached node runs once the node is in the document', () => {
+        it('a delegated binding on a detached node runs once the node is in the document', async () => {
             let calls = 0,
                 node = document.createElement('div');
 
@@ -169,7 +174,7 @@ describe('event/on', () => {
     });
 
     describe('shared native listeners', () => {
-        it('one per target, event, capture and passive, removed when the last binding goes', () => {
+        it('one per target, event, capture and passive, removed when the last binding goes', async () => {
             let a = element(),
                 add = vi.spyOn(document, 'addEventListener'),
                 b = element(),
@@ -214,7 +219,7 @@ describe('event/on', () => {
             expect(registered(add, 'shared')).toBe(5);
         });
 
-        it('keyed per target', () => {
+        it('keyed per target', async () => {
             let a = element(),
                 b = element(),
                 addA = vi.spyOn(a, 'addEventListener'),
@@ -230,7 +235,7 @@ describe('event/on', () => {
             expect(registered(addB, 'click')).toBe(1);
         });
 
-        it('stacks on() calls, each with its own disposer, beside an attribute binding', () => {
+        it('stacks on() calls, each with its own disposer, beside an attribute binding', async () => {
             let order: string[] = [],
                 node = element('button'),
                 first = track(on(node, 'click', () => { order.push('first'); }));
@@ -250,7 +255,7 @@ describe('event/on', () => {
             expect(order).toEqual(['second', 'replacement']);
         });
 
-        it('runs every binding when one throws, and rethrows its error', () => {
+        it('runs every binding when one throws, and rethrows its error', async () => {
             let errors: unknown[] = [],
                 failure = new Error('failed'),
                 node = element('button'),
@@ -277,7 +282,7 @@ describe('event/on', () => {
     });
 
     describe('capture', () => {
-        it('runs before bubble listeners and never replaces or is replaced by them', () => {
+        it('runs before bubble listeners and never replaces or is replaced by them', async () => {
             let child = element('span'),
                 order: string[] = [],
                 parent = element();
@@ -294,7 +299,7 @@ describe('event/on', () => {
             expect(order).toEqual(['parent capture', 'child capture', 'child bubble', 'child attribute']);
         });
 
-        it('attaches to the element: capture implies direct', () => {
+        it('attaches to the element: capture implies direct', async () => {
             let add = vi.spyOn(document, 'addEventListener'),
                 node = element(),
                 own = vi.spyOn(node, 'addEventListener');
@@ -307,7 +312,7 @@ describe('event/on', () => {
     });
 
     describe('direct', () => {
-        it('reaches the element past nested bound content', () => {
+        it('reaches the element past nested bound content', async () => {
             let calls: string[] = [],
                 child = element('button'),
                 parent = element();
@@ -328,7 +333,7 @@ describe('event/on', () => {
         it.each([
             ['touchmove', () => new TouchEvent('touchmove', { bubbles: true, cancelable: true })],
             ['wheel', () => new WheelEvent('wheel', { bubbles: true, cancelable: true })]
-        ] as const)('passive: false lets preventDefault work on %s, delegated or direct', (type, create) => {
+        ] as const)('passive: false lets preventDefault work on %s, delegated or direct', async (type, create) => {
             for (let options of [undefined, { passive: false }, { direct: true, passive: false }]) {
                 let event = create(),
                     node = element();
@@ -342,7 +347,7 @@ describe('event/on', () => {
     });
 
     describe('ending a binding', () => {
-        it('once, the disposer, the dispose argument and signal each remove only their own binding', () => {
+        it('once, the disposer, the dispose argument and signal each remove only their own binding', async () => {
             let controller = new AbortController(),
                 counts = { dispose: 0, disposer: 0, kept: 0, once: 0, signal: 0 },
                 node = element('button'),
@@ -365,7 +370,7 @@ describe('event/on', () => {
             expect(counts).toEqual({ dispose: 1, disposer: 1, kept: 3, once: 1, signal: 1 });
         });
 
-        it.each(['capture', 'delegated', 'direct', 'document', 'passive', 'target', 'window'] as const)('ends a %s binding by once, the disposer, the dispose argument or signal, then its native listener', (kind) => {
+        it.each(['capture', 'delegated', 'direct', 'document', 'passive', 'target', 'window'] as const)('ends a %s binding by once, the disposer, the dispose argument or signal, then its native listener', async (kind) => {
             let controller = new AbortController(),
                 counts = { dispose: 0, disposer: 0, kept: 0, once: 0, signal: 0 },
                 node = element('button'),
@@ -403,7 +408,7 @@ describe('event/on', () => {
             expect(registered(remove, 'ending')).toBe(1);
         });
 
-        it('binds nothing for an already-aborted signal', () => {
+        it('binds nothing for an already-aborted signal', async () => {
             let add = vi.spyOn(document, 'addEventListener'),
                 listener = vi.fn(),
                 node = element('button'),
@@ -418,7 +423,7 @@ describe('event/on', () => {
             dispose();
         });
 
-        it.each(['disposer', 'dispose argument', 'once'] as const)('removes the abort listener when released by the %s', route => {
+        it.each(['disposer', 'dispose argument', 'once'] as const)('removes the abort listener when released by the %s', async route => {
             let controller = new AbortController(),
                 add = vi.spyOn(controller.signal, 'addEventListener'),
                 node = element('button'),
@@ -442,7 +447,7 @@ describe('event/on', () => {
             expect(remove.mock.calls[0][1]).toBe(add.mock.calls[0][1]);
         });
 
-        it('is never removed by the template on its own', () => {
+        it('is never removed by the template on its own', async () => {
             let calls = 0,
                 node = element('button'),
                 dispose = root((dispose) => {
@@ -495,7 +500,7 @@ describe('event/on', () => {
             expect(calls).toHaveLength(1);
         });
 
-        it('runs a handler that takes only the element', () => {
+        it('runs a handler that takes only the element', async () => {
             let node = element(),
                 received: unknown = null;
 
@@ -505,7 +510,7 @@ describe('event/on', () => {
             expect(received).toBe(node);
         });
 
-        it('stacks across separate attribute objects and spreads, in order, each with its own bound on', () => {
+        it('stacks across separate attribute objects and spreads, in order, each with its own bound on', async () => {
             let bound: unknown[] = [],
                 node = element(),
                 order: string[] = [];
@@ -522,7 +527,7 @@ describe('event/on', () => {
             expect(new Set(bound).size).toBe(3);
         });
 
-        it('removes its bindings when the element is disposed, on every target', () => {
+        it('removes its bindings when the element is disposed, on every target', async () => {
             using remove = vi.spyOn(document, 'removeEventListener');
 
             let calls = 0,
@@ -582,7 +587,7 @@ describe('event/on', () => {
             expect(calls).toBe(2);
         });
 
-        it('does not run its bindings while the element is out of the document, on any target', () => {
+        it('does not run its bindings while the element is out of the document, on any target', async () => {
             let calls: string[] = [],
                 node = element('button'),
                 other = element('button'),
@@ -636,7 +641,7 @@ describe('event/on', () => {
             expect(calls).toBe(1);
         });
 
-        it('binds with capture, direct, passive and once through its on', () => {
+        it('binds with capture, direct, passive and once through its on', async () => {
             let calls: string[] = [],
                 node = element('button');
 
@@ -665,7 +670,7 @@ describe('event/on', () => {
             expect(wheel.defaultPrevented).toBe(true);
         });
 
-        it('returns a disposer and honours signal for each binding', () => {
+        it('returns a disposer and honours signal for each binding', async () => {
             let calls = { disposed: 0, kept: 0, signal: 0 },
                 controller = new AbortController(),
                 disposer: VoidFunction = () => {},
@@ -691,17 +696,18 @@ describe('event/on', () => {
         it.each([
             ['an attribute', 'onconnect=${connect}'],
             ['a spread', '${{ onconnect: connect }}']
-        ])('passes its on to a compiled handler bound through %s', (_label, attribute) => {
+        ])('passes its on to a compiled handler bound through %s', async (_label, attribute) => {
             let calls = 0,
                 received: unknown[] = [],
                 connect = (element: HTMLElement, on: On) => {
                     received.push(element, on);
                     on(element, 'click', () => { calls++; });
-                };
+                },
+                lowered = await lower(`let value = html\`<button ${attribute}></button>\`;`);
 
             root((stop) => {
                 track(stop);
-                container.append(compile(`let value = html\`<button ${attribute}></button>\`;`, { connect }));
+                container.append(run(lowered, { connect }));
             });
             frame();
 
@@ -715,7 +721,7 @@ describe('event/on', () => {
             expect(calls).toBe(1);
         });
 
-        it('rejects an on key at runtime', () => {
+        it('rejects an on key at runtime', async () => {
             let node = element();
 
             expect(() => runtime(node, 'on' as 'onconnect', () => {})).toThrow(`@esportsplus/template: 'on' is not an attribute`);

@@ -59,16 +59,16 @@ function label(node: ts.Node, sourceFile: ts.SourceFile): string {
 
 // The site search spelled out on references.origins, which resolves every value identifier in the file:
 // the oracle the compiler's search must agree with.
-const reference = (sourceFile: ts.SourceFile, checker: ts.Checker, program: ts.Program): Found => {
+const reference = async (sourceFile: ts.SourceFile, checker: ts.Checker, program: ts.Program): Promise<Found> => {
     let dependencies = new Set<string>(),
         escapes: string[] = [],
         self = sourceFile.fileName.toLowerCase(),
         sites = new Set<ts.Node>(),
-        targets = new Set(references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT).map(references.key));
+        targets = new Set((await references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT)).map(references.key));
 
     if (targets.size > 0) {
-        for (let [identifier, origin] of references.origins(checker, program, sourceFile)) {
-            if (!references.holds(checker, program, origin, targets)) {
+        for (let [identifier, origin] of await references.origins(checker, program, sourceFile)) {
+            if (!(await references.holds(checker, program, origin, targets))) {
                 continue;
             }
 
@@ -102,8 +102,8 @@ const reference = (sourceFile: ts.SourceFile, checker: ts.Checker, program: ts.P
     };
 };
 
-const found = (sourceFile: ts.SourceFile, checker: ts.Checker, program: ts.Program): Found => {
-    let artifacts = findTemplateArtifacts(sourceFile, checker, program);
+const found = async (sourceFile: ts.SourceFile, checker: ts.Checker, program: ts.Program): Promise<Found> => {
+    let artifacts = await findTemplateArtifacts(sourceFile, checker, program);
 
     return {
         dependencies: [...new Set(artifacts.dependencies.map(file => file.toLowerCase()))].sort(),

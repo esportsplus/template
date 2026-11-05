@@ -1,9 +1,10 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { plugin } from '@esportsplus/typescript/compiler';
 import type { SourceMapV3 } from '@esportsplus/typescript/compiler';
 import reactivity from '@esportsplus/reactivity/compiler';
 import { compiler } from '..';
 import { apply, plugin as hmr } from '../hmr';
-import type { HmrState } from '../hmr';
+import type { Handshake, HmrState } from '../hmr';
 import { PACKAGE_NAME, UNCOMPILED } from '../constants';
 
 
@@ -14,7 +15,7 @@ type VitePlugin = {
     name: string;
     transform: {
         filter: { id: { exclude: RegExp[]; include: RegExp } };
-        handler: (this: unknown, code: string, id: string, options?: { ssr?: boolean }) => { code: string; map: unknown } | null;
+        handler: (this: unknown, code: string, id: string, options?: { ssr?: boolean }) => Promise<{ code: string; map: unknown } | null>;
     };
     watchChange: (id: string) => void;
 };
@@ -51,7 +52,7 @@ function isAsset(query: string): boolean {
 export default ({ root }: { root?: string } = {}) => {
     let isDev = false,
         lastReload = 0,
-        state: HmrState = { id: null, plan: null, templates: new Set() },
+        state: HmrState = { templates: new Set(), transforms: new AsyncLocalStorage() },
         vitePlugin = plugin.vite({
             name: PACKAGE_NAME,
             plugins: [hmr(state), reactivity, compiler(true)],
@@ -104,7 +105,7 @@ export default ({ root }: { root?: string } = {}) => {
         transform: {
             // Lets Vite skip every other module without calling in
             filter: { id: { exclude: [REGEX_NODE_MODULES, REGEX_VIRTUAL], include: REGEX_SCRIPT } },
-            handler(this: unknown, code: string, id: string, options?: { ssr?: boolean }) {
+            async handler(this: unknown, code: string, id: string, options?: { ssr?: boolean }) {
                 let query = id.indexOf('?'),
                     path = query === -1 ? id : id.slice(0, query);
 
@@ -119,20 +120,18 @@ export default ({ root }: { root?: string } = {}) => {
                     return null;
                 }
 
-                // The pipeline runs synchronously, so this handshake cannot interleave across modules. HMR wraps a
-                // module under its own id only. A build answered from the host's result cache runs no plugin, leaving
-                // `state.templates` (dev only, where nothing is cached) as it was; the host reports the compile's
-                // removal warnings through this context either way.
-                state.id = isDev && options?.ssr !== true && query === -1 ? path.replace(REGEX_PATH_SEPARATOR, '/') : null;
-                state.plan = null;
+                // Modules transform concurrently, so each transform's handshake is its own, kept across its awaits.
+                // HMR wraps a module under its own id only. A build answered from the host's result cache runs no
+                // plugin, leaving `state.templates` (dev only, where nothing is cached) as it was; the host reports
+                // the compile's removal warnings through this context either way.
+                let handshake: Handshake = { id: isDev && options?.ssr !== true && query === -1 ? path.replace(REGEX_PATH_SEPARATOR, '/') : null, plan: null },
+                    result = await state.transforms.run(handshake, () => vitePlugin.transform.handler.call(this, code, path));
 
-                let result = vitePlugin.transform.handler.call(this, code, path);
-
-                if (result === null || state.id === null || state.plan === null) {
+                if (result === null || handshake.id === null || handshake.plan === null) {
                     return result;
                 }
 
-                return apply(result.code, result.map as SourceMapV3, state.id, state.plan) ?? result;
+                return await apply(result.code, result.map as SourceMapV3, handshake.id, handshake.plan) ?? result;
             }
         }
     } satisfies VitePlugin;

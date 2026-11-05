@@ -43,8 +43,9 @@ type TemplateInfo = {
 // Any import declaration, dynamic import() or require(): a file without one has no binding from another module
 const REGEX_IMPORT = /\bimport\b|\brequire\s*\(/;
 
-// The declarations `html` resolves to: one answer for every file of a program, dropped with the program or its checker
-const TARGETS = new WeakMap<ts.Program, { checker: ts.Checker; targets: Set<string> }>();
+// The declarations `html` resolves to: one answer for every file of a program, dropped with the program or its checker;
+// concurrent transforms of the program await the one request
+const TARGETS = new WeakMap<ts.Program, { checker: ts.Checker; targets: Promise<Set<string>> }>();
 
 
 // Deepest first so a nested template lowers before its parent consumes it, then document
@@ -53,11 +54,14 @@ function byDepthThenStart(a: TemplateInfo, b: TemplateInfo): number {
     return a.depth !== b.depth ? b.depth - a.depth : a.start - b.start;
 }
 
-function exported(checker: ts.Checker, program: ts.Program): Set<string> {
+function exported(checker: ts.Checker, program: ts.Program): Promise<Set<string>> {
     let entry = TARGETS.get(program);
 
     if (entry === undefined || entry.checker !== checker) {
-        entry = { checker, targets: new Set(references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT).map(references.key)) };
+        entry = {
+            checker,
+            targets: references.exported(checker, program, PACKAGE_NAME, ENTRYPOINT).then(declarations => new Set(declarations.map(references.key)))
+        };
         TARGETS.set(program, entry);
     }
 
@@ -197,7 +201,7 @@ const extractTemplateParts = (template: ts.TemplateLiteral): { expressions: ts.E
 // With a checker, sites are found by resolving every value in the file to its declaration: `html`
 // reached through any import, barrel re-export, namespace or const alias is a site, and a
 // same-named local never is. Every site the compiler cannot lower is reported as an escape.
-const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): Artifacts => {
+const findTemplateArtifacts = async (sourceFile: ts.SourceFile, checker?: ts.Checker, program?: ts.Program): Promise<Artifacts> => {
     let artifacts: Artifacts = {
             assigned: new Set(),
             calls: [],
@@ -215,16 +219,20 @@ const findTemplateArtifacts = (sourceFile: ts.SourceFile, checker?: ts.Checker, 
             return artifacts;
         }
 
-        let targets = exported(checker, program);
+        let targets = await exported(checker, program);
 
         if (targets.size > 0) {
             let dependencies = new Set<string>(),
+                origins = [...await references.origins(checker, program, sourceFile)],
+                held = await Promise.all(origins.map(([, origin]) => references.holds(checker, program, origin, targets))),
                 self = sourceFile.fileName.toLowerCase();
 
-            for (let [identifier, origin] of references.origins(checker, program, sourceFile)) {
-                if (!references.holds(checker, program, origin, targets)) {
+            for (let i = 0, n = origins.length; i < n; i++) {
+                if (!held[i]) {
                     continue;
                 }
+
+                let [identifier, origin] = origins[i];
 
                 let parent = identifier.parent!;
 
