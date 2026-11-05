@@ -3,16 +3,18 @@ import { ast, checker as checkers, uid } from '@esportsplus/typescript/compiler'
 import type { Prepend, ReplacementIntent, Text } from '@esportsplus/typescript/compiler';
 import { ANCHOR_SOLE } from '../constants';
 import parse from '../event/parse';
-import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, SIGNAL, TYPES } from './constants';
+import { ENTRYPOINT_VIRTUAL, NAMESPACE, PACKAGE_NAME, PART, SIGNAL, TYPES } from './constants';
 import type { Entrypoint } from './constants';
-import { analyze, fold, selectorComparison } from './ts-analyzer';
+import { analyze, fold, measure, partOf, selectorComparison } from './ts-analyzer';
 import { entrypointOf, extractTemplateParts, isHtmlTemplate } from './ts-parser';
 import type { Artifacts } from './ts-parser';
 import parser from './parser';
-import { specialize } from './specialize';
+import { parametersOf, specialize } from './specialize';
 
 
 type CodegenContext = {
+    // Whether each spread is an attributes object, by attributesObjects() (see prefetch())
+    attributes?: Map<ts.Expression, boolean>;
     checker?: ts.Checker;
     constants?: Set<string>;
     // What each token in generated code stands for; see resolve()
@@ -27,6 +29,8 @@ type CodegenContext = {
     markers?: Set<ts.Node>;
     // One intent per rewrite nested in copied source, generating its marker; see mark()
     nested?: ReplacementIntent[];
+    // What each expression is, by measure() (see prefetch())
+    parts?: Map<ts.Expression, PART>;
     prefoldCache?: WeakMap<ts.Node, Prefolded>;
     selectorFired?: boolean;
     // Template html whose clone is its one root element (see parser's single())
@@ -68,14 +72,6 @@ const PARSED = new Map<string, ParseResult>();
 
 const PARSED_LIMIT = 2000;
 
-const PART_FUNCTION = 0;
-
-const PART_TEXT = 1;
-
-const PART_UNKNOWN = 2;
-
-const PART_VALUE = 3;
-
 const REGEX_ATTRIBUTE_VALUE_OPEN = /=\s*(["']?)$/;
 
 // oxlint-disable-next-line no-control-regex -- NUL delimits markers precisely because source never holds one
@@ -91,11 +87,81 @@ const REGEX_UNQUOTED_VALUE_CLOSE = /^(?:[\s>]|\/>)/;
 const TOKEN = '\u0000T';
 
 
-// What a composed value's part is: a function to call per run, a string or number to join as it is (nothing to drop or
-// call), another value to join without null, undefined and false, or unknown until it runs
-function classify(checker: ts.Checker | undefined, expr: ts.Expression | undefined): number {
+// Whether each spread is typed as an object that is never an array and declares both class and style, as Attributes
+// does: `value?.class` and `value?.style` are then sound to read, so they join the element's merged list calls. Each
+// step asks about every spread's member types in one request.
+function attributesObjects(checker: ts.Checker, exprs: ts.Expression[], types: (ts.Type | undefined)[]): Map<ts.Expression, boolean> {
+    let members: (ts.Type[] | null)[] = [],
+        objects = new Map<number, ts.Type>(),
+        result = new Map<ts.Expression, boolean>();
+
+    for (let i = 0, n = exprs.length; i < n; i++) {
+        let type = types[i],
+            list: ts.Type[] | null = [];
+
+        if (!type) {
+            members.push(null);
+            continue;
+        }
+
+        let all = type.isUnionType() ? type.getTypes() : [type];
+
+        for (let j = 0, m = all.length; j < m; j++) {
+            let member = all[j];
+
+            if (member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) {
+                continue;
+            }
+
+            if ((member.flags & (ts.TypeFlags.Object | ts.TypeFlags.Intersection)) === 0) {
+                list = null;
+                break;
+            }
+
+            list.push(member);
+        }
+
+        if (list !== null) {
+            for (let j = 0, m = list.length; j < m; j++) {
+                objects.set(list[j].id, list[j]);
+            }
+        }
+
+        members.push(list);
+    }
+
+    let candidates = [...objects.values()],
+        declares = new Map<number, boolean>();
+
+    if (candidates.length > 0) {
+        let arrays = checkers.batch(checker, 'isArrayLikeType', candidates.map(type => [type] as [ts.Type])),
+            plain = candidates.filter((_, i) => !arrays[i]),
+            properties: [ts.Type, string][] = [];
+
+        for (let i = 0, n = plain.length; i < n; i++) {
+            properties.push([plain[i], 'class'], [plain[i], 'style']);
+        }
+
+        let found = properties.length > 0 ? checkers.batch(checker, 'getPropertyOfType', properties) : [];
+
+        for (let i = 0, n = plain.length; i < n; i++) {
+            declares.set(plain[i].id, !!found[2 * i] && !!found[2 * i + 1]);
+        }
+    }
+
+    for (let i = 0, n = exprs.length; i < n; i++) {
+        let list = members[i];
+
+        result.set(exprs[i], list !== null && list.length > 0 && list.every(member => declares.get(member.id) === true));
+    }
+
+    return result;
+}
+
+// What a composed value's part is (see PART); a string or number joins as it is, with nothing to drop or call
+function classify(ctx: CodegenContext, expr: ts.Expression | undefined): PART {
     if (expr === undefined) {
-        return PART_VALUE;
+        return PART.Value;
     }
 
     while (ts.isParenthesizedExpression(expr)) {
@@ -103,41 +169,14 @@ function classify(checker: ts.Checker | undefined, expr: ts.Expression | undefin
     }
 
     if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) {
-        return PART_FUNCTION;
+        return PART.Function;
     }
 
     if (isLiteral(expr) || ts.isTemplateExpression(expr)) {
-        return PART_TEXT;
+        return PART.Text;
     }
 
-    let type = checker?.getTypeAtLocation(expr);
-
-    if (!type || type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) {
-        return PART_UNKNOWN;
-    }
-
-    let callable = 0,
-        text = 0,
-        types = type.isUnionType() ? type.getTypes() : [type];
-
-    for (let i = 0, n = types.length; i < n; i++) {
-        if (checker!.getSignaturesOfType(types[i], ts.SignatureKind.Call).length > 0) {
-            callable++;
-        }
-        else if (types[i].flags & (ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike)) {
-            text++;
-        }
-    }
-
-    if (callable === types.length) {
-        return PART_FUNCTION;
-    }
-
-    if (callable > 0) {
-        return PART_UNKNOWN;
-    }
-
-    return text === types.length ? PART_TEXT : PART_VALUE;
+    return partOf(expr, ctx.checker, ctx.parts);
 }
 
 function collectNestedReplacements(ctx: CodegenContext, node: ts.Node, replacements: Nested[], inObserver: boolean): void {
@@ -309,15 +348,15 @@ function generateComposedValue(ctx: CodegenContext, code: string[], segments: (s
     let declarations: string[] = [],
         dynamic = false,
         element = '',
-        kinds: number[] = [],
+        kinds: PART[] = [],
         pieces: string[] = [],
         strip = '';
 
     for (let i = 0, n = segments.length; i < n; i++) {
         let segment = segments[i];
 
-        kinds[i] = typeof segment === 'string' ? PART_TEXT : classify(ctx.checker, segment.expr);
-        dynamic ||= kinds[i] === PART_FUNCTION || kinds[i] === PART_UNKNOWN;
+        kinds[i] = typeof segment === 'string' ? PART.Text : classify(ctx, segment.expr);
+        dynamic ||= kinds[i] === PART.Function || kinds[i] === PART.Unknown;
     }
 
     if (dynamic) {
@@ -333,29 +372,29 @@ function generateComposedValue(ctx: CodegenContext, code: string[], segments: (s
             continue;
         }
 
-        if (kind !== PART_TEXT) {
+        if (kind !== PART.Text) {
             strip ||= hoist(ctx, `(value: unknown) => value == null || value === false ? '' : value`, 'part');
         }
 
         // A static value is joined once where the binding is created: nothing to hold
-        if (!dynamic || (kind === PART_TEXT && segment.expr !== undefined && isLiteral(segment.expr))) {
-            pieces.push(kind === PART_TEXT ? `(${segment.text})` : `${strip}(${segment.text})`);
+        if (!dynamic || (kind === PART.Text && segment.expr !== undefined && isLiteral(segment.expr))) {
+            pieces.push(kind === PART.Text ? `(${segment.text})` : `${strip}(${segment.text})`);
             continue;
         }
 
         let id = uid('value');
 
         // A function part may declare no parameter, or a narrower element than the binding passes
-        if (kind === PART_FUNCTION) {
+        if (kind === PART.Function) {
             declarations.push(`${id}: Function = ${segment.text}`);
             pieces.push(`${strip}(${id}(${element}))`);
         }
-        else if (kind === PART_UNKNOWN) {
+        else if (kind === PART.Unknown) {
             declarations.push(`${id}: any = ${segment.text}`);
             pieces.push(`${strip}(typeof ${id} === 'function' ? ${id}(${element}) : ${id})`);
         }
         else {
-            declarations.push(kind === PART_TEXT ? `${id} = ${segment.text}` : `${id} = ${strip}(${segment.text})`);
+            declarations.push(kind === PART.Text ? `${id} = ${segment.text}` : `${id} = ${strip}(${segment.text})`);
             pieces.push(id);
         }
     }
@@ -405,7 +444,7 @@ function generateNodeBinding(ctx: CodegenContext, anchor: string, expr: ts.Expre
     let flag = mode ? ', ' + ANCHOR_SOLE : '',
         node: string;
 
-    switch (expr ? analyze(expr, ctx.sites, ctx.checker) : TYPES.Unknown) {
+    switch (expr ? analyze(expr, ctx.sites, ctx.checker, ctx.parts) : TYPES.Unknown) {
         case TYPES.ArraySlot:
         case TYPES.VirtualSlot: {
             let call = expr!;
@@ -579,7 +618,7 @@ function generateTemplateCode(ctx: CodegenContext, { html, single, slots }: Pars
                         }
                     }
                 }
-                else if (expr && ctx.checker && isAttributesObject(ctx.checker, expr)) {
+                else if (expr && ctx.checker && isAttributesObject(ctx, expr)) {
                     let id = uid('attributes');
 
                     code.push(`let ${id} = ${text(index)};`, `${NAMESPACE}.setProperties(${element}, ${id}, true);`);
@@ -800,35 +839,12 @@ function isLiteral(expr: ts.Expression): boolean {
     return ts.isStringLiteral(expr) || ts.isNumericLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr);
 }
 
-// A spread typed as an object that is never an array and declares both class and style, as Attributes does:
-// `value?.class` and `value?.style` are then sound to read, so they join the element's merged list calls
-function isAttributesObject(checker: ts.Checker, expr: ts.Expression): boolean {
-    let type = checker.getTypeAtLocation(expr);
+function isAttributesObject(ctx: CodegenContext, expr: ts.Expression): boolean {
+    let found = ctx.attributes?.get(expr);
 
-    if (!type) {
-        return false;
-    }
-
-    let found = false,
-        types = type.isUnionType() ? type.getTypes() : [type];
-
-    for (let i = 0, n = types.length; i < n; i++) {
-        let member = types[i];
-
-        if (member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) {
-            continue;
-        }
-
-        if (
-            (member.flags & (ts.TypeFlags.Object | ts.TypeFlags.Intersection)) === 0 ||
-            checker.isArrayLikeType(member) ||
-            !checker.getPropertyOfType(member, 'class') ||
-            !checker.getPropertyOfType(member, 'style')
-        ) {
-            return false;
-        }
-
-        found = true;
+    if (found === undefined) {
+        found = attributesObjects(ctx.checker!, [expr], ctx.checker!.getTypeAtLocation([expr])).get(expr)!;
+        ctx.attributes?.set(expr, found);
     }
 
     return found;
@@ -927,46 +943,118 @@ function parseCached(literals: string[]): ParseResult {
     return result;
 }
 
-// Every type codegen asks about, in one request: what analyze() and classify() type is a template expression,
-// unwrapped, and a conditional's branches; a function, literal, nested template or slot construction never is
-function prefetch(checker: ts.Checker, templates: Artifacts['templates'], sites: Set<ts.Node>): void {
-    let nodes: ts.Node[] = [];
+// What generateTemplateCode() asks of the checker for every template of the file, answered for all of them at once:
+// analyze() about a node slot, classify() about each part of a composed attribute value, isAttributesObject() about a
+// spread and specialize() about the parameters a template reads. Folding only turns expressions into text, never moves one into another role, so the template's own parse
+// tells each expression's role; a template that fails to parse has every expression asked about both ways.
+function prefetch(ctx: CodegenContext, checker: ts.Checker, templates: Artifacts['templates']): void {
+    let nodes: ts.Expression[] = [],
+        sites = ctx.sites,
+        spreads: ts.Expression[] = [];
 
-    let collect = (expr: ts.Expression): void => {
+    let node = (expr: ts.Expression): void => {
         while (ts.isParenthesizedExpression(expr)) {
             expr = expr.expression;
         }
 
-        if (
-            ts.isArrowFunction(expr) ||
-            ts.isFunctionExpression(expr) ||
-            ts.isTemplateExpression(expr) ||
-            isLiteral(expr) ||
-            isHtmlTemplate(expr, sites) ||
-            entrypointOf(expr, sites) !== null
-        ) {
-            return;
+        if (ts.isConditionalExpression(expr)) {
+            node(expr.whenTrue);
+            node(expr.whenFalse);
+        }
+        else if (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr) || (ts.isCallExpression(expr) && entrypointOf(expr, sites) === null)) {
+            nodes.push(expr);
+        }
+    };
+
+    let part = (expr: ts.Expression): void => {
+        while (ts.isParenthesizedExpression(expr)) {
+            expr = expr.expression;
         }
 
-        nodes.push(expr);
-
-        if (ts.isConditionalExpression(expr)) {
-            collect(expr.whenTrue);
-            collect(expr.whenFalse);
+        if (!ts.isArrowFunction(expr) && !ts.isFunctionExpression(expr) && !isLiteral(expr) && !ts.isTemplateExpression(expr)) {
+            nodes.push(expr);
         }
     };
 
     for (let i = 0, n = templates.length; i < n; i++) {
-        let expressions = templates[i].expressions;
+        let { expressions, literals } = templates[i],
+            slots: ParseResult['slots'];
 
-        for (let j = 0, m = expressions.length; j < m; j++) {
-            collect(expressions[j]);
+        // Lowering parses the template again and reports what fails here
+        try {
+            slots = parseCached(literals).slots;
+        }
+        catch {
+            for (let j = 0, m = expressions.length; j < m; j++) {
+                node(expressions[j]);
+                part(expressions[j]);
+            }
+
+            continue;
+        }
+
+        for (let j = 0, index = 0, m = slots?.length ?? 0; j < m; j++) {
+            let slot = slots![j];
+
+            if (slot.type !== TYPES.Attribute) {
+                if (expressions[index]) {
+                    node(expressions[index]);
+                }
+
+                index++;
+                continue;
+            }
+
+            let names = slot.attributes.names,
+                parts = slot.attributes.parts;
+
+            for (let k = 0, p = names.length; k < p; k++) {
+                let expr = expressions[index],
+                    name = names[k];
+
+                if (name === TYPES.Attributes) {
+                    if (expr && !ts.isObjectLiteralExpression(expr)) {
+                        spreads.push(expr);
+                    }
+
+                    index++;
+                    continue;
+                }
+
+                if (name.startsWith('on')) {
+                    index++;
+                    continue;
+                }
+
+                let last = k;
+
+                while (last + 1 < p && names[last + 1] === name && parts[last + 1].group === parts[k].group) {
+                    last++;
+                }
+
+                if (last === k && !parts[k].prefix && !parts[k].suffix) {
+                    index++;
+                    continue;
+                }
+
+                for (let q = k; q <= last; q++, index++) {
+                    if (expressions[index]) {
+                        part(expressions[index]);
+                    }
+                }
+
+                k = last;
+            }
         }
     }
 
-    if (nodes.length > 0) {
-        checker.getTypeAtLocation(nodes);
-    }
+    // specialize() reads the parameters' types from the checker's memo
+    let parameters = parametersOf(checker, templates.map(template => template.expressions)),
+        queried = [...nodes, ...spreads, ...parameters],
+        types: (ts.Type | undefined)[] = queried.length > 0 ? checker.getTypeAtLocation(queried) : [];
+
+    ctx.parts = measure(checker, nodes, types.slice(0, nodes.length));
+    ctx.attributes = attributesObjects(checker, spreads, types.slice(nodes.length, nodes.length + spreads.length));
 }
 
 // Merge every foldable expression into the surrounding literals BEFORE parse: the folded value
@@ -1054,7 +1142,7 @@ const generateCode = ({ calls, constants, sites, templates }: Artifacts, sourceF
         templateRanges: Range[] = [];
 
     if (ctx.checker) {
-        prefetch(ctx.checker, templates, sites);
+        prefetch(ctx, ctx.checker, templates);
     }
 
     for (let i = 0, n = templates.length; i < n; i++) {

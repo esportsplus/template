@@ -27,6 +27,15 @@ const REMOVALS = new Map<string, 'call' | 'write'>([
 const SIGNAL = 'signal';
 
 
+// What an expression's value is when a slot or composed value reads it: a function to call per run, a string or number
+// to join as it is, unknown until it runs, or another value
+const enum PART {
+    Function,
+    Text,
+    Unknown,
+    Value
+};
+
 const enum TYPES {
     ArraySlot = 'array-slot',
     Attributes = 'attributes',
@@ -48,6 +57,6 @@ const isEntrypoint = (value: string): value is Entrypoint => {
 };
 
 
-export { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, isEntrypoint, NAMESPACE, PACKAGE_REACTIVITY, REMOVALS, SIGNAL, TYPES };
+export { ENTRYPOINT, ENTRYPOINT_REACTIVITY, ENTRYPOINT_VIRTUAL, isEntrypoint, NAMESPACE, PACKAGE_REACTIVITY, PART, REMOVALS, SIGNAL, TYPES };
 export type { Entrypoint };
 export { PACKAGE_NAME, UNCOMPILED } from '../constants';

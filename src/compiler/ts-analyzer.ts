@@ -1,6 +1,6 @@
 import { ts } from '@esportsplus/typescript';
-import { imports } from '@esportsplus/typescript/compiler';
-import { ENTRYPOINT_REACTIVITY, PACKAGE_NAME, PACKAGE_REACTIVITY, TYPES } from './constants';
+import { checker as checkers, imports } from '@esportsplus/typescript/compiler';
+import { ENTRYPOINT_REACTIVITY, PACKAGE_NAME, PACKAGE_REACTIVITY, PART, TYPES } from './constants';
 import { constant, isConstDeclaration } from './specialize';
 import { entrypointOf, isHtmlTemplate, unwrap } from './ts-parser';
 
@@ -56,7 +56,48 @@ function isReadCall(expr: ts.Expression, checker?: ts.Checker): expr is ts.CallE
     );
 }
 
-const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker): TYPES => {
+// Callable members make a function only when every member is one; a member that is neither callable nor a string or
+// number makes the value one to join without null, undefined and false
+function judge(type: ts.Type | undefined, members: readonly ts.Type[], callable: Map<number, boolean>): PART {
+    if (!type || type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) {
+        return PART.Unknown;
+    }
+
+    let calls = 0,
+        text = 0;
+
+    for (let i = 0, n = members.length; i < n; i++) {
+        let member = members[i];
+
+        if (callable.get(member.id)) {
+            calls++;
+        }
+        else if (member.flags & (ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike)) {
+            text++;
+        }
+    }
+
+    if (calls === members.length) {
+        return PART.Function;
+    }
+
+    if (calls > 0) {
+        return PART.Unknown;
+    }
+
+    return text === members.length ? PART.Text : PART.Value;
+}
+
+function membersOf(type: ts.Type | undefined): readonly ts.Type[] {
+    if (!type || type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) {
+        return [];
+    }
+
+    return type.isUnionType() ? type.getTypes() : [type];
+}
+
+// `parts` holds what measure() already answered (see codegen's prefetch)
+const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker, parts?: Map<ts.Expression, PART>): TYPES => {
     while (ts.isParenthesizedExpression(expr)) {
         expr = expr.expression;
     }
@@ -93,8 +134,8 @@ const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker)
     }
 
     if (ts.isConditionalExpression(expr)) {
-        let whenFalse = analyze(expr.whenFalse, sites, checker),
-            whenTrue = analyze(expr.whenTrue, sites, checker);
+        let whenFalse = analyze(expr.whenFalse, sites, checker, parts),
+            whenTrue = analyze(expr.whenTrue, sites, checker, parts);
 
         if (whenTrue === whenFalse) {
             return whenTrue;
@@ -109,9 +150,7 @@ const analyze = (expr: ts.Expression, sites: Set<ts.Node>, checker?: ts.Checker)
 
     if (checker && (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr) || ts.isCallExpression(expr))) {
         try {
-            let type = checker.getTypeAtLocation(expr);
-
-            if (type && isFunctionType(type, checker)) {
+            if (partOf(expr, checker, parts) === PART.Function) {
                 return TYPES.Effect;
             }
         }
@@ -152,6 +191,55 @@ const isFunctionType = (type: ts.Type, checker: ts.Checker): boolean => {
     return checker.getSignaturesOfType(type, ts.SignatureKind.Call).length > 0;
 };
 
+// What each expression is (see PART), from its type: whether each union member is callable is asked in one request
+const measure = (checker: ts.Checker, nodes: ts.Expression[], types: (ts.Type | undefined)[]): Map<ts.Expression, PART> => {
+    let members: (readonly ts.Type[])[] = [],
+        result = new Map<ts.Expression, PART>(),
+        unique = new Map<number, ts.Type>();
+
+    for (let i = 0, n = types.length; i < n; i++) {
+        members[i] = membersOf(types[i]);
+
+        for (let j = 0, m = members[i].length; j < m; j++) {
+            let member = members[i][j];
+
+            // No global interface stands behind these, so no declaration merging can make them callable
+            if ((member.flags & (ts.TypeFlags.Never | ts.TypeFlags.Null | ts.TypeFlags.Undefined | ts.TypeFlags.Void)) === 0) {
+                unique.set(member.id, member);
+            }
+        }
+    }
+
+    let callable = new Map<number, boolean>(),
+        candidates = [...unique.values()];
+
+    if (candidates.length > 0) {
+        let found = checkers.batch(checker, 'getSignaturesOfType', candidates.map(type => [type, ts.SignatureKind.Call] as [ts.Type, ts.SignatureKind]));
+
+        for (let i = 0, n = candidates.length; i < n; i++) {
+            callable.set(candidates[i].id, found[i].length > 0);
+        }
+    }
+
+    for (let i = 0, n = nodes.length; i < n; i++) {
+        result.set(nodes[i], judge(types[i], members[i], callable));
+    }
+
+    return result;
+};
+
+// What measure() answers for one expression, from `parts` when it is there
+const partOf = (expr: ts.Expression, checker?: ts.Checker, parts?: Map<ts.Expression, PART>): PART => {
+    let part = parts?.get(expr);
+
+    if (part === undefined) {
+        part = checker ? measure(checker, [expr], checker.getTypeAtLocation([expr])).get(expr)! : PART.Unknown;
+        parts?.set(expr, part);
+    }
+
+    return part;
+};
+
 const selectorComparison = (expr: ts.Expression, checker?: ts.Checker): SelectorComparison | null => {
     if (
         !ts.isBinaryExpression(expr) ||
@@ -175,5 +263,5 @@ const selectorComparison = (expr: ts.Expression, checker?: ts.Checker): Selector
 };
 
 
-export { analyze, fold, isFunctionType, selectorComparison };
+export { analyze, fold, isFunctionType, measure, partOf, selectorComparison };
 export type { SelectorComparison };

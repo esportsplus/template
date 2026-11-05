@@ -268,6 +268,31 @@ function serialize(value: Primitive | typeof UNKNOWN): string | null {
     return REGEX_SAFE.test(text) ? text : null;
 }
 
+// Every use of a candidate name in the expressions, as long as it stays a candidate. Nothing walked here can introduce
+// a binding (function-likes, class bodies and nested templates are skipped), so every identifier shares the template's
+// scope: once a name resolves to a parameter, its other occurrences are the same parameter.
+function uses(expressions: ts.Expression[], candidates: Set<string>, found: (node: ts.Identifier) => void): void {
+    let visit = (node: ts.Node) => {
+        if (hasParameters(node) || ts.isClassExpression(node) || ts.isTaggedTemplateExpression(node)) {
+            return;
+        }
+
+        if (
+            ts.isIdentifier(node) &&
+            candidates.has(node.text) &&
+            !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
+        ) {
+            found(node);
+        }
+
+        node.forEachChild(visit);
+    };
+
+    for (let i = 0, n = expressions.length; i < n; i++) {
+        visit(expressions[i]);
+    }
+}
+
 
 const constant = (node: ts.Expression, checker?: ts.Checker, names?: Set<string>): string | null => {
     return serialize(evaluate(node, { checker, names, values: new Map(), visiting: new Set() }));
@@ -278,6 +303,47 @@ const isConstDeclaration = (node: ts.Node): node is ts.VariableDeclaration & { i
         node.initializer !== undefined &&
         ts.isVariableDeclarationList(node.parent) &&
         (node.parent.flags & ts.NodeFlags.Const) !== 0;
+};
+
+// The parameters specialize() asks the type of for every template of a file, from one request for the symbol of each
+// candidate name's first use in each template
+const parametersOf = (checker: ts.Checker, templates: ts.Expression[][]): ts.Identifier[] => {
+    let identifiers: ts.Identifier[] = [];
+
+    for (let i = 0, n = templates.length; i < n; i++) {
+        let expressions = templates[i];
+
+        if (expressions.length === 0) {
+            continue;
+        }
+
+        let candidates = parameterNames(expressions[0]);
+
+        if (candidates.size) {
+            uses(expressions, candidates, (node) => {
+                candidates.delete(node.text);
+                identifiers.push(node);
+            });
+        }
+    }
+
+    let names: ts.Identifier[] = [];
+
+    if (identifiers.length === 0) {
+        return names;
+    }
+
+    let symbols = checker.getSymbolAtLocation(identifiers) as (ts.Symbol | undefined)[];
+
+    for (let i = 0, n = symbols.length; i < n; i++) {
+        let declaration = symbols[i]?.valueDeclaration?.resolve();
+
+        if (declaration && ts.isParameterDeclaration(declaration) && ts.isIdentifier(declaration.name)) {
+            names.push(declaration.name);
+        }
+    }
+
+    return names;
 };
 
 // Enumerating a bounded, immutable parameter gives static clones without copying
@@ -297,49 +363,34 @@ const specialize = (expressions: ts.Expression[], immutables: Map<ts.Symbol, boo
         return [];
     }
 
-    // Nothing walked here can introduce a binding (function-likes, class bodies and nested
-    // templates are skipped), so every identifier shares the template's scope: once a name
-    // resolves to a parameter, its other occurrences are the same parameter.
-    let visit = (node: ts.Node) => {
-        if (hasParameters(node) || ts.isClassExpression(node) || ts.isTaggedTemplateExpression(node)) {
+    uses(expressions, candidates, (node) => {
+        let symbol = checker.getSymbolAtLocation(node),
+            declaration = symbol?.valueDeclaration?.resolve();
+
+        if (!symbol || !declaration || !ts.isParameterDeclaration(declaration) || !ts.isIdentifier(declaration.name)) {
             return;
         }
 
-        if (
-            ts.isIdentifier(node) &&
-            candidates.has(node.text) &&
-            !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
-        ) {
-            let symbol = checker.getSymbolAtLocation(node),
-                declaration = symbol?.valueDeclaration?.resolve();
+        let type = checker.getTypeAtLocation(declaration.name),
+            values = type ? literals(type) : null;
 
-            if (symbol && declaration && ts.isParameterDeclaration(declaration) && ts.isIdentifier(declaration.name)) {
-                let type = checker.getTypeAtLocation(declaration.name),
-                    values = type ? literals(type) : null;
+        candidates.delete(node.text);
 
-                candidates.delete(node.text);
-
-                if (values) {
-                    let safe = immutables.get(symbol);
-
-                    if (safe === undefined) {
-                        safe = immutable(declaration as ts.ParameterDeclaration & { name: ts.Identifier }, symbol, checker);
-                        immutables.set(symbol, safe);
-                    }
-
-                    if (safe) {
-                        parameters.set(symbol, { name: node.text, values });
-                    }
-                }
-            }
+        if (!values) {
+            return;
         }
 
-        node.forEachChild(visit);
-    };
+        let safe = immutables.get(symbol);
 
-    for (let i = 0, n = expressions.length; i < n; i++) {
-        visit(expressions[i]);
-    }
+        if (safe === undefined) {
+            safe = immutable(declaration as ts.ParameterDeclaration & { name: ts.Identifier }, symbol, checker);
+            immutables.set(symbol, safe);
+        }
+
+        if (safe) {
+            parameters.set(symbol, { name: node.text, values });
+        }
+    });
 
     if (!parameters.size) {
         return [];
@@ -381,4 +432,4 @@ const specialize = (expressions: ts.Expression[], immutables: Map<ts.Symbol, boo
 };
 
 
-export { constant, isConstDeclaration, specialize };
+export { constant, isConstDeclaration, parametersOf, specialize };
