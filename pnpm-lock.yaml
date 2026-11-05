@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@esportsplus/reactivity':
+        specifier: ^0.43.0
+        version: 0.43.0
+      '@esportsplus/typescript':
         specifier: ^0.42.0
         version: 0.42.0
-      '@esportsplus/typescript':
-        specifier: ^0.41.0
-        version: 0.41.0
       '@esportsplus/utilities':
         specifier: ^0.28.6
         version: 0.28.6
@@ -264,12 +264,12 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@esportsplus/reactivity@0.42.0':
-    resolution: {integrity: sha512-jFV2IeGEEAjlqCKhg81bB5cLTIMbLVD1jyTn0Hb+5EkGmXWk8ZnUwtEHqfi9Kwnmr6JOldMn63Ph8ntgVixg3g==}
+  '@esportsplus/reactivity@0.43.0':
+    resolution: {integrity: sha512-OFcQ/GPnYhj7VmSWtYndtTmEMn7IbroBd8xav4KOhbSbd/l76th9Q3+6/HMQBF1y2F90Z/Bvj6XnhaYsYuianA==}
     engines: {node: '>=26'}
 
-  '@esportsplus/typescript@0.41.0':
-    resolution: {integrity: sha512-h6kQe8tv+b3aIR2zhzT9QlGPydYSF2tB9seEQ/BV++x4U5S/9DcE3/uFHdv7s1UqhWn7KcZ4O+AuL9qGuFU+Vg==}
+  '@esportsplus/typescript@0.42.0':
+    resolution: {integrity: sha512-vpHCO1fgS7EZIEMFoBd4RIJUptgiZUBMdteEsYE2CapY+cGdzx/rj8TnpxTkaMxMGYg250+45OX9LJ2j8wCeKw==}
     engines: {node: '>=26'}
     hasBin: true
 
@@ -1218,12 +1218,12 @@ snapshots:
   '@esbuild/win32-x64@0.27.2':
     optional: true
 
-  '@esportsplus/reactivity@0.42.0':
+  '@esportsplus/reactivity@0.43.0':
     dependencies:
-      '@esportsplus/typescript': 0.41.0
+      '@esportsplus/typescript': 0.42.0
       '@esportsplus/utilities': 0.28.6
 
-  '@esportsplus/typescript@0.41.0':
+  '@esportsplus/typescript@0.42.0':
     dependencies:
       '@types/node': 26.6.6
       typescript: 7.1.0-beta
