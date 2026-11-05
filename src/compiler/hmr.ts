@@ -483,5 +483,5 @@ const plugin = (state: HmrState): Plugin => ({
 });
 
 
-export { apply, plugin };
+export { apply, HMR_PACKAGE, plugin };
 export type { Handshake, HmrState };

@@ -3,12 +3,13 @@ import { plugin } from '@esportsplus/typescript/compiler';
 import type { SourceMapV3 } from '@esportsplus/typescript/compiler';
 import reactivity from '@esportsplus/reactivity/compiler';
 import { compiler } from '..';
-import { apply, plugin as hmr } from '../hmr';
+import { apply, plugin as hmr, HMR_PACKAGE } from '../hmr';
 import type { Handshake, HmrState } from '../hmr';
 import { PACKAGE_NAME, UNCOMPILED } from '../constants';
 
 
 type VitePlugin = {
+    config: (config: any, env: { command: string }) => { optimizeDeps: { include: string[] } } | undefined;
     configResolved: (config: any) => void;
     enforce: 'pre';
     handleHotUpdate: (ctx: any) => any;
@@ -72,6 +73,17 @@ export default ({ root }: { root?: string } = {}) => {
 
     return {
         ...vitePlugin,
+        // Served template modules import the HMR runtime, which the compiler injects after Vite's dependency scan
+        // has run; listed up front, it is pre-bundled with the rest instead of discovered late with a page reload
+        config(config: any, { command }: { command: string }) {
+            let { exclude = [], include = [] } = config?.optimizeDeps ?? {};
+
+            if (command !== 'serve' || config?.server?.hmr === false || include.includes(HMR_PACKAGE) || exclude.includes(HMR_PACKAGE)) {
+                return undefined;
+            }
+
+            return { optimizeDeps: { include: [HMR_PACKAGE] } };
+        },
         configResolved(config: any) {
             vitePlugin.configResolved(config);
             isDev = config?.command === 'serve' && config?.server?.hmr !== false;
