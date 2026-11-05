@@ -1,4 +1,4 @@
-import { computed, effect, owner, read, root, signal, write } from '@esportsplus/reactivity';
+import { computed, dispose, effect, owner, read, root, signal, write } from '@esportsplus/reactivity';
 import type { Computed } from '@esportsplus/reactivity';
 import { isAsyncFunction } from '@esportsplus/utilities';
 import { ANCHOR_MARKER } from '../constants';
@@ -104,14 +104,14 @@ class EffectSlot implements Slot {
             });
         }
         else {
-            let dispose = fn.length ? () => this.dispose() : undefined,
+            let disposeSlot = fn.length ? () => this.dispose() : undefined,
                 // Reruns already wait for reactivity's microtask, so each one writes straight away.
-                disposer = effect(() => {
+                node = effect(() => {
                     if (!this.live()) {
                         return;
                     }
 
-                    let value = unwrap( fn(dispose) );
+                    let value = unwrap( fn(disposeSlot) );
 
                     if (!this.disposed) {
                         this.update(value);
@@ -120,10 +120,10 @@ class EffectSlot implements Slot {
 
             // Disposed during its first run, before the disposer existed
             if (this.disposed) {
-                disposer();
+                dispose(node);
             }
             else {
-                this.disposer = disposer;
+                this.disposer = () => dispose(node);
             }
         }
 

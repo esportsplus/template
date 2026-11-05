@@ -1,4 +1,5 @@
-import { effect, owner } from '@esportsplus/reactivity';
+import { dispose, effect, owner } from '@esportsplus/reactivity';
+import type { Computed } from '@esportsplus/reactivity';
 import { isArray, isObject } from '@esportsplus/utilities';
 import { ATTRIBUTE_DELIMITERS, STORE } from './constants';
 import { Attributes, Element } from './types';
@@ -243,18 +244,18 @@ function property(ctx: Context | null, name: string, value: unknown) {
 // the same task as the change, and its flush() makes it synchronous.
 function reactive(ctx: Context, element: Element, name: string, value: unknown, batch: Batch | null) {
     let mounted = false,
+        node: Computed<unknown>,
         part: Part | null = name === 'class' || name === 'style' ? { raw: undefined, tokens: null } : null,
         slot: Slot | null = null,
-        stop: VoidFunction,
         within = owner();
 
-    stop = effect(() => {
+    node = effect(() => {
         if (element.isConnected) {
             mounted = true;
         }
         // Out of the document after being seen in it: idle until the end of the task tells a move from a removal
         else if (mounted) {
-            stale(slot ??= { anchor: element, disposed: false, release: stop, state: 0, within });
+            stale(slot ??= { anchor: element, disposed: false, release: () => dispose(node), state: 0, within });
             return;
         }
 
@@ -290,7 +291,10 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
         }
     });
 
-    unowned(element, stop);
+    // An owner disposes the effect itself, so only an unowned one needs a disposer on the element
+    if (within === null) {
+        unowned(element, () => dispose(node));
+    }
 }
 
 // Writes a list after one part's rerun changed it from 'previous' to 'tokens'. A style part whose change keeps every

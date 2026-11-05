@@ -1,4 +1,5 @@
-import { effect, flush, read, signal, write } from '@esportsplus/reactivity';
+import { dispose, effect, flush, read, signal, write } from '@esportsplus/reactivity';
+import type { Computed } from '@esportsplus/reactivity';
 import type { Case } from './harness';
 
 
@@ -387,7 +388,7 @@ const cases: Case[] = [
         item: 'H.1',
         iterations: 20000,
         name: 'attribute effect creation: manual prev compare in the closure vs effect(fn, apply)',
-        setup: () => ({ el: element('<div></div>'), sig: signal(0), stops: [] as VoidFunction[] }),
+        setup: () => ({ el: element('<div></div>'), sig: signal(0), stops: [] as Computed<unknown>[] }),
         variants: [
             {
                 fn: (ctx) => {
@@ -406,7 +407,7 @@ const cases: Case[] = [
 
                     if (ctx.stops.length === 1000) {
                         for (let i = 0; i < 1000; i++) {
-                            ctx.stops[i]();
+                            dispose(ctx.stops[i]);
                         }
 
                         ctx.stops.length = 0;
@@ -427,7 +428,7 @@ const cases: Case[] = [
 
                     if (ctx.stops.length === 1000) {
                         for (let i = 0; i < 1000; i++) {
-                            ctx.stops[i]();
+                            dispose(ctx.stops[i]);
                         }
 
                         ctx.stops.length = 0;
@@ -447,7 +448,7 @@ const cases: Case[] = [
 
             return {
                 build: (variant: number) => {
-                    let stops: VoidFunction[] = [];
+                    let stops: Computed<unknown>[] = [];
 
                     for (let i = 0; i < 1000; i++) {
                         if (variant === 0) {
@@ -476,7 +477,7 @@ const cases: Case[] = [
                 built: -1,
                 i: 0,
                 sig,
-                stops: [] as VoidFunction[]
+                stops: [] as Computed<unknown>[]
             };
         },
         variants: [
@@ -484,7 +485,7 @@ const cases: Case[] = [
                 fn: (ctx) => {
                     if (ctx.built !== 0) {
                         for (let i = 0, n = ctx.stops.length; i < n; i++) {
-                            ctx.stops[i]();
+                            dispose(ctx.stops[i]);
                         }
 
                         ctx.stops = ctx.build(ctx.built = 0);
@@ -499,7 +500,7 @@ const cases: Case[] = [
                 fn: (ctx) => {
                     if (ctx.built !== 1) {
                         for (let i = 0, n = ctx.stops.length; i < n; i++) {
-                            ctx.stops[i]();
+                            dispose(ctx.stops[i]);
                         }
 
                         ctx.stops = ctx.build(ctx.built = 1);

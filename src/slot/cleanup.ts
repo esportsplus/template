@@ -1,4 +1,4 @@
-import { hasOwner, onCleanup, owner, read, signal, write } from '@esportsplus/reactivity';
+import { onCleanup, owner, read, signal, write } from '@esportsplus/reactivity';
 import type { Computed } from '@esportsplus/reactivity';
 import { DEV } from '@esportsplus/template/env';
 import { CLEANUP, PACKAGE_NAME } from '../constants';
@@ -281,7 +281,7 @@ function throws(errors: unknown[] | null) {
 // Hands the orphaned cleanups of nodes inside 'content' to the running owner; call before 'content' is inserted. With no
 // owner running (a slot built inside a detached root) they stay pending for an enclosing slot to claim.
 const adopt = (content: Node) => {
-    if (!hasOwner()) {
+    if (owner() === null) {
         return;
     }
 
@@ -349,7 +349,7 @@ const heal = (slot: Slot) => {
 // Lands on the reactivity owner running now (a root's scope or a computed/effect run), or waits on the node when there
 // is none
 const ondisconnect = (node: Element | Node, fn: VoidFunction) => {
-    if (hasOwner()) {
+    if (owner() !== null) {
         onCleanup(fn);
     }
     else {
@@ -467,7 +467,7 @@ const track = (slot: Slot) => {
 
 // Registers a disposer only when no owner would otherwise reach it: an effect created under an owner is owned by it
 const unowned = (node: Element | Node, fn: VoidFunction) => {
-    if (!hasOwner()) {
+    if (owner() === null) {
         orphan(node as Orphan, fn);
     }
 };

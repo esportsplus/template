@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { effect, flush, signal, write } from '@esportsplus/reactivity';
-import type { Signal } from '@esportsplus/reactivity';
+import { dispose, effect, flush, signal, write } from '@esportsplus/reactivity';
+import type { Computed, Signal } from '@esportsplus/reactivity';
 
 
 describe('signal.selector', () => {
@@ -13,7 +13,7 @@ describe('signal.selector', () => {
 
         // oxlint-disable-next-line unicorn/no-new-array -- preallocated to its final length, every slot is written next
         let counters = new Array<number>(N).fill(0),
-            disposers: VoidFunction[] = [],
+            disposers: Computed<unknown>[] = [],
             source = signal(0);
 
         for (let k = 0; k < N; k++) {
@@ -42,14 +42,14 @@ describe('signal.selector', () => {
         }
 
         for (let i = 0, n = disposers.length; i < n; i++) {
-            disposers[i]();
+            dispose(disposers[i]);
         }
     });
 
     it('natively evicts per-key entries when their last subscriber disposes', () => {
         const N = 50;
 
-        let disposers: VoidFunction[] = [],
+        let disposers: Computed<unknown>[] = [],
             source = signal(0) as Signal<number>;
 
         for (let k = 0; k < N; k++) {
@@ -63,7 +63,7 @@ describe('signal.selector', () => {
         expect(source.keys?.size).toBe(N);
 
         for (let i = 0, n = disposers.length; i < n; i++) {
-            disposers[i]();
+            dispose(disposers[i]);
         }
 
         expect(source.keys).toBeNull();
@@ -77,7 +77,7 @@ describe('signal.selector', () => {
         let source = signal(0) as Signal<number>;
 
         for (let c = 0; c < CYCLES; c++) {
-            let disposers: VoidFunction[] = [];
+            let disposers: Computed<unknown>[] = [];
 
             for (let k = 0; k < N; k++) {
                 let key = k;
@@ -90,7 +90,7 @@ describe('signal.selector', () => {
             expect(source.keys?.size).toBe(N);
 
             for (let i = 0, n = disposers.length; i < n; i++) {
-                disposers[i]();
+                dispose(disposers[i]);
             }
 
             expect(source.keys).toBeNull();
