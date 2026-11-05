@@ -1,4 +1,4 @@
-import { onCleanup, owner, read, signal, write } from '@esportsplus/reactivity';
+import { onCleanup, owner, pause, resume } from '@esportsplus/reactivity';
 import type { Computed } from '@esportsplus/reactivity';
 import { DEV } from '@esportsplus/template/env';
 import { CLEANUP, PACKAGE_NAME } from '../constants';
@@ -51,8 +51,8 @@ let compactAt = 1024,
         : (fn) => setTimeout(fn, 0),
     kept = 0,
     orphans: Orphan[] = [],
-    // Read by every guarded effect that skipped a run, so one found back in the document runs again
-    revival = signal(0),
+    // The effect each queued slot's guard paused, resumed if the slot is back in the document by the end of the task
+    parked = new Map<Slot, Owner>(),
     scheduled = false,
     // The slot whose content each owner builds: an owner's slot is the parent of every slot made within it
     slots = new WeakMap<Owner, Slot>(),
@@ -108,15 +108,19 @@ function drain(fns: VoidFunction[], errors: unknown[] | null): unknown[] | null 
 
 function heals() {
     let errors: unknown[] | null = null,
-        moved = false,
         queue = healing;
 
     healing = [];
 
     for (let i = 0, n = queue.length; i < n; i++) {
-        let slot = queue[i];
+        let slot = queue[i],
+            node = parked.get(slot);
 
         slot.state &= ~QUEUED;
+
+        if (node !== undefined) {
+            parked.delete(slot);
+        }
 
         if (slot.disposed) {
             continue;
@@ -124,15 +128,14 @@ function heals() {
 
         // Back in the document by the end of the task: it was moved, not removed
         if (slot.anchor.isConnected) {
-            moved = true;
+            if (node !== undefined) {
+                resume(node);
+            }
+
             continue;
         }
 
         errors = release(climb(slot), errors);
-    }
-
-    if (moved) {
-        write(revival, revival.value + 1);
     }
 
     report(errors);
@@ -357,9 +360,13 @@ const ondisconnect = (node: Element | Node, fn: VoidFunction) => {
     }
 };
 
-// Called by a guarded effect in place of its run while its anchor is out of the document after being in it
+// Called by a guarded effect in place of its run while its anchor is out of the document after being in it: the effect
+// pauses itself, keeping its dependencies, so a resume replays the skipped run once
 const stale = (slot: Slot) => {
-    read(revival);
+    let node = owner()!;
+
+    pause(node);
+    parked.set(slot, node);
     heal(slot);
 };
 

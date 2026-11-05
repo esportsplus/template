@@ -160,8 +160,8 @@ class EffectSlot implements Slot {
         }
     }
 
-    // Out of the document after being seen in it, a run idles until the end of the task tells a move from a removal,
-    // then is revived or released. A live run makes this slot the parent of the slots it builds.
+    // Out of the document after being seen in it, a run pauses until the end of the task tells a move from a removal,
+    // then is resumed or released. A live run makes this slot the parent of the slots it builds.
     private live() {
         if (this.anchor.isConnected) {
             this.state |= MOUNTED;

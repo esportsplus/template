@@ -253,7 +253,7 @@ function reactive(ctx: Context, element: Element, name: string, value: unknown, 
         if (element.isConnected) {
             mounted = true;
         }
-        // Out of the document after being seen in it: idle until the end of the task tells a move from a removal
+        // Out of the document after being seen in it: paused until the end of the task tells a move from a removal
         else if (mounted) {
             stale(slot ??= { anchor: element, disposed: false, release: () => dispose(node), state: 0, within });
             return;
